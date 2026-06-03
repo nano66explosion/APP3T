@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendrier 3T</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://apis.google.com/js/api.js"></script>
+<script src="https://accounts.google.com/gsi/client"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f0f0f;
+  --surface:#1a1a1a;
+  --surface2:#222;
+  --surface3:#2a2a2a;
+  --border:#2e2e2e;
+  --text:#f0ede8;
+  --muted:#6b6866;
+  --muted2:#888;
+  --c3t:#4ade80;
+  --c3tc:#fb923c;
+  --cgt:#60a5fa;
+  --ctour:#c084fc;
+  --cobs:#94a3b8;
+  --today:#f0ede8;
+}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── UPLOAD ── */
+#upload-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem}
+.upload-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2.5rem 2rem;max-width:380px;width:100%}
+.upload-icon{font-size:40px;margin-bottom:1.25rem}
+.upload-title{font-size:22px;font-weight:600;letter-spacing:-.5px;margin-bottom:.4rem}
+.upload-sub{font-size:13px;color:var(--muted2);margin-bottom:2rem;line-height:1.5}
+.file-row{margin-bottom:1rem}
+.file-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.5rem;display:block}
+.file-btn{display:inline-flex;align-items:center;gap:8px;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;transition:background .15s}
+.file-btn:hover{background:#333}
+.file-name{font-size:11px;color:var(--c3t);margin-top:5px;min-height:16px;font-family:'DM Mono',monospace}
+.go-btn{width:100%;margin-top:1.5rem;padding:13px;background:var(--text);color:#0f0f0f;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.go-btn:disabled{opacity:.3;cursor:not-allowed}
+.go-btn:not(:disabled):hover{opacity:.88}
+input[type=file]{display:none}
+
+/* ── APP ── */
+#app-screen{display:none;max-width:480px;margin:0 auto;min-height:100vh;display:none;flex-direction:column}
+
+/* ── HEADER ── */
+.app-header{padding:1rem 1rem .75rem;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:20}
+.header-row1{display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem}
+.reg-pill{display:flex;align-items:center;gap:6px}
+.reg-avatar{width:32px;height:32px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--c3t);flex-shrink:0;font-family:'DM Mono',monospace}
+.reg-name{font-size:15px;font-weight:600}
+select{background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--text);font-family:inherit;cursor:pointer}
+select:focus{outline:none;border-color:var(--muted2)}
+.back-btn{background:none;border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit}
+.back-btn:hover{border-color:var(--muted)}
+.month-nav{display:flex;align-items:center;gap:8px}
+.month-nav select{flex:1}
+.mnav-btn{background:var(--surface3);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted2);font-size:16px;flex-shrink:0}
+.mnav-btn:hover{border-color:var(--muted)}
+
+/* ── STATS ── */
+.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:.75rem 1rem;border-bottom:1px solid var(--border)}
+.stat-card{background:var(--surface);border-radius:10px;padding:.6rem .75rem}
+.stat-card.htech{border:1px solid #fb923c33}
+.stat-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
+.stat-v{font-size:20px;font-weight:600;font-family:'DM Mono',monospace;line-height:1}
+.stat-s{font-size:10px;color:var(--muted);margin-top:2px}
+
+/* ── LEGEND ── */
+.legend{display:flex;gap:10px;padding:.5rem 1rem;border-bottom:1px solid var(--border);overflow-x:auto}
+.legend::-webkit-scrollbar{display:none}
+.leg{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted2);white-space:nowrap}
+.leg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* ── CALENDAR GRID ── */
+.cal-wrap{flex:1;overflow-y:auto}
+.dow-header{display:grid;grid-template-columns:repeat(7,1fr);padding:.5rem 1rem .25rem;gap:2px}
+.dow{font-size:11px;font-weight:500;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.5px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:0 1rem .5rem}
+.cal-cell{background:var(--surface);border-radius:8px;min-height:52px;padding:5px;cursor:pointer;transition:background .12s;position:relative;overflow:hidden}
+.cal-cell:hover{background:var(--surface2)}
+.cal-cell.empty{background:transparent;cursor:default;pointer-events:none}
+.cal-cell.selected{background:var(--surface3);outline:1.5px solid var(--muted)}
+.cal-cell.is-today .day-num{background:var(--today);color:#0f0f0f;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.day-num{font-size:12px;font-weight:500;color:var(--muted2);margin-bottom:4px;line-height:22px;padding-left:1px}
+.cal-cell.has-events .day-num{color:var(--text)}
+.dot-row{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
+.dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot.d3t{background:var(--c3t)}
+.dot.d3tc{background:var(--c3tc)}
+.dot.dgt{background:var(--cgt)}
+.dot.dtour{background:var(--ctour)}
+.dot.dobs{background:var(--cobs)}
+
+/* ── VIEW TOGGLE ── */
+.view-tabs{display:flex;gap:4px;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg)}
+.vtab{flex:1;padding:6px 4px;font-size:12px;font-weight:500;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;text-align:center}
+.vtab.active{background:var(--text);color:#0f0f0f;border-color:var(--text)}
+.vtab:not(.active):hover{border-color:var(--muted);color:var(--muted2)}
+
+/* ── LIST VIEW ── */
+.list-view{padding:.75rem 1rem}
+.list-day{margin-bottom:1rem}
+.list-day-header{display:flex;align-items:baseline;gap:8px;margin-bottom:.5rem}
+.list-day-num{font-size:22px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text);line-height:1}
+.list-day-label{font-size:12px;color:var(--muted);text-transform:capitalize}
+.list-day.is-today .list-day-num{color:var(--c3t)}
+
+/* ── RÉSUMÉ VIEW ── */
+.resume-view{padding:.75rem 1rem}
+.resume-section{margin-bottom:1.25rem}
+.resume-title{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:.6rem}
+.resume-row{display:flex;align-items:center;gap:8px;padding:.5rem .75rem;background:var(--surface);border-radius:8px;margin-bottom:4px}
+.resume-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.resume-name{font-size:13px;font-weight:500;flex:1;color:var(--text)}
+.resume-count{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;white-space:nowrap}
+.resume-bar-wrap{background:var(--border);border-radius:4px;height:4px;margin-top:2px;overflow:hidden}
+.resume-bar-fill{height:4px;border-radius:4px;transition:width .4s ease}
+.intermi-block{background:var(--surface);border-radius:12px;padding:1rem;margin-bottom:1rem}
+.intermi-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem}
+.intermi-label{font-size:12px;color:var(--muted)}
+.intermi-val{font-size:14px;font-weight:600;font-family:'DM Mono',monospace}
+.progress-track{background:var(--border);border-radius:8px;height:8px;overflow:hidden;margin-top:.5rem}
+.progress-fill{height:8px;border-radius:8px;background:var(--c3t);transition:width .5s ease}
+.progress-label{display:flex;justify-content:space-between;margin-top:.35rem}
+.progress-label span{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace}
+
+/* ── DETAIL PANEL ── *//* ── DETAIL PANEL ── */
+.detail-panel{background:var(--surface);border-top:1px solid var(--border);padding:1rem;animation:slideup .18s ease}
+@keyframes slideup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.detail-date{font-size:13px;font-weight:600;color:var(--muted2);margin-bottom:.75rem;text-transform:capitalize;letter-spacing:.2px}
+.event-card{border-radius:10px;padding:.7rem .9rem;margin-bottom:.5rem;border:1px solid transparent}
+.event-card.e3t{background:#4ade8015;border-color:#4ade8030}
+.event-card.e3tc{background:#fb923c15;border-color:#fb923c30}
+.event-card.egt{background:#60a5fa15;border-color:#60a5fa30}
+.event-card.etour{background:#c084fc15;border-color:#c084fc30}
+.event-card.eobs{background:#94a3b815;border-color:#94a3b830}
+.event-card.eunassigned{background:transparent;border:1px dashed var(--border)}
+.ev-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.ev-name{font-size:14px;font-weight:600;line-height:1.3}
+.e3t .ev-name{color:var(--c3t)}
+.e3tc .ev-name{color:var(--c3tc)}
+.egt .ev-name{color:var(--cgt)}
+.etour .ev-name{color:var(--ctour)}
+.eobs .ev-name{color:var(--cobs)}
+.eunassigned .ev-name{color:var(--muted2)}
+.ev-badges{display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.ev-badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;white-space:nowrap}
+.bdg-h{background:rgba(255,255,255,.07);color:var(--muted2)}
+.bdg-obs{background:#94a3b820;color:var(--cobs)}
+.bdg-form{background:#4ade8020;color:var(--c3t)}
+.ev-meta{font-size:11px;color:var(--muted2);margin-top:4px}
+.no-event{font-size:13px;color:var(--muted);padding:.5rem 0}
+</style>
+</head>
+<body>
+
+<!-- ── UPLOAD ── -->
+<div id="upload-screen">
+  <!-- Config step -->
+  <div class="upload-card" id="card-config" style="display:none">
+    <div class="upload-icon">🔑</div>
+    <div class="upload-title">Configuration</div>
+    <div class="upload-sub">Entre ton Client ID Google une seule fois. Il sera sauvegardé dans le navigateur.</div>
+    <div class="file-row">
+      <label class="file-label">Client ID Google OAuth</label>
+      <input id="client-id-input" type="text" placeholder="123456789-abc...apps.googleusercontent.com"
+        style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--text);font-family:'DM Mono',monospace;margin-top:4px">
+    </div>
+    <button class="go-btn" onclick="saveClientId()" style="margin-top:1rem">Enregistrer</button>
+    <div id="config-error" style="font-size:12px;color:#f87171;margin-top:.75rem;min-height:16px"></div>
+  </div>
+
+  <!-- Main login step -->
+  <div class="upload-card" id="card-login">
+    <div class="upload-icon">🎭</div>
+    <div class="upload-title">Calendrier 3T</div>
+    <div class="upload-sub">Connecte-toi à Google Drive pour charger le plan tech et tes heures techniques directement depuis le Drive.</div>
+
+    <button class="go-btn" id="btn-connect" onclick="connectGoogle()" style="margin-bottom:.75rem">
+      <span>🔗</span> Se connecter à Google
+    </button>
+
+    <div id="drive-status" style="font-size:12px;color:var(--muted);min-height:16px;text-align:center"></div>
+
+    <!-- File pickers (shown after auth) -->
+    <div id="file-pickers" style="display:none;margin-top:1.25rem">
+      <div class="file-row">
+        <label class="file-label">Plan technique</label>
+        <button class="file-btn" onclick="pickDriveFile('plan')">
+          <span>📋</span> Choisir sur Drive
+        </button>
+        <div class="file-name" id="lbl-plan"></div>
+      </div>
+      <div class="file-row" style="margin-top:.75rem">
+        <label class="file-label">Heures techniques <span style="color:var(--muted);font-weight:300">(optionnel)</span></label>
+        <button class="file-btn" onclick="pickDriveFile('htech')">
+          <span>⏱</span> Choisir sur Drive
+        </button>
+        <div class="file-name" id="lbl-htech"></div>
+      </div>
+      <button class="go-btn" id="btn-go" disabled onclick="launchApp()" style="margin-top:1.25rem">Afficher le calendrier</button>
+    </div>
+
+    <button onclick="showConfig()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;margin-top:1rem;font-family:inherit">
+      ⚙️ Modifier le Client ID
+    </button>
+  </div>
+  <!-- Keep file inputs as fallback -->
+  <input type="file" id="file-plan" accept=".xlsx,.xls" onchange="onPlanLoaded(this)" style="display:none">
+  <input type="file" id="file-htech" accept=".xlsx,.xls" onchange="onHtechLoaded(this)" style="display:none">
+</div>
+
+<!-- ── APP ── -->
+<div id="app-screen" style="display:none">
+
+  <div class="app-header">
+    <div class="header-row1">
+      <div class="reg-pill">
+        <div class="reg-avatar" id="reg-avatar">MX</div>
+        <select id="reg-select" onchange="onRegChange()"></select>
+      </div>
+      <button class="back-btn" onclick="resetApp()">↩</button>
+    </div>
+    <div class="month-nav">
+      <button class="mnav-btn" onclick="changeMonth(-1)">‹</button>
+      <select id="mois-select" onchange="renderCalendar()"></select>
+      <button class="mnav-btn" onclick="changeMonth(1)">›</button>
+    </div>
+  </div>
+
+  <div class="stats-row" id="stats"></div>
+
+  <div class="legend">
+    <div class="leg"><div class="leg-dot" style="background:var(--c3t)"></div>3T</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--c3tc)"></div>3T Côté</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--cgt)"></div>Grand Théâtre</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--ctour)"></div>Tournée</div>
+    <div class="leg"><div class="leg-dot" style="background:var(--cobs)"></div>Observation</div>
+  </div>
+
+  <div class="view-tabs">
+    <button class="vtab active" id="tab-grid" onclick="switchView('grid')">📅 Grille</button>
+    <button class="vtab" id="tab-list" onclick="switchView('list')">📋 Agenda</button>
+    <button class="vtab" id="tab-resume" onclick="switchView('resume')">📊 Résumé</button>
+  </div>
+
+  <div id="view-container" style="overflow-y:auto;flex:1">
+    <!-- Grid view -->
+    <div id="view-grid">
+      <div class="dow-header">
+        <div class="dow">Lu</div><div class="dow">Ma</div><div class="dow">Me</div>
+        <div class="dow">Je</div><div class="dow">Ve</div>
+        <div class="dow" style="color:#f87171">Sa</div>
+        <div class="dow" style="color:#f87171">Di</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div id="detail-panel"></div>
+    </div>
+    <!-- List view -->
+    <div id="view-list" style="display:none"></div>
+    <!-- Résumé view -->
+    <div id="view-resume" style="display:none"></div>
+  </div>
+
+</div>
+
+<script>
+// ─── HEURES TECHNIQUES DATA ─────────────────────────────────────────────────
+let htechData = {}; // { regNom: { total: float, stopDate: string|null } }
+
+function parseHtechFile(wb) {
+  const result = {};
+  wb.SheetNames.forEach(sheetName => {
+    // Try to find which regisseur this tab belongs to
+    const regNom = normRegFromSheetName(sheetName);
+    if (!regNom) return;
+
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
+
+    let total = 0;
+    let stopDate = null;
+
+    rows.forEach(row => {
+      // Check for STOP line
+      const motif = String(row[3]||'').trim().toUpperCase();
+      if (motif.includes('STOP')) {
+        const m = motif.match(/STOP AU (\d{2}\/\d{2}\/\d{4})/);
+        if (m) stopDate = m[1];
+      }
+      // Check for TOTAL line
+      if (motif === 'TOTAL') {
+        const v = parseFloat(row[4]);
+        if (!isNaN(v)) total = v;
+        return;
+      }
+      // Sum nb heures (col 4), skip 0s and header rows
+      const nbH = parseFloat(row[4]);
+      if (!isNaN(nbH) && nbH > 0 && row[0] !== 'Date') {
+        // Only count if no STOP yet, or date before STOP
+        total = 0; // we use the TOTAL row if available
+      }
+    });
+
+    // Fallback: if no TOTAL row, sum manually
+    if (total === 0) {
+      rows.forEach(row => {
+        const motif = String(row[3]||'').trim().toUpperCase();
+        if (motif === 'TOTAL' || motif.includes('STOP')) return;
+        const nbH = parseFloat(row[4]);
+        if (!isNaN(nbH) && nbH > 0 && String(row[0]||'') !== 'Date') {
+          total += nbH;
+        }
+      });
+    }
+
+    result[regNom] = { total: Math.round(total * 100) / 100, stopDate };
+  });
+  return result;
+}
+
+function normRegFromSheetName(name) {
+  const n = String(name||'').trim();
+  // Try exact or partial match against known regisseurs
+  for (const r of REGS) {
+    for (const v of r.v) {
+      if (n.toLowerCase().includes(v)) return r.nom;
+    }
+    // Also check official nom
+    if (n.toLowerCase().includes(r.nom.toLowerCase())) return r.nom;
+  }
+  // Théo Rizzo special case
+  if (/théo.?rizzo/i.test(n)||/rizzo/i.test(n)) return 'Rizzo';
+  return null;
+}
+
+// ─── TABLE DE NORMALISATION ───────────────────────────────────────────────────
+// ─── TABLE DE NORMALISATION ───────────────────────────────────────────────────
+const REGS = [
+  {nom:'Maxime', v:['maxime','max','maxi']},
+  {nom:'JM',     v:['jm','j.m','j-m','jean-marc']},
+  {nom:'Jules',  v:['jules']},
+  {nom:'Théo',   v:['théo','theo']},
+  {nom:'Simon',  v:['simon']},
+  {nom:'Rizzo',  v:['rizzo']},
+  {nom:'Charly', v:['charly','charlie']},
+  {nom:'Laurie', v:['laurie','laure']},
+  {nom:'Louis',  v:['louis']},
+];
+
+function norm(raw){
+  return String(raw||'').toLowerCase().trim()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+
+function normReg(raw){
+  if(!raw) return null;
+  const n = norm(raw);
+  for(const r of REGS)
+    for(const v of r.v)
+      if(n===norm(v)) return r.nom;
+  // prefix match (word boundary)
+  for(const r of REGS)
+    for(const v of r.v){
+      const nv=norm(v);
+      if(n.startsWith(nv)&&(n.length===nv.length||!/[a-z]/.test(n[nv.length])))
+        return r.nom;
+    }
+  return null;
+}
+
+// Extract all known reg names from a free-text string
+function extractRegs(text){
+  if(!text) return [];
+  const found=new Set();
+  String(text).split(/[\s,\/&+()\n]+/).forEach(p=>{
+    const n=normReg(p.trim());
+    if(n) found.add(n);
+  });
+  return [...found];
+}
+
+// Clean spectacle name: remove prefix codes and trailing time
+function cleanSpec(raw){
+  if(!raw) return '';
+  return String(raw)
+    .split('\n')[0]
+    .replace(/^\s*(33|37)\s+/i,'')
+    .replace(/\s*\d{1,2}h\d{0,2}\s*$/i,'')
+    .trim();
+}
+
+// Parse a régie cell: "Jules" / "Jules/Théo" / "Rizzo(Simon)"
+// Returns [{reg, role}]
+// role: 'titulaire' | 'doublon' | 'observateur' | 'formateur'
+function parseRegie(raw){
+  if(!raw) return [];
+  const str = String(raw).trim();
+  const result=[];
+
+  // Pattern with parentheses: "Rizzo(Simon)" or "Jules(Max)"
+  const obsM = str.match(/^(.*?)\(([^)]+)\)(.*)$/);
+  if(obsM){
+    const before=(obsM[1]+obsM[3]).replace(/\/+/g,'/').replace(/^\/|\/$/g,'').trim();
+    const inside=obsM[2].trim();
+    if(before){
+      const parts=before.split(/[\/,]/).filter(Boolean);
+      const role=parts.length>1?'doublon':'titulaire';
+      parts.forEach(p=>{
+        const n=normReg(p.trim());
+        if(n) result.push({reg:n,role,isFormateur:true});
+      });
+    }
+    inside.split(/[\/,]/).forEach(p=>{
+      const n=normReg(p.trim());
+      if(n) result.push({reg:n,role:'observateur'});
+    });
+    return result;
+  }
+
+  const parts=str.split(/[\/,]/).map(p=>p.trim()).filter(Boolean);
+  const role=parts.length>1?'doublon':'titulaire';
+  parts.forEach(p=>{
+    const n=normReg(p);
+    if(n) result.push({reg:n,role});
+  });
+  return result;
+}
+
+// ─── COLUMN MAPPING ──────────────────────────────────────────────────────────
+// Key insight: in week days Laurent only fills cols 4-5 (3T), 9-10 (3TC), 14-15 (GT)
+// On Saturday he fills ALL slots: 2-3 (3T 18h45), 4-5 (3T 21h), etc.
+// Horaire rule: Saturday = real 18h45/21h. Weekdays = always 20h regardless of column.
+
+const SLOTS_SAM = [
+  {salle:'3T',  cS:2,  cR:3,  h:'18h45'},
+  {salle:'3T',  cS:4,  cR:5,  h:'21h'},
+  {salle:'3TC', cS:7,  cR:8,  h:'18h45'},
+  {salle:'3TC', cS:9,  cR:10, h:'21h'},
+  {salle:'GT',  cS:12, cR:13, h:'18h45'},
+  {salle:'GT',  cS:14, cR:15, h:'21h'},
+];
+
+// Weekdays: only the "21h" columns are used (Laurent's choice), horaire = 20h
+const SLOTS_SEM = [
+  {salle:'3T',  cS:4,  cR:5,  h:'20h'},
+  {salle:'3TC', cS:9,  cR:10, h:'20h'},
+  {salle:'GT',  cS:14, cR:15, h:'20h'},
+];
+
+const JOURS_V=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
+
+let allDays=[], allMois=[], allRegs=[];
+
+function moisKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+function moisLabel(d){ return d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'}); }
+
+function parsePlanTech(wb){
+  const days=[];
+  const regSet=new Set();
+
+  wb.SheetNames.forEach(sheetName=>{
+    if(/modèle|copie/i.test(sheetName)) return;
+
+    const ws=wb.Sheets[sheetName];
+    // raw:true keeps numbers as numbers (serial dates stay as serials)
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+
+    // Get sheet year from row 1 col 0 (serial date)
+    let sheetYear=null;
+    const hdVal=rows[1]&&rows[1][0];
+    if(typeof hdVal==='number'&&hdVal>40000){
+      sheetYear=new Date(Math.round((hdVal-25569)*86400000)).getUTCFullYear();
+    }
+    if(!sheetYear) return;
+
+    // Find Tournée col dynamically
+    let tourCol=17;
+    const hRow=rows[3]||[];
+    hRow.forEach((c,i)=>{ if(String(c).trim().toLowerCase()==='tournée') tourCol=i; });
+
+    // Dynamically find the first data row (row after the "Date" header)
+    let firstDataRow = 4; // fallback
+    for(let i=0;i<Math.min(rows.length,8);i++){
+      if(String(rows[i][0]||'').trim().toLowerCase()==='date'){
+        firstDataRow=i+1; break;
+      }
+    }
+
+    rows.forEach((row,ri)=>{
+      if(ri<firstDataRow) return;
+      const jourRaw=String(row[0]||'').trim().toLowerCase();
+      if(!JOURS_V.some(j=>jourRaw.startsWith(j))) return;
+
+      // Convert Excel serial to a UTC-based date key string (YYYY-MM-DD)
+      const serial=rows[ri][1];
+      if(typeof serial!=='number'||serial<40000) return;
+      const utcDate=new Date(Math.round((serial-25569)*86400000));
+      // Use UTC values to build correct date, override year from sheet header
+      const dateObj=new Date(Date.UTC(sheetYear,utcDate.getUTCMonth(),utcDate.getUTCDate()));
+
+      const isSam=dateObj.getDay()===6;
+      const slots=isSam?SLOTS_SAM:SLOTS_SEM;
+      const entries=[];
+
+      slots.forEach(slot=>{
+        const specRaw=String(row[slot.cS]||'').trim();
+        const regRaw=String(row[slot.cR]||'').trim();
+        if(!specRaw&&!regRaw) return;
+        const specNom=cleanSpec(specRaw);
+        const regies=parseRegie(regRaw);
+        regies.forEach(r=>regSet.add(r.reg));
+        if(specNom||regies.length>0)
+          entries.push({salle:slot.salle,h:slot.h,spec:specNom,regies,unassigned:regies.length===0&&!!specNom});
+      });
+
+      // Tournée: scan entire cell text for reg names
+      const tourRaw=String(row[tourCol]||'').trim();
+      if(tourRaw&&!/^\d{4}-\d{2}-\d{2}/.test(tourRaw)&&!/^\d+$/.test(tourRaw)){
+        const tourRegs=extractRegs(tourRaw);
+        if(tourRegs.length>0){
+          tourRegs.forEach(r=>regSet.add(r));
+          // Build spec name: first line, remove known reg names
+          let specNom=tourRaw.split('\n')[0];
+          tourRegs.forEach(r=>{
+            const rv=REGS.find(x=>x.nom===r);
+            if(rv) rv.v.forEach(v=>{
+              specNom=specNom.replace(new RegExp('\\b'+norm(v)+'\\b','gi'),'');
+            });
+          });
+          specNom=specNom.replace(/[&]/g,'').replace(/\s+/g,' ').trim();
+          specNom=cleanSpec(specNom)||'Tournée';
+          entries.push({
+            salle:'Tournée',h:'',
+            spec:specNom,
+            regies:tourRegs.map(r=>({reg:r,role:'tournée'}))
+          });
+        }
+      }
+
+      if(entries.length>0)
+        days.push({date:dateObj,jour:jourRaw,entries});
+    });
+  });
+
+  // Deduplicate by date
+  const map=new Map();
+  days.forEach(d=>{
+    const k=d.date.toISOString().slice(0,10); // UTC date, safe since we store UTC midnights
+    if(!map.has(k)) map.set(k,d);
+    else map.get(k).entries.push(...d.entries);
+  });
+
+  const unique=[...map.values()].sort((a,b)=>a.date-b.date);
+  const moisMap=new Map();
+  unique.forEach(d=>{
+    const k=moisKey(d.date);
+    if(!moisMap.has(k)) moisMap.set(k,moisLabel(d.date));
+  });
+
+  return{
+    days:unique,
+    mois:[...moisMap.entries()].map(([k,l])=>({k,l})),
+    regs:[...regSet].filter(Boolean).sort()
+  };
+}
+
+// ─── GOOGLE DRIVE CONNECTION ─────────────────────────────────────────────────
+const SCOPES = 'https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets.readonly';
+const DISCO_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+let accessToken = null;
+let pickerApiLoaded = false;
+let planLoaded = false;
+
+function getClientId() { return localStorage.getItem('3t_client_id') || ''; }
+
+function saveClientId() {
+  const val = document.getElementById('client-id-input').value.trim();
+  if (!val.includes('apps.googleusercontent.com')) {
+    document.getElementById('config-error').textContent = 'Format invalide. Vérifie ton Client ID.';
+    return;
+  }
+  localStorage.setItem('3t_client_id', val);
+  document.getElementById('card-config').style.display = 'none';
+  document.getElementById('card-login').style.display = '';
+}
+
+function showConfig() {
+  document.getElementById('card-config').style.display = '';
+  document.getElementById('card-login').style.display = 'none';
+  document.getElementById('client-id-input').value = getClientId();
+}
+
+// Init: show config if no client ID saved
+window.addEventListener('load', () => {
+  if (!getClientId()) {
+    showConfig();
+  }
+  // Load Google API
+  gapi.load('client:picker', () => {
+    pickerApiLoaded = true;
+  });
+});
+
+function connectGoogle() {
+  const clientId = getClientId();
+  if (!clientId) { showConfig(); return; }
+
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: clientId,
+    scope: SCOPES,
+    callback: (resp) => {
+      if (resp.error) {
+        setStatus('❌ Erreur : ' + resp.error);
+        return;
+      }
+      accessToken = resp.access_token;
+      gapi.client.setToken({ access_token: accessToken });
+      setStatus('✅ Connecté à Google Drive');
+      document.getElementById('btn-connect').textContent = '✅ Connecté';
+      document.getElementById('btn-connect').style.opacity = '0.6';
+      document.getElementById('file-pickers').style.display = '';
+    }
+  });
+  client.requestAccessToken();
+}
+
+function setStatus(msg) {
+  document.getElementById('drive-status').textContent = msg;
+}
+
+// ─── GOOGLE DRIVE PICKER ─────────────────────────────────────────────────────
+function pickDriveFile(type) {
+  if (!accessToken) { alert('Connecte-toi d\'abord à Google.'); return; }
+  const clientId = getClientId();
+
+  gapi.load('picker', () => {
+    const view = new google.picker.DocsView()
+      .setMimeTypes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.google-apps.spreadsheet')
+      .setMode(google.picker.DocsViewMode.LIST);
+
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(accessToken)
+      .setCallback(data => pickerCallback(data, type))
+      .build();
+    picker.setVisible(true);
+  });
+}
+
+async function pickerCallback(data, type) {
+  if (data.action !== google.picker.Action.PICKED) return;
+  const file = data.docs[0];
+  const fileId = file.id;
+  const fileName = file.name;
+  const lbl = document.getElementById(type === 'plan' ? 'lbl-plan' : 'lbl-htech');
+  lbl.textContent = '⏳ ' + fileName;
+
+  try {
+    let arrayBuffer;
+
+    // If it's a native Google Sheet, export as xlsx
+    if (file.mimeType === 'application/vnd.google-apps.spreadsheet') {
+      const resp = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`,
+        { headers: { Authorization: 'Bearer ' + accessToken } }
+      );
+      arrayBuffer = await resp.arrayBuffer();
+    } else {
+      // Already an xlsx
+      const resp = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        { headers: { Authorization: 'Bearer ' + accessToken } }
+      );
+      arrayBuffer = await resp.arrayBuffer();
+    }
+
+    const wb = XLSX.read(arrayBuffer, { type: 'array' });
+    if (type === 'plan') {
+      const p = parsePlanTech(wb);
+      allDays = p.days; allMois = p.mois; allRegs = p.regs;
+      planLoaded = true;
+      lbl.textContent = '✓ ' + fileName;
+      updateGoButton();
+    } else {
+      const parsed = parseHtechFile(wb);
+      Object.assign(htechData, parsed);
+      lbl.textContent = '✓ ' + fileName;
+      if (planLoaded) renderCalendar();
+    }
+  } catch(err) {
+    lbl.textContent = '❌ Erreur lecture';
+    console.error(err);
+    alert('Erreur : ' + err.message);
+  }
+}
+
+function updateGoButton() {
+  const btn = document.getElementById('btn-go');
+  if (planLoaded) {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  }
+}
+
+function launchApp() {
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'flex';
+  populateSelects();
+  renderCalendar();
+}
+
+// Keep local file fallback
+function readXlsx(file, callback) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try { callback(XLSX.read(e.target.result, {type:'array'})); }
+    catch(err) { alert('Erreur : ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function onPlanLoaded(input) {
+  const file = input.files[0]; if (!file) return;
+  document.getElementById('lbl-plan').textContent = file.name;
+  readXlsx(file, wb => {
+    const p = parsePlanTech(wb); allDays=p.days; allMois=p.mois; allRegs=p.regs;
+    planLoaded=true; updateGoButton();
+  });
+}
+function onHtechLoaded(input) {
+  const file = input.files[0]; if (!file) return;
+  readXlsx(file, wb => {
+    Object.assign(htechData, parseHtechFile(wb));
+    document.getElementById('lbl-htech').textContent = file.name + ' ✓';
+    if (planLoaded) renderCalendar();
+  });
+}
+
+function resetApp(){
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('lbl-plan').textContent='';
+  document.getElementById('lbl-htech').textContent='';
+  planLoaded=false; htechData={};
+  allDays=[]; allMois=[]; allRegs=[];
+  const btn=document.getElementById('btn-go');
+  btn.disabled=true; btn.style.opacity='.3'; btn.style.cursor='not-allowed';
+}
+
+function populateSelects(){
+  document.getElementById('reg-select').innerHTML=
+    allRegs.map(r=>`<option value="${r}">${r}</option>`).join('');
+  const ms=document.getElementById('mois-select');
+  ms.innerHTML=allMois.map(m=>`<option value="${m.k}">${m.l}</option>`).join('');
+  if(allMois.length) ms.value=allMois[allMois.length-1].k;
+}
+
+function changeMonth(d){
+  const sel=document.getElementById('mois-select');
+  const idx=allMois.findIndex(m=>m.k===sel.value);
+  sel.value=allMois[Math.max(0,Math.min(allMois.length-1,idx+d))].k;
+  renderCalendar();
+}
+
+
+let selectedDay = null;
+
+function onRegChange() {
+  const reg = document.getElementById('reg-select').value;
+  const initials = reg.slice(0,2).toUpperCase();
+  document.getElementById('reg-avatar').textContent = initials;
+  selectedDay = null;
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const reg = document.getElementById('reg-select').value;
+  const mk = document.getElementById('mois-select').value;
+  const [y, m] = mk.split('-').map(Number);
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const nbDays = new Date(y, m, 0).getDate();
+
+  // If another view is active, delegate
+  if (currentView === 'list') { renderList(reg, y, m); return; }
+  if (currentView === 'resume') { renderResume(reg, y, m); return; }
+
+  const dayMap = buildDayMap(reg, y, m);
+
+  // Stats
+  let nR = 0, nT = 0;
+  Object.values(dayMap).forEach(entries => entries.forEach(e => {
+    if (e.salle === 'Tournée') nT++;
+    else if (e.myRole !== 'observateur') nR++;
+  }));
+
+  const htInfo = htechData[reg] || null;
+  const htLabel = htInfo ? `${htInfo.total}h` : '—';
+  const htSub = htInfo ? (htInfo.stopDate ? `stop ${htInfo.stopDate}` : 'chargé') : 'non chargé';
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="stat-l">Régies</div><div class="stat-v">${nR}</div><div class="stat-s">forfaits</div></div>
+    <div class="stat-card htech"><div class="stat-l">Heures tech</div><div class="stat-v">${htLabel}</div><div class="stat-s">${htSub}</div></div>
+    <div class="stat-card"><div class="stat-l">Tournées</div><div class="stat-v">${nT}</div><div class="stat-s">~180€</div></div>`;
+
+  // Build calendar grid
+  // First day of month: getDay() → 0=Sun,1=Mon... we want Mon=0
+  const firstDow = new Date(y, m-1, 1).getDay(); // 0=Sun
+  const offset = firstDow === 0 ? 6 : firstDow - 1; // Mon-based offset
+
+  let cells = '';
+  // Empty cells before month start
+  for (let i = 0; i < offset; i++) cells += '<div class="cal-cell empty"></div>';
+
+  for (let d = 1; d <= nbDays; d++) {
+    const isoKey = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = isoKey === todayKey;
+    const isSelected = selectedDay === d;
+    const entries = dayMap[d] || [];
+    const hasEvents = entries.length > 0;
+    const dow = new Date(y, m-1, d).getDay(); // 0=Sun,6=Sat
+    const isWeekend = dow === 0 || dow === 6;
+
+    // Build dots
+    let dots = '';
+    entries.forEach(e => {
+      let cls = 'dgt';
+      if (e.salle === '3T') cls = 'd3t';
+      else if (e.salle === '3TC') cls = 'd3tc';
+      else if (e.salle === 'Tournée') cls = 'dtour';
+      if (e.myRole === 'observateur') cls = 'dobs';
+      dots += `<div class="dot ${cls}"></div>`;
+    });
+
+    cells += `<div class="cal-cell${hasEvents?' has-events':''}${isToday?' is-today':''}${isSelected?' selected':''}" onclick="selectDay(${d})">
+      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}</div>
+      ${dots ? `<div class="dot-row">${dots}</div>` : ''}
+    </div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = cells;
+
+  // Render detail if a day is selected
+  renderDetail(reg, y, m, dayMap);
+}
+
+function selectDay(d) {
+  selectedDay = selectedDay === d ? null : d;
+  const reg = document.getElementById('reg-select').value;
+  const mk = document.getElementById('mois-select').value;
+  const [y, m] = mk.split('-').map(Number);
+  const nbDays = new Date(y, m, 0).getDate();
+
+  // Rebuild dayMap for detail
+  const dayMap = {};
+  for (let dd = 1; dd <= nbDays; dd++) {
+    const isoKey = `${y}-${String(m).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+    const dayData = allDays.find(x => x.date.toISOString().slice(0,10) === isoKey);
+    dayMap[dd] = dayData
+      ? dayData.entries
+          .filter(e => e.regies.some(r => r.reg === reg) || e.unassigned)
+          .map(e => ({...e,
+            myRole: e.regies.find(r => r.reg === reg)?.role,
+            isFormateur: e.regies.find(r => r.reg === reg)?.isFormateur || false
+          }))
+      : [];
+  }
+
+  // Update selected state visually
+  document.querySelectorAll('.cal-cell').forEach((el, i) => {
+    const cellDay = i + 1 - [...document.querySelectorAll('.cal-cell.empty')].length;
+    el.classList.toggle('selected', cellDay === selectedDay);
+  });
+
+  renderDetail(reg, y, m, dayMap);
+  if (selectedDay) {
+    const panel = document.getElementById('detail-panel');
+    panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+
+function renderDetail(reg, y, m, dayMap) {
+  const panel = document.getElementById('detail-panel');
+  if (!selectedDay) { panel.innerHTML = ''; return; }
+
+  const entries = dayMap[selectedDay] || [];
+  const dateObj = new Date(y, m-1, selectedDay);
+  const jourStr = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const moisStr = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const dateLabel = `${jourStr[dateObj.getDay()]} ${selectedDay} ${moisStr[m-1]} ${y}`;
+
+  let cardsHTML = '';
+  if (entries.length === 0) {
+    cardsHTML = '<div class="no-event">Aucune régie ce jour</div>';
+  } else {
+    entries.forEach(e => {
+      let cls = 'egt';
+      if (e.salle === '3T') cls = 'e3t';
+      else if (e.salle === '3TC') cls = 'e3tc';
+      else if (e.salle === 'Tournée') cls = 'etour';
+      if (e.myRole === 'observateur') cls = 'eobs';
+      if (e.unassigned) cls = 'eunassigned';
+
+      const salleLabel = e.salle === '3TC' ? '3T Côté' : e.salle === 'GT' ? 'Grand Théâtre' : e.salle;
+      const others = e.regies.filter(r => r.reg !== reg).map(r => r.reg);
+      const withStr = others.length ? ` · avec ${others.join(', ')}` : '';
+
+      const badges = [];
+      if (e.h) badges.push(`<span class="ev-badge bdg-h">${e.h}</span>`);
+      if (e.myRole === 'observateur') badges.push('<span class="ev-badge bdg-obs">observation</span>');
+      if (e.isFormateur) badges.push('<span class="ev-badge bdg-form">formation</span>');
+
+      let meta;
+      if (e.salle === 'Tournée') meta = `Tournée · ~180€${withStr}`;
+      else if (e.myRole === 'observateur') meta = `${salleLabel} · heures techniques${withStr}`;
+      else meta = `${salleLabel}${withStr}`;
+
+      cardsHTML += `<div class="event-card ${cls}">
+        <div class="ev-top">
+          <span class="ev-name">${e.spec || '—'}</span>
+          <div class="ev-badges">${badges.join('')}</div>
+        </div>
+        <div class="ev-meta">${meta}</div>
+      </div>`;
+    });
+  }
+
+  panel.innerHTML = `<div class="detail-panel">
+    <div class="detail-date">${dateLabel}</div>
+    ${cardsHTML}
+  </div>`;
+}
+
+let currentView = 'grid';
+
+function switchView(v) {
+  currentView = v;
+  ['grid','list','resume'].forEach(name => {
+    document.getElementById('view-'+name).style.display = name===v ? '' : 'none';
+    document.getElementById('tab-'+name).classList.toggle('active', name===v);
+  });
+  const reg = document.getElementById('reg-select').value;
+  const mk = document.getElementById('mois-select').value;
+  const [y, m] = mk.split('-').map(Number);
+  if (v === 'list') renderList(reg, y, m);
+  if (v === 'resume') renderResume(reg, y, m);
+  if (v === 'grid') renderCalendar();
+}
+
+function buildDayMap(reg, y, m) {
+  const nbDays = new Date(y, m, 0).getDate();
+  const map = {};
+  for (let d = 1; d <= nbDays; d++) {
+    const isoKey = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayData = allDays.find(x => x.date.toISOString().slice(0,10) === isoKey);
+    map[d] = dayData
+      ? dayData.entries
+          .filter(e => e.regies.some(r => r.reg === reg) || e.unassigned)
+          .map(e => ({...e,
+            myRole: e.regies.find(r => r.reg === reg)?.role,
+            isFormateur: e.regies.find(r => r.reg === reg)?.isFormateur || false
+          }))
+      : [];
+  }
+  return map;
+}
+
+function eventCardHTML(e, reg) {
+  let cls = 'egt';
+  if (e.salle==='3T') cls='e3t';
+  else if (e.salle==='3TC') cls='e3tc';
+  else if (e.salle==='Tournée') cls='etour';
+  if (e.myRole==='observateur') cls='eobs';
+  if (e.unassigned) cls='eunassigned';
+  const salleLabel = e.salle==='3TC'?'3T Côté':e.salle==='GT'?'Grand Théâtre':e.salle;
+  const others = e.regies.filter(r=>r.reg!==reg).map(r=>r.reg);
+  const withStr = others.length ? ` · avec ${others.join(', ')}` : '';
+  const badges = [];
+  if (e.h) badges.push(`<span class="ev-badge bdg-h">${e.h}</span>`);
+  if (e.myRole==='observateur') badges.push('<span class="ev-badge bdg-obs">observation</span>');
+  if (e.isFormateur) badges.push('<span class="ev-badge bdg-form">formation</span>');
+  let meta = e.salle==='Tournée' ? `Tournée · ~180€${withStr}`
+    : e.myRole==='observateur' ? `${salleLabel} · heures techniques${withStr}`
+    : `${salleLabel}${withStr}`;
+  return `<div class="event-card ${cls}">
+    <div class="ev-top"><span class="ev-name">${e.spec||'—'}</span><div class="ev-badges">${badges.join('')}</div></div>
+    <div class="ev-meta">${meta}</div>
+  </div>`;
+}
+
+// ── AGENDA VIEW ────────────────────────────────────────────────────────────
+function renderList(reg, y, m) {
+  const dayMap = buildDayMap(reg, y, m);
+  const jourStr = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}`;
+  let html = '<div class="list-view">';
+  let hasSomething = false;
+  const nbDays = new Date(y, m, 0).getDate();
+  for (let d = 1; d <= nbDays; d++) {
+    const entries = dayMap[d];
+    if (!entries || entries.length === 0) continue;
+    hasSomething = true;
+    const isoKey = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = isoKey === todayKey;
+    const dow = new Date(y, m-1, d).getDay();
+    const jourNom = jourStr[dow];
+    html += `<div class="list-day${isToday?' is-today':''}">
+      <div class="list-day-header">
+        <span class="list-day-num">${d}</span>
+        <span class="list-day-label">${jourNom}</span>
+      </div>
+      ${entries.map(e => eventCardHTML(e, reg)).join('')}
+    </div>`;
+  }
+  if (!hasSomething) html += '<div style="padding:2rem;text-align:center;color:var(--muted);font-size:14px">Aucune régie ce mois</div>';
+  html += '</div>';
+  document.getElementById('view-list').innerHTML = html;
+}
+
+// ── RÉSUMÉ VIEW ────────────────────────────────────────────────────────────
+function renderResume(reg, y, m) {
+  const dayMap = buildDayMap(reg, y, m);
+  const nbDays = new Date(y, m, 0).getDate();
+
+  // Build spectacle breakdown
+  const specMap = {};
+  let nTournees = 0;
+  let hForfait = 0;
+
+  for (let d = 1; d <= nbDays; d++) {
+    (dayMap[d]||[]).forEach(e => {
+      if (e.salle === 'Tournée') { nTournees++; return; }
+      if (e.myRole === 'observateur' || e.unassigned) return;
+      const key = e.spec || '—';
+      if (!specMap[key]) specMap[key] = {count:0, salle:e.salle, cls:''};
+      specMap[key].count++;
+    });
+  }
+
+  // Salle colors
+  const salleColor = {'3T':'var(--c3t)','3TC':'var(--c3tc)','GT':'var(--cgt)'};
+  const specs = Object.entries(specMap).sort((a,b)=>b[1].count-a[1].count);
+  const maxCount = specs.length ? specs[0][1].count : 1;
+
+  let specsHTML = '';
+  if (specs.length === 0) {
+    specsHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Aucun spectacle forfaité</div>';
+  } else {
+    specs.forEach(([name, data]) => {
+      const color = salleColor[data.salle] || 'var(--cgt)';
+      const pct = Math.round((data.count / maxCount) * 100);
+      const salleLabel = data.salle==='3TC'?'3T Côté':data.salle==='GT'?'Grand Théâtre':data.salle;
+      specsHTML += `<div class="resume-row">
+        <div class="resume-dot" style="background:${color}"></div>
+        <div style="flex:1">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="resume-name">${name}</span>
+            <span class="resume-count">${data.count}× · ${salleLabel}</span>
+          </div>
+          <div class="resume-bar-wrap"><div class="resume-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // Intermittence block
+  // Count total hours this month from plan tech (rough estimate: each forfait = 3h average as placeholder)
+  // + heures tech from loaded file
+  const htInfo = htechData[reg] || null;
+  const htTotal = htInfo ? htInfo.total : null;
+
+  // Count hours this month from allDays across 12 months for intermittence estimate
+  // For now just show month totals
+  const nRegies = specs.reduce((s, [,d]) => s + d.count, 0);
+
+  let resumeHTML = `<div class="resume-view">
+    <div class="resume-section">
+      <div class="resume-title">Spectacles du mois</div>
+      ${specsHTML}
+    </div>`;
+
+  if (nTournees > 0) {
+    resumeHTML += `<div class="resume-section">
+      <div class="resume-title">Tournées</div>
+      <div class="resume-row">
+        <div class="resume-dot" style="background:var(--ctour)"></div>
+        <span class="resume-name">Déplacements</span>
+        <span class="resume-count">${nTournees}× · ~${nTournees*180}€</span>
+      </div>
+    </div>`;
+  }
+
+  if (htTotal !== null) {
+    resumeHTML += `<div class="resume-section">
+      <div class="resume-title">Heures techniques</div>
+      <div class="resume-row">
+        <div class="resume-dot" style="background:#facc15"></div>
+        <span class="resume-name">Total heures tech</span>
+        <span class="resume-count">${htTotal}h${htInfo.stopDate ? ' · stop '+htInfo.stopDate : ''}</span>
+      </div>
+    </div>`;
+  }
+
+  // Intermittence note
+  resumeHTML += `<div class="resume-section">
+    <div class="resume-title">Intermittence</div>
+    <div class="intermi-block">
+      <div class="intermi-row">
+        <span class="intermi-label">Régies ce mois</span>
+        <span class="intermi-val">${nRegies} spectacles</span>
+      </div>
+      <div class="intermi-row" style="margin-bottom:0">
+        <span class="intermi-label">Heures tech</span>
+        <span class="intermi-val">${htTotal !== null ? htTotal+'h' : '— (charge un fichier)'}</span>
+      </div>
+      <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:.5rem">Progression vers 507h <span style="color:var(--muted2)">(basée sur les fichiers chargés)</span></div>
+        <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100, Math.round(((htTotal||0)/507)*100))}%"></div></div>
+        <div class="progress-label">
+          <span>${htTotal !== null ? htTotal+'h ce mois' : '—'}</span>
+          <span>507h</span>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  resumeHTML += '</div>';
+  document.getElementById('view-resume').innerHTML = resumeHTML;
+}
+</script>
+</body>
+</html>
