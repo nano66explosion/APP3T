@@ -59,6 +59,35 @@ select:focus{outline:none;border-color:var(--muted2)}
 .back-btn:hover{border-color:var(--muted)}
 .month-nav{display:flex;align-items:center;gap:8px}
 .month-nav select{flex:1}
+/* ── SEARCH BY DATE ── */
+.search-row{display:flex;align-items:center;gap:8px;padding:.6rem 1rem .25rem}
+.search-icon{font-size:14px;flex-shrink:0}
+.search-row input[type=date]{flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:13px;color:var(--text);font-family:inherit}
+.search-row input[type=date]:focus{outline:none;border-color:var(--muted2)}
+.search-row input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.6;cursor:pointer}
+.search-clear{background:var(--surface3);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;flex-shrink:0;cursor:pointer;color:var(--muted2);font-size:13px;font-family:inherit}
+.search-clear:hover{border-color:var(--muted)}
+/* ── SEARCH RESULTS ── */
+.search-results{padding:.75rem 1rem}
+.search-result-date{font-size:15px;font-weight:600;color:var(--text);margin-bottom:.25rem;text-transform:capitalize}
+.search-result-sub{font-size:12px;color:var(--muted);margin-bottom:.9rem}
+.search-empty{font-size:13px;color:var(--muted);padding:1rem 0;text-align:center}
+.search-card{border-radius:10px;padding:.7rem .9rem;margin-bottom:.5rem;border:1px solid transparent}
+.search-card.e3t{background:#4ade8015;border-color:#4ade8030}
+.search-card.e3tc{background:#fb923c15;border-color:#fb923c30}
+.search-card.egt{background:#60a5fa15;border-color:#60a5fa30}
+.search-card.etour{background:#c084fc15;border-color:#c084fc30}
+.search-card.eunassigned{background:transparent;border:1px dashed var(--border)}
+.search-card .ev-name{font-size:14px;font-weight:600;line-height:1.3}
+.search-card.e3t .ev-name{color:var(--c3t)}
+.search-card.e3tc .ev-name{color:var(--c3tc)}
+.search-card.egt .ev-name{color:var(--cgt)}
+.search-card.etour .ev-name{color:var(--ctour)}
+.search-card.eunassigned .ev-name{color:var(--muted2)}
+.search-meta{font-size:11px;color:var(--muted2);margin-top:4px}
+.search-regies{display:flex;gap:5px;flex-wrap:wrap;margin-top:.5rem}
+.search-reg-chip{font-size:11px;padding:3px 9px;border-radius:20px;background:rgba(255,255,255,.07);color:var(--text);font-weight:500}
+.search-reg-chip.obs{background:#94a3b820;color:var(--cobs)}
 .mnav-btn{background:var(--surface3);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted2);font-size:16px;flex-shrink:0}
 .mnav-btn:hover{border-color:var(--muted)}
 
@@ -88,7 +117,11 @@ select:focus{outline:none;border-color:var(--muted2)}
 .top-bar{height:3px;border-radius:4px;background:var(--c3t)}
 /* Logo */
 .app-logo{width:32px;height:32px;object-fit:contain;flex-shrink:0}
-.login-logo{width:110px;height:110px;object-fit:contain;display:block;margin:0 auto 1.25rem}
+.login-logo{width:150px;height:150px;object-fit:contain;display:block;margin:0 auto 1.25rem}
+#card-login{text-align:center}
+#card-login .upload-title{text-align:center;font-size:24px}
+#card-login .file-row{text-align:left}
+.login-saved-file{font-size:11px;color:var(--c3t);font-family:'DM Mono',monospace;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);min-height:16px}
 /* Accordion */
 .accordion{background:var(--surface);border-radius:12px;overflow:hidden;margin-bottom:.75rem}
 .accordion-header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;cursor:pointer;user-select:none}
@@ -238,6 +271,10 @@ select:focus{outline:none;border-color:var(--muted2)}
       🔗 Se connecter à Google
     </button>
 
+    <button id="btn-disconnect" onclick="disconnectGoogle()" style="display:none;background:none;border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit;margin-bottom:.75rem">
+      🚪 Se déconnecter
+    </button>
+
     <div id="drive-status" style="font-size:12px;color:var(--muted);min-height:40px;text-align:center;line-height:1.6"></div>
 
     <!-- First-time picker (only shown if no saved file) -->
@@ -257,6 +294,8 @@ select:focus{outline:none;border-color:var(--muted2)}
     <button id="btn-change-file" onclick="forgetPlanTech()" style="display:none;background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;margin-top:.5rem;font-family:inherit">
       🔄 Changer de fichier plan tech
     </button>
+
+    <div class="login-saved-file" id="login-saved-file"></div>
   </div>
 </div>
 
@@ -309,14 +348,24 @@ select:focus{outline:none;border-color:var(--muted2)}
   <div id="view-container" style="overflow-y:auto;flex:1">
     <!-- Grid view -->
     <div id="view-grid">
-      <div class="dow-header">
-        <div class="dow">Lu</div><div class="dow">Ma</div><div class="dow">Me</div>
-        <div class="dow">Je</div><div class="dow">Ve</div>
-        <div class="dow" style="color:#f87171">Sa</div>
-        <div class="dow" style="color:#f87171">Di</div>
+      <div class="search-row">
+        <span class="search-icon">🔍</span>
+        <input type="date" id="search-date" onchange="searchByDate()">
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">✕</button>
       </div>
-      <div class="cal-grid" id="cal-grid"></div>
-      <div id="detail-panel"></div>
+      <!-- Search results (shown inside the grid tab when a date is searched) -->
+      <div id="view-search" style="display:none"></div>
+      <!-- Normal calendar body (hidden while a search is active) -->
+      <div id="grid-body">
+        <div class="dow-header">
+          <div class="dow">Lu</div><div class="dow">Ma</div><div class="dow">Me</div>
+          <div class="dow">Je</div><div class="dow">Ve</div>
+          <div class="dow" style="color:#f87171">Sa</div>
+          <div class="dow" style="color:#f87171">Di</div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div id="detail-panel"></div>
+      </div>
     </div>
     <!-- List view -->
     <div id="view-list" style="display:none"></div>
@@ -661,46 +710,97 @@ function forgetPlanTech() {
   localStorage.removeItem('3t_plan_file_name');
   localStorage.removeItem('3t_plan_file_mime');
   document.getElementById('btn-change-file').style.display = 'none';
-  document.getElementById('login-sub').textContent = 'Connecte-toi à Google Drive pour charger le plan tech automatiquement.';
+  document.getElementById('login-saved-file').textContent = '';
   setStatus('');
+}
+
+function refreshSavedFileLabel() {
+  const savedName = getSavedFileName();
+  const lbl = document.getElementById('login-saved-file');
+  if (savedName) {
+    lbl.textContent = `📄 Fichier sauvegardé : ${savedName}`;
+    document.getElementById('btn-change-file').style.display = 'block';
+  } else {
+    lbl.textContent = '';
+    document.getElementById('btn-change-file').style.display = 'none';
+  }
+}
+
+// Token client kept around so we can request/refresh tokens
+let tokenClient = null;
+
+function initTokenClient() {
+  if (tokenClient) return tokenClient;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: getClientId(),
+    scope: SCOPES,
+    callback: async (resp) => {
+      if (resp.error) {
+        // Silent attempt failed (e.g. user not yet consented) → just wait for manual click
+        if (resp.error === 'interaction_required' || resp.error === 'access_denied') {
+          setStatus('');
+        } else {
+          setStatus('❌ Erreur : ' + resp.error);
+        }
+        return;
+      }
+      accessToken = resp.access_token;
+      // Remember that this user has connected so we can auto-connect next time
+      localStorage.setItem('3t_connected', '1');
+      document.getElementById('btn-connect').textContent = '✅ Connecté';
+      document.getElementById('btn-connect').style.opacity = '0.6';
+      document.getElementById('btn-disconnect').style.display = 'block';
+
+      const savedId = getSavedFileId();
+      if (savedId) {
+        setStatus(`⏳ Chargement de "${getSavedFileName()}"…`);
+        await loadPlanTechById(savedId, getSavedFileName(), getSavedFileMime());
+      } else {
+        setStatus('Choisis ton fichier plan tech sur Drive');
+        document.getElementById('file-pickers').style.display = '';
+      }
+    }
+  });
+  return tokenClient;
 }
 
 window.addEventListener('load', () => {
   // Always have a default key — no config screen on startup
   gapi.load('picker', () => {});
-  const savedName = getSavedFileName();
-  if (savedName) {
-    document.getElementById('login-sub').textContent = `Fichier sauvegardé : ${savedName}`;
-    document.getElementById('btn-change-file').style.display = 'block';
+  refreshSavedFileLabel();
+
+  // Auto-connect: if the user has already connected before, try a silent
+  // token request (no popup). Google only grants it without prompt if the
+  // user is signed in and has already consented.
+  if (localStorage.getItem('3t_connected') === '1') {
+    setStatus('⏳ Reconnexion automatique…');
+    try {
+      initTokenClient().requestAccessToken({ prompt: '' });
+    } catch (e) {
+      setStatus('');
+    }
   }
 });
 
 function connectGoogle() {
   const clientId = getClientId();
   if (!clientId) return; // always has a default, this won't trigger
+  // Manual connect → allow the consent prompt if needed
+  initTokenClient().requestAccessToken();
+}
 
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: clientId,
-    scope: SCOPES,
-    callback: async (resp) => {
-      if (resp.error) { setStatus('❌ Erreur : ' + resp.error); return; }
-      accessToken = resp.access_token;
-      document.getElementById('btn-connect').textContent = '✅ Connecté';
-      document.getElementById('btn-connect').style.opacity = '0.6';
-
-      // If we have a saved file → load it directly, no picker needed
-      const savedId = getSavedFileId();
-      if (savedId) {
-        setStatus(`⏳ Chargement de "${getSavedFileName()}"…`);
-        await loadPlanTechById(savedId, getSavedFileName(), getSavedFileMime());
-      } else {
-        // First time → show picker
-        setStatus('Choisis ton fichier plan tech sur Drive');
-        document.getElementById('file-pickers').style.display = '';
-      }
-    }
-  });
-  client.requestAccessToken();
+function disconnectGoogle() {
+  // Revoke the current token and clear the auto-connect flag
+  if (accessToken && window.google && google.accounts && google.accounts.oauth2) {
+    try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch (e) {}
+  }
+  accessToken = null;
+  localStorage.removeItem('3t_connected');
+  document.getElementById('btn-connect').textContent = '🔗 Se connecter à Google';
+  document.getElementById('btn-connect').style.opacity = '1';
+  document.getElementById('btn-disconnect').style.display = 'none';
+  document.getElementById('file-pickers').style.display = 'none';
+  setStatus('Déconnecté.');
 }
 
 function setStatus(msg) {
@@ -779,11 +879,8 @@ function resetApp(){
   document.getElementById('app-screen').style.display='none';
   planLoaded=false;
   allDays=[]; allMois=[]; allRegs=[];
-  accessToken=null;
-  document.getElementById('btn-connect').textContent='🔗 Se connecter à Google';
-  document.getElementById('btn-connect').style.opacity='1';
-  document.getElementById('drive-status').textContent='';
-  document.getElementById('file-pickers').style.display='none';
+  // The back arrow now disconnects: no automatic reconnection afterwards.
+  disconnectGoogle();
 }
 
 function populateSelects(){
@@ -791,7 +888,24 @@ function populateSelects(){
     allRegs.map(r=>`<option value="${r}">${r}</option>`).join('');
   const ms=document.getElementById('mois-select');
   ms.innerHTML=allMois.map(m=>`<option value="${m.k}">${m.l}</option>`).join('');
-  if(allMois.length) ms.value=allMois[allMois.length-1].k;
+  if(allMois.length){
+    // Default to the current month if it exists in the data,
+    // otherwise the closest available month.
+    const now = new Date();
+    const curKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    let target = allMois.find(m => m.k === curKey);
+    if(!target){
+      const curNum = now.getFullYear()*12 + now.getMonth();
+      let best = allMois[0], bestDist = Infinity;
+      allMois.forEach(m => {
+        const [y,mo] = m.k.split('-').map(Number);
+        const dist = Math.abs((y*12 + (mo-1)) - curNum);
+        if(dist < bestDist){ bestDist = dist; best = m; }
+      });
+      target = best;
+    }
+    ms.value = target.k;
+  }
 }
 
 function changeMonth(d){
@@ -810,6 +924,12 @@ function onRegChange() {
   document.getElementById('reg-avatar').textContent = initials;
   selectedDay = null;
   renderCalendar();
+  if (isSearchActive()) searchByDate();
+}
+
+function isSearchActive() {
+  const el = document.getElementById('search-date');
+  return el && el.value;
 }
 
 function isTeamMode() { return document.getElementById('team-toggle')?.checked; }
@@ -892,7 +1012,7 @@ function renderCalendar() {
   document.getElementById('cal-grid').innerHTML = cells;
 
   // Render detail if a day is selected
-  renderDetail(reg, y, m, dayMap);
+  renderDetail(reg, y, m, dayMap, teamMode);
 }
 
 function selectDay(d) {
@@ -900,22 +1020,10 @@ function selectDay(d) {
   const reg = document.getElementById('reg-select').value;
   const mk = document.getElementById('mois-select').value;
   const [y, m] = mk.split('-').map(Number);
-  const nbDays = new Date(y, m, 0).getDate();
+  const teamMode = isTeamMode();
 
-  // Rebuild dayMap for detail
-  const dayMap = {};
-  for (let dd = 1; dd <= nbDays; dd++) {
-    const isoKey = `${y}-${String(m).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
-    const dayData = allDays.find(x => x.date.toISOString().slice(0,10) === isoKey);
-    dayMap[dd] = dayData
-      ? dayData.entries
-          .filter(e => e.regies.some(r => r.reg === reg) || e.unassigned)
-          .map(e => ({...e,
-            myRole: e.regies.find(r => r.reg === reg)?.role,
-            isFormateur: e.regies.find(r => r.reg === reg)?.isFormateur || false
-          }))
-      : [];
-  }
+  // Use the team map when "voir toute l'équipe" is on, otherwise the personal map
+  const dayMap = teamMode ? buildTeamDayMap(y, m) : buildDayMap(reg, y, m);
 
   // Update selected state visually
   document.querySelectorAll('.cal-cell').forEach((el, i) => {
@@ -923,14 +1031,14 @@ function selectDay(d) {
     el.classList.toggle('selected', cellDay === selectedDay);
   });
 
-  renderDetail(reg, y, m, dayMap);
+  renderDetail(reg, y, m, dayMap, teamMode);
   if (selectedDay) {
     const panel = document.getElementById('detail-panel');
     panel.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
 }
 
-function renderDetail(reg, y, m, dayMap) {
+function renderDetail(reg, y, m, dayMap, teamMode) {
   const panel = document.getElementById('detail-panel');
   if (!selectedDay) { panel.innerHTML = ''; return; }
 
@@ -942,29 +1050,40 @@ function renderDetail(reg, y, m, dayMap) {
 
   let cardsHTML = '';
   if (entries.length === 0) {
-    cardsHTML = '<div class="no-event">Aucune régie ce jour</div>';
+    cardsHTML = `<div class="no-event">${teamMode ? "Aucune activité ce jour" : "Aucune régie ce jour"}</div>`;
   } else {
     entries.forEach(e => {
       let cls = 'egt';
       if (e.salle === '3T') cls = 'e3t';
       else if (e.salle === '3TC') cls = 'e3tc';
       else if (e.salle === 'Tournée') cls = 'etour';
-      if (e.myRole === 'observateur') cls = 'eobs';
+      if (!teamMode && e.myRole === 'observateur') cls = 'eobs';
       if (e.unassigned) cls = 'eunassigned';
 
       const salleLabel = e.salle === '3TC' ? '3T Côté' : e.salle === 'GT' ? 'Grand Théâtre' : e.salle;
-      const others = e.regies.filter(r => r.reg !== reg).map(r => r.reg);
-      const withStr = others.length ? ` · avec ${others.join(', ')}` : '';
 
       const badges = [];
       if (e.h) badges.push(`<span class="ev-badge bdg-h">${e.h}</span>`);
-      if (e.myRole === 'observateur') badges.push('<span class="ev-badge bdg-obs">observation</span>');
-      if (e.isFormateur) badges.push('<span class="ev-badge bdg-form">formation</span>');
 
       let meta;
-      if (e.salle === 'Tournée') meta = `Tournée · ~180€${withStr}`;
-      else if (e.myRole === 'observateur') meta = `${salleLabel} · heures techniques${withStr}`;
-      else meta = `${salleLabel}${withStr}`;
+      if (teamMode) {
+        // Show ALL régisseurs of the team for this entry
+        const regies = (e.regies || []).map(r => {
+          const tag = r.role === 'observateur' ? ' (obs.)' : (r.isFormateur ? ' (form.)' : '');
+          return r.reg + tag;
+        });
+        const who = regies.length ? regies.join(', ') : (e.unassigned ? 'Personne assigné' : '—');
+        const salleStr = e.salle === 'Tournée' ? 'Tournée' : salleLabel;
+        meta = `${salleStr} · ${who}`;
+      } else {
+        const others = e.regies.filter(r => r.reg !== reg).map(r => r.reg);
+        const withStr = others.length ? ` · avec ${others.join(', ')}` : '';
+        if (e.myRole === 'observateur') badges.push('<span class="ev-badge bdg-obs">observation</span>');
+        if (e.isFormateur) badges.push('<span class="ev-badge bdg-form">formation</span>');
+        if (e.salle === 'Tournée') meta = `Tournée · ~180€${withStr}`;
+        else if (e.myRole === 'observateur') meta = `${salleLabel} · heures techniques${withStr}`;
+        else meta = `${salleLabel}${withStr}`;
+      }
 
       cardsHTML += `<div class="event-card ${cls}">
         <div class="ev-top">
@@ -1072,12 +1191,18 @@ function onTeamToggle() {
   regWrap.style.pointerEvents = teamMode ? 'none' : '';
   selectedDay = null;
   renderCalendar(); // renderCalendar now calls renderStats internally
+  if (isSearchActive()) searchByDate();
 }
 
 let currentView = 'grid';
 
 function switchView(v) {
   currentView = v;
+  // Always reset search state when changing tab
+  document.getElementById('view-search').style.display = 'none';
+  document.getElementById('grid-body').style.display = '';
+  document.getElementById('search-date').value = '';
+  document.getElementById('search-clear').style.display = 'none';
   ['grid','list','resume'].forEach(name => {
     document.getElementById('view-'+name).style.display = name===v ? '' : 'none';
     document.getElementById('tab-'+name).classList.toggle('active', name===v);
@@ -1088,6 +1213,90 @@ function switchView(v) {
   if (v === 'list') renderList(reg, y, m);
   if (v === 'resume') renderResume(reg, y, m);
   if (v === 'grid') renderCalendar();
+}
+
+// ─── SEARCH BY DATE ──────────────────────────────────────────────────────────
+function searchByDate() {
+  const val = document.getElementById('search-date').value; // YYYY-MM-DD
+  if (!val) { clearSearch(); return; }
+  document.getElementById('search-clear').style.display = 'block';
+
+  // Inside the grid tab: hide the calendar body, show the results
+  document.getElementById('grid-body').style.display = 'none';
+  const container = document.getElementById('view-search');
+  container.style.display = '';
+
+  const teamMode = isTeamMode();
+  const reg = getCurrentReg();
+  const dayData = allDays.find(x => x.date.toISOString().slice(0,10) === val);
+
+  // Pretty date label
+  const [yy,mm,dd] = val.split('-').map(Number);
+  const dateObj = new Date(Date.UTC(yy, mm-1, dd));
+  const dateStr = dateObj.toLocaleDateString('fr-FR', {
+    weekday:'long', day:'numeric', month:'long', year:'numeric', timeZone:'UTC'
+  });
+
+  // In personal mode, only show entries involving the selected régisseur
+  let entries = dayData ? dayData.entries.slice() : [];
+  if (!teamMode) {
+    entries = entries.filter(e => (e.regies && e.regies.some(r => r.reg === reg)) || e.unassigned);
+  }
+
+  const scopeLabel = teamMode ? 'toute l\'équipe' : reg;
+
+  if (!entries.length) {
+    container.innerHTML = `
+      <div class="search-results">
+        <div class="search-result-date">${dateStr}</div>
+        <div class="search-empty">Aucune activité ce jour-là (${scopeLabel}).</div>
+      </div>`;
+    return;
+  }
+
+  const salleLabelOf = s => s==='3TC' ? '3T Côté' : s==='GT' ? 'Grand Théâtre' : s;
+  const clsOf = s => s==='3T' ? 'e3t' : s==='3TC' ? 'e3tc' : s==='Tournée' ? 'etour' : 'egt';
+
+  let cards = '';
+  entries.forEach(e => {
+    const cls = e.unassigned ? 'eunassigned' : clsOf(e.salle);
+    const salleLabel = salleLabelOf(e.salle);
+    const timeStr = e.h ? ` · ${e.h}` : '';
+
+    let chips = '';
+    if (e.regies && e.regies.length) {
+      chips = e.regies.map(r => {
+        const isObs = r.role === 'observateur';
+        const tag = isObs ? ' (obs.)' : (r.isFormateur ? ' (form.)' : '');
+        return `<span class="search-reg-chip${isObs?' obs':''}">${r.reg}${tag}</span>`;
+      }).join('');
+    } else if (e.unassigned) {
+      chips = `<span class="search-reg-chip">Personne assigné</span>`;
+    }
+
+    const meta = e.salle==='Tournée' ? 'Tournée' : `${salleLabel}${timeStr}`;
+    cards += `
+      <div class="search-card ${cls}">
+        <div class="ev-name">${e.spec || '—'}</div>
+        <div class="search-meta">${meta}</div>
+        ${chips ? `<div class="search-regies">${chips}</div>` : ''}
+      </div>`;
+  });
+
+  const n = entries.length;
+  container.innerHTML = `
+    <div class="search-results">
+      <div class="search-result-date">${dateStr}</div>
+      <div class="search-result-sub">${n} activité${n>1?'s':''} · ${scopeLabel}</div>
+      ${cards}
+    </div>`;
+}
+
+function clearSearch() {
+  document.getElementById('search-date').value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  document.getElementById('view-search').style.display = 'none';
+  document.getElementById('grid-body').style.display = '';
 }
 
 function buildDayMap(reg, y, m) {
