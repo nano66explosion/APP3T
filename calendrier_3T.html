@@ -275,7 +275,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 .bdg-guest{background:#f472b622;color:var(--cguest)}
 .bdg-cancel{background:#f8717122;color:#f87171}
 /* Heure supp : formulaire + liste */
-#hsupp-modal input,#hsupp-modal select{box-sizing:border-box;max-width:100%}
+#hsupp-modal input,#hsupp-modal select{box-sizing:border-box;width:100%;max-width:100%;min-width:0}
+#hsupp-modal .hs-form select{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;-webkit-appearance:none;appearance:none}
 #hsupp-modal input[type=date]::-webkit-calendar-picker-indicator,
 #hsupp-modal input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.6}
 .hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1rem}
@@ -675,13 +676,13 @@ select:focus{outline:none;border-color:var(--muted2)}
       <label class="file-label">Date</label>
       <input id="hs-date" type="date" style="width:100%;margin-bottom:.8rem;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit">
       <div style="display:flex;gap:10px">
-        <div style="flex:1">
+        <div style="flex:1;min-width:0">
           <label class="file-label">Début</label>
-          <input id="hs-debut" type="time" step="900" oninput="hsUpdateDuree()" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit">
+          <select id="hs-debut" onchange="hsUpdateDuree()"></select>
         </div>
-        <div style="flex:1">
+        <div style="flex:1;min-width:0">
           <label class="file-label">Fin</label>
-          <input id="hs-fin" type="time" step="900" oninput="hsUpdateDuree()" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit">
+          <select id="hs-fin" onchange="hsUpdateDuree()"></select>
         </div>
       </div>
       <div id="hs-duree" style="font-size:12px;color:var(--c3t);margin:.5rem 0 .8rem;min-height:16px"></div>
@@ -1976,11 +1977,26 @@ function forgetHsupp(){
 let hsEditRow = null;     // ligne en cours d'édition (null = mode ajout)
 let hsEntries = [];       // dernières entrées chargées
 
+// Remplit un menu déroulant d'heures par quart d'heure (00:00 → 23:45),
+// en garantissant la présence de la valeur courante (entrées anciennes hors quart).
+function hsFillTimeSelect(id, current){
+  const opts = [];
+  for(let h=0;h<24;h++) for(const m of [0,15,30,45]){
+    opts.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
+  }
+  if(current && !opts.includes(current)) opts.push(current);
+  opts.sort();
+  const sel = document.getElementById(id);
+  sel.innerHTML = `<option value="">--:--</option>` + opts.map(o=>`<option value="${o}">${o}</option>`).join('');
+  sel.value = current || '';
+}
+
 async function openHsupp(){
   if(!accessToken){ alert("Reconnecte-toi à Google."); return; }
   const sel = document.getElementById('hs-reg');
   sel.innerHTML = REGS.map(r=>`<option value="${r.nom}">${r.nom}</option>`).join('');
   if(getMyReg()) sel.value = getMyReg();
+  hsFillTimeSelect('hs-debut'); hsFillTimeSelect('hs-fin');
   hsCancelEdit();
   const today = new Date();
   document.getElementById('hs-date').value =
@@ -2051,8 +2067,8 @@ function hsEdit(rowNum){
   const e = hsEntries.find(x=>x.rowNum===rowNum); if(!e) return;
   hsEditRow = rowNum;
   document.getElementById('hs-date').value = e.iso;
-  document.getElementById('hs-debut').value = e.debut;
-  document.getElementById('hs-fin').value = e.fin;
+  hsFillTimeSelect('hs-debut', e.debut);
+  hsFillTimeSelect('hs-fin', e.fin);
   document.getElementById('hs-motif').value = e.motif;
   document.getElementById('hs-form-title').textContent = '✏️ Modifier l\'heure supp';
   document.getElementById('hs-submit').textContent = 'Enregistrer';
