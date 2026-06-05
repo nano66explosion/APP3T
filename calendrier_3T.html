@@ -1243,6 +1243,10 @@ let accessToken = null;
 let planLoaded = false;
 
 const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.googleusercontent.com';
+// Fichiers Drive par défaut (chargés automatiquement — plus besoin de les sélectionner)
+const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
+const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
+const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
 function getClientId() { return localStorage.getItem('3t_client_id') || DEFAULT_CLIENT_ID; }
 function getSavedFileId() { return localStorage.getItem('3t_plan_file_id') || ''; }
 function getSavedFileName() { return localStorage.getItem('3t_plan_file_name') || ''; }
@@ -1356,6 +1360,9 @@ function markConnectedUI() {
 async function onAuthenticated() {
   localStorage.setItem('3t_connected', '1');
   markConnectedUI();
+  // Configure automatiquement plan tech + base depuis les IDs par défaut
+  try { setStatus('⏳ Préparation des fichiers…'); await ensureDefaultFiles(); }
+  catch(e){ console.warn('ensureDefaultFiles:', e); }
   const savedId = getSavedFileId();
   if (savedId) {
     setStatus(`⏳ Chargement de "${getSavedFileName()}"…`);
@@ -1580,6 +1587,50 @@ async function fetchDriveWorkbook(fileId, mimeType) {
   }
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.arrayBuffer();
+}
+
+// Métadonnées d'un fichier Drive (nom + type)
+async function driveGetMeta(id){
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType&supportsAllDrives=true`,
+    { headers:{ Authorization:'Bearer '+accessToken } });
+  if(r.status===401){ clearToken(); silentRefresh(); throw new Error('Session expirée'); }
+  if(!r.ok) throw new Error(`Accès fichier impossible (HTTP ${r.status})`);
+  return r.json();
+}
+
+// Configure plan tech + base heures depuis les IDs par défaut (si pas déjà fait)
+async function ensureDefaultFiles(){
+  if(!getSavedFileId() && DEFAULT_PLAN_ID){
+    const m = await driveGetMeta(DEFAULT_PLAN_ID);
+    localStorage.setItem('3t_plan_file_id', m.id);
+    localStorage.setItem('3t_plan_file_name', m.name);
+    localStorage.setItem('3t_plan_file_mime', m.mimeType);
+  }
+  if(!getSavedBaseId() && DEFAULT_BASE_ID){
+    const m = await driveGetMeta(DEFAULT_BASE_ID);
+    localStorage.setItem('3t_base_file_id', m.id);
+    localStorage.setItem('3t_base_file_name', m.name);
+    localStorage.setItem('3t_base_file_mime', m.mimeType);
+  }
+}
+
+// Trouve le fichier "HEURES <MOIS> <ANNÉE>" du mois donné dans le dossier Drive
+const HS_MOIS_UP = ['JANVIER','FEVRIER','MARS','AVRIL','MAI','JUIN','JUILLET','AOUT','SEPTEMBRE','OCTOBRE','NOVEMBRE','DECEMBRE'];
+function hsNorm(s){ return String(s||'').toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+async function resolveHsuppForMonth(dateObj){
+  if(!HSUPP_FOLDER_ID) throw new Error("Dossier heures supp non configuré.");
+  const d = dateObj || new Date();
+  const mois = HS_MOIS_UP[d.getMonth()], yy = String(d.getFullYear()%100).padStart(2,'0');
+  const q = encodeURIComponent(`'${HSUPP_FOLDER_ID}' in parents and trashed=false`);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    { headers:{ Authorization:'Bearer '+accessToken } });
+  if(r.status===401){ clearToken(); silentRefresh(); throw new Error('Session expirée'); }
+  if(!r.ok) throw new Error(`Lecture du dossier impossible (HTTP ${r.status})`);
+  const files = (await r.json()).files || [];
+  const match = files.find(f => { const n=hsNorm(f.name); return n.includes('HEURE') && n.includes(mois) && n.includes(yy); })
+             || files.find(f => { const n=hsNorm(f.name); return n.includes('HEURE') && n.includes(mois); });
+  if(!match) throw new Error(`Aucun fichier « HEURES ${mois} ${yy} » dans le dossier Drive.`);
+  return match;
 }
 
 async function loadBaseHeuresById(fileId, fileName, mimeType) {
@@ -1925,8 +1976,8 @@ function forgetHsupp(){
 let hsEditRow = null;     // ligne en cours d'édition (null = mode ajout)
 let hsEntries = [];       // dernières entrées chargées
 
-function openHsupp(){
-  if(!getSavedHsuppId()){ alert("Choisis d'abord le fichier heures supp dans ⚙️ Paramètres."); return; }
+async function openHsupp(){
+  if(!accessToken){ alert("Reconnecte-toi à Google."); return; }
   const sel = document.getElementById('hs-reg');
   sel.innerHTML = REGS.map(r=>`<option value="${r.nom}">${r.nom}</option>`).join('');
   if(getMyReg()) sel.value = getMyReg();
@@ -1935,6 +1986,18 @@ function openHsupp(){
   document.getElementById('hs-date').value =
     `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   document.getElementById('hsupp-modal').style.display = 'flex';
+  const list = document.getElementById('hs-list');
+  list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">⏳ Recherche du fichier du mois…</div>';
+  // Résout automatiquement le fichier "HEURES <MOIS> <ANNÉE>" du mois courant
+  try {
+    const f = await resolveHsuppForMonth();
+    localStorage.setItem('3t_hsupp_file_id', f.id);
+    localStorage.setItem('3t_hsupp_file_name', f.name);
+    localStorage.setItem('3t_hsupp_file_mime', f.mimeType);
+  } catch(e){
+    list.innerHTML = `<div style="color:#f87171;font-size:12px;padding:.5rem 0">❌ ${e.message}</div>`;
+    return;
+  }
   hsReloadList();
 }
 function closeHsupp(){ document.getElementById('hsupp-modal').style.display = 'none'; }

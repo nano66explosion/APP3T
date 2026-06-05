@@ -55,12 +55,11 @@
 - **Heures supp** : limité à ~30 lignes/onglet (plage de la formule du modèle). Ré-écriture validée sur fichier vierge ; à confirmer en usage réel sur Drive.
 - **Reconnexion auto longue durée** : le jeton Google dure ~1 h (limite Google sans serveur). Cache + silencieux = pas de reclic tant que la session Google est active, mais pas « infini ».
 
-## ⏳ À faire (demandé, en attente d'infos)
+## ⏳ À faire / à vérifier en réel
 
-- **IDs Drive en dur** pour plan tech + base heures (l'utilisateur ne charge plus ces 2 fichiers). → *besoin des IDs de fichiers.*
-- **Fichier heures supp auto par mois** depuis un dossier Drive (`HEURES <MOIS> <ANNÉE>`). → *besoin de l'ID/lien du dossier.*
-- **Première connexion** : demander explicitement les 3 fichiers (ou « continuer sans »).
-- **Déploiement GitHub synchronisé** (ne plus passer par le fichier local). → *besoin de l'accès/URL du dépôt.*
+- **Chargement auto plan + base** (IDs Drive en dur) : implémenté → à valider sur ton compte.
+- **Heures supp auto par mois** depuis le dossier Drive (`HEURES <MOIS> <ANNÉE>`) : implémenté → à valider (les fichiers du dossier doivent être des `.xlsx`).
+- **Déploiement GitHub** : dépôt relié, push direct sur `main` opérationnel.
 
 ---
 
