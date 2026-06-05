@@ -2,8 +2,17 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Calendrier 3T</title>
+<!-- ── PWA ── -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Calendrier 3T">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://apis.google.com/js/api.js"></script>
 <script src="https://accounts.google.com/gsi/client"></script>
@@ -25,6 +34,7 @@
   --cgt:#60a5fa;
   --ctour:#c084fc;
   --cobs:#94a3b8;
+  --cguest:#f472b6;
   --today:#f0ede8;
 }
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
@@ -196,6 +206,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 .dot-row{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
 .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .cal-mic{font-size:10px;margin-left:3px;vertical-align:middle}
+.cal-cancel{font-size:9px;line-height:1}
 .dot.d3t{background:var(--c3t)}
 .dot.d3tc{background:var(--c3tc)}
 .dot.dgt{background:var(--cgt)}
@@ -257,8 +268,12 @@ select:focus{outline:none;border-color:var(--muted2)}
 .ev-badges{display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
 .ev-badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;white-space:nowrap}
 .bdg-h{background:rgba(255,255,255,.07);color:var(--muted2)}
-.bdg-guest{background:#fb923c22;color:var(--c3tc)}
+.bdg-guest{background:#f472b622;color:var(--cguest)}
 .bdg-cancel{background:#f8717122;color:#f87171}
+/* Carte d'événement annulée (agenda) : barrée + rouge */
+.event-card.ecancel{background:#f8717110;border-color:#f8717140}
+.event-card.ecancel .ev-name{color:#f87171;text-decoration:line-through}
+.event-card.ecancel .ev-meta{color:#f87171;opacity:.8;text-decoration:line-through}
 /* Recherche par spectacle */
 .spec-group{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:1rem 0 .5rem}
 .spec-occ-list{margin-top:.6rem;border-top:1px solid var(--border);padding-top:.4rem}
@@ -266,7 +281,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 .spec-occ:hover{background:rgba(255,255,255,.05)}
 .spec-occ-date{font-size:13px;font-weight:500;color:var(--text);text-transform:capitalize}
 .spec-occ-meta{font-size:11px;color:var(--muted2)}
-.hp-guest{font-size:11px;color:var(--c3tc);margin-top:.4rem}
+.hp-guest{font-size:11px;color:var(--cguest);margin-top:.4rem}
 .bdg-obs{background:#94a3b820;color:var(--cobs)}
 .bdg-form{background:#4ade8020;color:var(--c3t)}
 .ev-meta{font-size:11px;color:var(--muted2);margin-top:4px}
@@ -328,6 +343,7 @@ select:focus{outline:none;border-color:var(--muted2)}
   .dot{width:10px;height:10px}
   .dot-row{gap:4px;margin-top:4px}
   .cal-mic{font-size:14px;margin-left:4px}
+  .cal-cancel{font-size:13px}
   /* Stats et onglets plus lisibles */
   .stat-v{font-size:24px}
   .stat-l{font-size:11px}
@@ -440,6 +456,7 @@ select:focus{outline:none;border-color:var(--muted2)}
     <div class="leg"><div class="leg-dot" style="background:var(--cgt)"></div>Grand Théâtre</div>
     <div class="leg"><div class="leg-dot" style="background:var(--ctour)"></div>Tournée</div>
     <div class="leg"><div class="leg-dot" style="background:var(--cobs)"></div>Observation</div>
+    <div class="leg"><span style="font-size:12px">🎤</span>Artiste invité</div>
   </div>
 
   <div class="view-tabs">
@@ -536,6 +553,14 @@ select:focus{outline:none;border-color:var(--muted2)}
       <label class="file-label">👤 Mon régisseur</label>
       <div class="file-name" id="lbl-profile" style="color:var(--text)"></div>
       <button class="file-btn" onclick="openProfileModal()" style="margin-top:.4rem">Changer régisseur / avatar</button>
+    </div>
+
+    <!-- Notifications -->
+    <div class="settings-block">
+      <label class="file-label">🔔 Notifications</label>
+      <div class="file-name" id="lbl-notif" style="color:var(--text)"></div>
+      <button class="file-btn" onclick="requestNotifications()" style="margin-top:.4rem">Activer les rappels</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Rappel de ta régie du jour / du lendemain à l'ouverture de l'app.</div>
     </div>
 
     <!-- Client ID (avancé) -->
@@ -708,23 +733,20 @@ function matchBaseSpec(specName){
   return null;
 }
 
-// Artiste invité = spectacle absent du répertoire (fichier base heures).
-// (Nécessite que la base soit chargée pour pouvoir trancher.)
-function isGuest(spec){
-  return baseHeuresLoaded && !!spec && spec !== '—' && !matchBaseSpec(spec);
-}
 
 // Calcule les heures du mois à partir d'un dayMap (cf. buildDayMap)
 // Retourne {total, montage, demontage, duree, service, nbRegies, specs:{}, unmatched:[]}
 function computeHeures(dayMap){
   const res = {total:0, montage:0, demontage:0, duree:0, service:0,
-               nbRegies:0, specs:{}, unmatched:[]};
-  const unmatchedSet = new Set();
+               nbRegies:0, specs:{}, unmatched:[], guests:[]};
+  const unmatchedSet = new Set();   // spectacles censés être au répertoire mais absents de la base
+  const guestSet = new Set();       // artistes invités (texte orange)
   Object.values(dayMap).forEach(entries => entries.forEach(e => {
     if(e.salle === 'Tournée') return;
     if(e.cancelled) return; // spectacle annulé → hors calcul
     if(e.myRole === 'observateur' || e.unassigned) return;
     res.nbRegies++;
+    if(e.guest){ guestSet.add(e.spec || '—'); return; } // invité (orange) → hors calcul d'heures
     const isGT = e.salle === 'GT';
     const base = matchBaseSpec(e.spec);
     if(!base){ unmatchedSet.add(e.spec || '—'); return; }
@@ -741,8 +763,8 @@ function computeHeures(dayMap){
     res.specs[key].count++;
     res.specs[key].hours += h;
   }));
-  res.unmatched = [...unmatchedSet]; // = artistes invités (hors répertoire), exclus des heures
-  res.guests = res.unmatched;
+  res.unmatched = [...unmatchedSet];
+  res.guests = [...guestSet];
   // arrondis propres
   ['total','montage','demontage','duree','service'].forEach(k=>{
     res[k] = Math.round(res[k]*100)/100;
@@ -867,32 +889,76 @@ const SLOTS_SEM = [
 const JOURS_V=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
 
 let allDays=[], allMois=[], allRegs=[];
-// Ensemble des cellules "barrées" (spectacles annulés) : "Feuille!REF"
+// Cellules "barrées" (spectacles annulés) et "orange" (artistes invités) : "Feuille!REF"
 let struckCells = new Set();
+let guestCells = new Set();
 
-// Détecte les cellules en texte BARRÉ (= spectacles annulés) dans un .xlsx.
-// Lecture chirurgicale du style via JSZip ; tolérante (ne casse jamais le chargement).
-async function parseStruckCells(arrayBuffer){
-  const set = new Set();
+// Vrai si une couleur hex (RRGGBB ou AARRGGBB) est de teinte ORANGE
+function isOrangeHex(hex){
+  if(!hex) return false;
+  const h = hex.length>6 ? hex.slice(-6) : hex;
+  const r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+  if([r,g,b].some(isNaN)) return false;
+  return r>=180 && b<=140 && g>=70 && g<=200 && (r-b)>=70 && (r-g)>=20;
+}
+
+// Palette des couleurs de thème (résolue depuis theme1.xml), indexée par l'attribut theme="N"
+let _themeColors = [];
+// Vrai si un fragment XML contient au moins une couleur ORANGE (RGB directe OU couleur de thème)
+function xmlHasOrange(xml){
+  let re = /<color\b[^>]*\brgb="([0-9A-Fa-f]{6,8})"/g, m;
+  while((m = re.exec(xml))){ if(isOrangeHex(m[1])) return true; }
+  re = /<color\b[^>]*\btheme="(\d+)"/g;
+  while((m = re.exec(xml))){ const hex = _themeColors[parseInt(m[1],10)]; if(hex && isOrangeHex(hex)) return true; }
+  return false;
+}
+
+// Lit les styles d'un .xlsx : cellules BARRÉES (annulé) et à TEXTE ORANGE (invité).
+// Couvre 3 cas : police de cellule (s/font), texte enrichi en ligne (inlineStr),
+// et chaînes partagées (sharedStrings). Tolérante (ne casse jamais le chargement).
+async function parseCellStyles(arrayBuffer){
+  const struck = new Set(), guest = new Set();
   try{
-    if(typeof JSZip === 'undefined') return set;
+    if(typeof JSZip === 'undefined') return {struck, guest};
     const zip = await JSZip.loadAsync(arrayBuffer);
+
+    // 0) Couleurs de thème (theme="N") → palette résolue
+    _themeColors = [];
+    const themeFile = zip.file('xl/theme/theme1.xml');
+    if(themeFile){
+      const th = await themeFile.async('string');
+      const clr = (th.match(/<a:clrScheme\b[\s\S]*?<\/a:clrScheme>/)||[''])[0];
+      ['dk1','lt1','dk2','lt2','accent1','accent2','accent3','accent4','accent5','accent6','hlink','folHlink'].forEach(tag=>{
+        const m = clr.match(new RegExp('<a:'+tag+'>\\s*<a:(?:srgbClr val|sysClr[^>]*lastClr)="?([0-9A-Fa-f]{6})'));
+        _themeColors.push(m ? m[1] : null);
+      });
+    }
+
     const stylesFile = zip.file('xl/styles.xml');
-    if(!stylesFile) return set;
-    const styles = await stylesFile.async('string');
+    const styles = stylesFile ? await stylesFile.async('string') : '';
 
-    // 1) Polices : barré (<strike/>) — on note l'index de chaque police barrée
+    // 1) Polices : barré (<strike/>) et couleur orange
     const fontsBlock = (styles.match(/<fonts\b[\s\S]*?<\/fonts>/)||[''])[0];
-    const fonts = [];
-    const fontRe = /<font\b[^>]*\/>|<font\b[\s\S]*?<\/font>/g; let fm;
-    while((fm = fontRe.exec(fontsBlock))){ fonts.push(/<strike\b/.test(fm[0])); }
-
+    const fonts = []; const fontRe = /<font\b[^>]*\/>|<font\b[\s\S]*?<\/font>/g; let fm;
+    while((fm = fontRe.exec(fontsBlock))){
+      const f = fm[0];
+      fonts.push({struck:/<strike\b/.test(f), orange:xmlHasOrange(f)});
+    }
     // 2) cellXfs : index de style -> index de police
     const xfsBlock = (styles.match(/<cellXfs\b[\s\S]*?<\/cellXfs>/)||[''])[0];
     const xfRe = /<xf\b[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g; let xm; const xfFont = [];
     while((xm = xfRe.exec(xfsBlock))){ const f=(xm[0].match(/\bfontId="(\d+)"/)||[])[1]; xfFont.push(f?parseInt(f,10):0); }
 
-    // 3) Mapping nom d'onglet -> fichier feuille
+    // 3) sharedStrings : couleur/barré au niveau du texte
+    const shared = [];
+    const ssFile = zip.file('xl/sharedStrings.xml');
+    if(ssFile){
+      const ss = await ssFile.async('string');
+      const siRe = /<si\b[^>]*>([\s\S]*?)<\/si>|<si\s*\/>/g; let sm;
+      while((sm = siRe.exec(ss))){ const inner = sm[1]||''; shared.push({orange:xmlHasOrange(inner), struck:/<strike\b/.test(inner)}); }
+    }
+
+    // 4) Mapping nom d'onglet -> fichier feuille
     const wb = await zip.file('xl/workbook.xml').async('string');
     const rels = await zip.file('xl/_rels/workbook.xml.rels').async('string');
     const sheetTags = wb.match(/<sheet\b[^>]*\/>/g) || [];
@@ -906,15 +972,29 @@ async function parseStruckCells(arrayBuffer){
       const path = 'xl/' + target.replace(/^\/?xl\//,'').replace(/^\//,'');
       const sf = zip.file(path); if(!sf) continue;
       const sx = await sf.async('string');
-      // 4) cellules avec style barré
-      const cRe = /<c\b[^>]*?\br="([A-Z]+\d+)"[^>]*?\bs="(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g; let cm;
+      // Parcourt chaque cellule. Auto-fermante d'abord + quantif. PARESSEUX :
+      // sinon une cellule vide <c r=".." s=".."/> avale la cellule suivante.
+      const cRe = /<c\b([^>]*?)\/>|<c\b([^>]*?)>([\s\S]*?)<\/c>/g; let cm;
       while((cm = cRe.exec(sx))){
-        const fontIdx = xfFont[parseInt(cm[2],10)];
-        if(fonts[fontIdx]) set.add(name + '!' + cm[1]);
+        const attrs = (cm[1] || cm[2] || '');
+        const inner = cm[3] || '';
+        const ref = (attrs.match(/\br="([A-Z]+\d+)"/)||[])[1];
+        if(!ref) continue;
+        const sIdx = (attrs.match(/\bs="(\d+)"/)||[])[1];
+        const t    = (attrs.match(/\bt="(\w+)"/)||[])[1];
+        let isStruck = false, isOrange = false;
+        // a) police de cellule
+        if(sIdx !== undefined){ const f = fonts[xfFont[parseInt(sIdx,10)]]; if(f){ isStruck = isStruck||f.struck; isOrange = isOrange||f.orange; } }
+        // b) chaîne partagée (t="s")
+        if(t === 's'){ const vi = (inner.match(/<v>(\d+)<\/v>/)||[])[1]; if(vi!==undefined){ const si = shared[parseInt(vi,10)]; if(si){ isStruck = isStruck||si.struck; isOrange = isOrange||si.orange; } } }
+        // c) texte enrichi en ligne (inlineStr ou runs)
+        else { if(/<strike\b/.test(inner)) isStruck = true; if(xmlHasOrange(inner)) isOrange = true; }
+        if(isStruck) struck.add(name + '!' + ref);
+        if(isOrange) guest.add(name + '!' + ref);
       }
     }
-  }catch(e){ console.warn('parseStruckCells:', e); }
-  return set;
+  }catch(e){ console.warn('parseCellStyles:', e); }
+  return {struck, guest};
 }
 
 function moisKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
@@ -975,11 +1055,13 @@ function parsePlanTech(wb){
         const specNom=cleanSpec(specRaw);
         const regies=parseRegie(regRaw);
         regies.forEach(r=>regSet.add(r.reg));
-        // Annulé = nom du spectacle barré dans le .xlsx (cellule cS ou cR barrée)
-        const cancelled = struckCells.has(`${sheetName}!${colLetter(slot.cS)}${ri+1}`)
-                       || struckCells.has(`${sheetName}!${colLetter(slot.cR)}${ri+1}`);
+        // Annulé = nom du spectacle barré ; Invité = nom du spectacle en orange
+        const specRef = `${sheetName}!${colLetter(slot.cS)}${ri+1}`;
+        const regRef  = `${sheetName}!${colLetter(slot.cR)}${ri+1}`;
+        const cancelled = struckCells.has(specRef) || struckCells.has(regRef);
+        const guest = guestCells.has(specRef);
         if(specNom||regies.length>0)
-          entries.push({salle:slot.salle,h:slot.h,spec:specNom,regies,cancelled,
+          entries.push({salle:slot.salle,h:slot.h,spec:specNom,regies,cancelled,guest,
             unassigned:regies.length===0&&!!specNom,
             // Provenance pour pouvoir écrire dans le Google Sheet
             src:{sheet:sheetName,row0:ri,col0:slot.cR,rawReg:regRaw}});
@@ -1076,6 +1158,7 @@ function openSettingsModal() {
   document.getElementById('btn-enter-app').style.display =
     (!appIsOpen() && planLoaded) ? 'block' : 'none';
   updateProfileLabel();
+  updateNotifLabel();
   document.getElementById('settings-modal').style.display = 'flex';
 }
 
@@ -1206,6 +1289,59 @@ window.addEventListener('resize', () => {
   clearTimeout(_resizeT);
   _resizeT = setTimeout(() => { if (appIsOpen()) renderCalendar(); }, 200);
 });
+
+// ─── PWA : enregistrement du service worker ──────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW non enregistré:', e));
+  });
+}
+
+// ─── NOTIFICATIONS LOCALES ───────────────────────────────────────────────────
+function notifSupported(){ return 'Notification' in window; }
+function requestNotifications(){
+  if(!notifSupported()){ alert("Ton navigateur ne gère pas les notifications."); return; }
+  Notification.requestPermission().then(p => {
+    updateNotifLabel();
+    if(p === 'granted'){ checkReminders(); }
+  });
+}
+function updateNotifLabel(){
+  const el = document.getElementById('lbl-notif');
+  if(!el) return;
+  if(!notifSupported()){ el.textContent = 'Non supporté sur cet appareil'; return; }
+  el.textContent = Notification.permission === 'granted' ? '✅ Activées'
+    : Notification.permission === 'denied' ? '🚫 Bloquées (à réautoriser dans le navigateur)'
+    : 'Désactivées';
+}
+function showNotif(title, body){
+  const opts = { body, icon:'icon-192.png', badge:'icon-192.png', tag:title };
+  if(navigator.serviceWorker && navigator.serviceWorker.ready){
+    navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts))
+      .catch(()=>{ try{ new Notification(title, opts); }catch(e){} });
+  } else { try{ new Notification(title, opts); }catch(e){} }
+}
+// Rappels pertinents quand l'app s'ouvre : ta régie aujourd'hui / demain
+function checkReminders(){
+  if(!notifSupported() || Notification.permission !== 'granted') return;
+  const me = getMyReg(); if(!me || !allDays.length) return;
+  const salleLbl = s => s==='3TC'?'3T Côté':s==='GT'?'Grand Théâtre':s;
+  [0,1].forEach(off => {
+    const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+off);
+    const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const day = allDays.find(x => x.date.toISOString().slice(0,10) === iso);
+    if(!day) return;
+    const mine = day.entries.filter(e => e.salle!=='Tournée' && !e.cancelled
+      && e.regies.some(r => r.reg===me && r.role!=='observateur'));
+    if(!mine.length) return;
+    const key = '3t_notif_'+iso;
+    if(localStorage.getItem(key)) return;       // déjà notifié pour ce jour
+    localStorage.setItem(key, '1');
+    const when = off===0 ? "aujourd'hui" : "demain";
+    const txt = mine.map(e => `${e.spec||'—'} · ${salleLbl(e.salle)}${e.h?' '+e.h:''}`).join('\n');
+    showNotif(`🎭 Régie ${when}`, txt);
+  });
+}
 
 window.addEventListener('load', () => {
   // Always have a default key — no config screen on startup
@@ -1363,7 +1499,7 @@ function forgetBaseHeures() {
 async function loadPlanTechById(fileId, fileName, mimeType) {
   try {
     const arrayBuffer = await fetchDriveWorkbook(fileId, mimeType);
-    struckCells = await parseStruckCells(arrayBuffer); // spectacles annulés (barrés)
+    ({struck:struckCells, guest:guestCells} = await parseCellStyles(arrayBuffer)); // annulés (barrés) + invités (orange)
     const wb = XLSX.read(arrayBuffer, { type: 'array' });
     const p = parsePlanTech(wb);
     allDays = p.days; allMois = p.mois; allRegs = p.regs;
@@ -1417,6 +1553,8 @@ function launchApp() {
   renderCalendar();
   // Première utilisation : pas encore de régisseur associé → on demande
   if (!getMyReg() && allRegs.length) openProfileModal();
+  // Rappels (notifications locales) si déjà autorisées
+  checkReminders();
 }
 
 // ─── PROFIL LOCAL (régisseur + avatar emoji) ─────────────────────────────────
@@ -1481,7 +1619,7 @@ const OBJECTIF_HEURES = 507;
 // Agrège les heures/régies de TOUTE la saison pour un régisseur
 function computeSeason(reg){
   const t = {hours:0, montage:0, demontage:0, duree:0, service:0,
-             regies:0, tournees:0, months:[], specs:{}, unmatched:new Set()};
+             regies:0, tournees:0, months:[], specs:{}, unmatched:new Set(), guests:new Set()};
   allMois.forEach(mo=>{
     const [y,m] = mo.k.split('-').map(Number);
     const dayMap = buildDayMap(reg, y, m);
@@ -1491,6 +1629,7 @@ function computeSeason(reg){
     t.hours+=h.total; t.montage+=h.montage; t.demontage+=h.demontage;
     t.duree+=h.duree; t.service+=h.service; t.regies+=h.nbRegies; t.tournees+=nT;
     h.unmatched.forEach(u=>t.unmatched.add(u));
+    h.guests.forEach(u=>t.guests.add(u));
     Object.entries(h.specs).forEach(([k,v])=>{
       if(!t.specs[k]) t.specs[k]={count:0,hours:0,salle:v.salle};
       t.specs[k].count+=v.count; t.specs[k].hours+=v.hours;
@@ -1499,6 +1638,7 @@ function computeSeason(reg){
   });
   ['hours','montage','demontage','duree','service'].forEach(k=>t[k]=Math.round(t[k]*100)/100);
   t.unmatched=[...t.unmatched];
+  t.guests=[...t.guests];
   return t;
 }
 
@@ -1531,8 +1671,8 @@ function openIntermittence(){
     </div>`;
   }).join('') || '<div style="color:var(--muted);font-size:13px">—</div>';
 
-  const unm = s.unmatched.length
-    ? `<div style="margin-top:.6rem;font-size:11px;color:var(--c3tc)">🎤 Artistes invités (hors calcul) : ${s.unmatched.join(', ')}</div>` : '';
+  const unm = s.guests.length
+    ? `<div style="margin-top:.6rem;font-size:11px;color:var(--cguest)">🎤 Artistes invités (hors calcul) : ${s.guests.join(', ')}</div>` : '';
 
   document.getElementById('intermittence-body').innerHTML = `
     <div class="modal-sub" style="margin-bottom:1.25rem">${who} · Saison ${saison}</div>
@@ -1695,7 +1835,7 @@ async function writeXlsxCell(fileId, sheetName, row0, col0, value, isRemove){
 // Recharge le plan depuis Drive sans réinitialiser la vue (garde mois + jour ouverts)
 async function reloadPlanSilent(){
   const ab = await fetchDriveWorkbook(getSavedFileId(), getSavedFileMime());
-  struckCells = await parseStruckCells(ab);
+  ({struck:struckCells, guest:guestCells} = await parseCellStyles(ab));
   const wb = XLSX.read(ab, { type: 'array' });
   const p = parsePlanTech(wb);
   allDays = p.days; allMois = p.mois; allRegs = p.regs;
@@ -1862,8 +2002,10 @@ function heuresPopHTML(h){
   }).join('') || '<div style="font-size:12px;color:var(--muted)">Aucune régie ce mois</div>';
   const unm = h.guests.length
     ? `<div class="hp-sep"></div><div class="hp-title">🎤 Artistes invités · hors calcul</div>`
-      + h.guests.map(g=>`<div class="hp-row"><span class="hp-l">${g}</span><span class="hp-v" style="color:var(--c3tc)">invité</span></div>`).join('')
+      + h.guests.map(g=>`<div class="hp-row"><span class="hp-l">${g}</span><span class="hp-v" style="color:var(--cguest)">invité</span></div>`).join('')
     : '';
+  const warn = h.unmatched.length
+    ? `<div class="hp-warn">⚠️ Non trouvés dans la base : ${h.unmatched.join(', ')}</div>` : '';
   return `<div class="htech-pop" onclick="event.stopPropagation()">
     <div class="hp-title">Détail des heures · ${h.total}h</div>
     ${rows}
@@ -1874,6 +2016,7 @@ function heuresPopHTML(h){
     <div class="hp-row"><span class="hp-l">Services (1h/régie)</span><span class="hp-v">${h.service}h</span></div>
     <div class="hp-row hp-total"><span class="hp-l">Total</span><span class="hp-v">${h.total}h</span></div>
     ${unm}
+    ${warn}
     <div class="hp-note">⚠️ Estimation approximative — en développement.</div>
   </div>`;
 }
@@ -1935,13 +2078,14 @@ function renderCalendar() {
     let dots = '';
     let hasGuest = false;
     entries.forEach(e => {
+      if (e.cancelled){ dots += '<span class="cal-cancel" title="Annulé">❌</span>'; return; } // annulé → croix rouge, pas de pastille
       let cls = 'dgt';
       if (e.salle === '3T') cls = 'd3t';
       else if (e.salle === '3TC') cls = 'd3tc';
       else if (e.salle === 'Tournée') cls = 'dtour';
       if (e.myRole === 'observateur') cls = 'dobs';
       dots += `<div class="dot ${cls}"></div>`;
-      if (e.salle !== 'Tournée' && isGuest(e.spec)) hasGuest = true;
+      if (e.guest) hasGuest = true;
     });
     const micMark = hasGuest ? '<span class="cal-mic" title="Artiste invité">🎤</span>' : '';
 
@@ -2010,7 +2154,7 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
       const badges = [];
       if (e.h) badges.push(`<span class="ev-badge bdg-h">${e.h}</span>`);
       if (e.cancelled) badges.push('<span class="ev-badge bdg-cancel">❌ annulé</span>');
-      if (e.salle!=='Tournée' && isGuest(e.spec)) badges.push('<span class="ev-badge bdg-guest">🎤 invité</span>');
+      if (e.guest) badges.push('<span class="ev-badge bdg-guest">🎤 invité</span>');
 
       let meta;
       if (teamMode) {
@@ -2113,7 +2257,7 @@ function renderTodayCard(reg, dayMap) {
     const badges = [];
     if (e.h) badges.push(e.h);
     if (e.cancelled) badges.push('❌ annulé');
-    if (e.salle!=='Tournée' && isGuest(e.spec)) badges.push('🎤 invité');
+    if (e.guest) badges.push('🎤 invité');
     if (e.myRole==='observateur') badges.push('observation');
     if (e.isFormateur) badges.push('formation');
     if (others.length) badges.push('avec ' + others.join(', '));
@@ -2297,7 +2441,7 @@ function searchBySpec() {
       const key = norm(e.spec);
       if (!map.has(key)) map.set(key, {
         display: e.spec,
-        guest: e.salle !== 'Tournée' && isGuest(e.spec),
+        guest: e.guest,
         tournee: e.salle === 'Tournée',
         occ: []
       });
@@ -2390,7 +2534,7 @@ function eventCardHTML(e, reg, teamMode) {
   const badges = [];
   if (e.h) badges.push(`<span class="ev-badge bdg-h">${e.h}</span>`);
   if (e.cancelled) badges.push('<span class="ev-badge bdg-cancel">❌ annulé</span>');
-  if (e.salle!=='Tournée' && isGuest(e.spec)) badges.push('<span class="ev-badge bdg-guest">🎤 invité</span>');
+  if (e.guest) badges.push('<span class="ev-badge bdg-guest">🎤 invité</span>');
 
   let meta, who = '';
   if (teamMode) {
@@ -2413,8 +2557,8 @@ function eventCardHTML(e, reg, teamMode) {
       : e.myRole==='observateur' ? `${salleLabel} · heures techniques${withStr}`
       : `${salleLabel}${withStr}`;
   }
-  return `<div class="event-card ${cls}">
-    <div class="ev-top"><span class="ev-name" style="${e.cancelled?'text-decoration:line-through;opacity:.6':''}">${e.spec||'—'}</span><div class="ev-badges">${badges.join('')}</div></div>
+  return `<div class="event-card ${cls}${e.cancelled?' ecancel':''}">
+    <div class="ev-top"><span class="ev-name">${e.spec||'—'}</span><div class="ev-badges">${badges.join('')}</div></div>
     <div class="ev-meta">${meta}</div>
     ${who}
   </div>`;
@@ -2595,8 +2739,8 @@ function renderResume(reg, y, m) {
     }).join('');
     if(!rows) rows = '<div style="color:var(--muted);font-size:13px">Aucune régie ce mois</div>';
     const unm = heures.guests.length
-      ? `<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--c3tc);margin-bottom:.5rem">🎤 Artistes invités (hors calcul d'heures)</div>`
-        + heures.guests.map(g=>`<div class="intermi-row"><span class="intermi-label">${g}</span><span class="intermi-val" style="color:var(--c3tc)">invité</span></div>`).join('')
+      ? `<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--cguest);margin-bottom:.5rem">🎤 Artistes invités (hors calcul d'heures)</div>`
+        + heures.guests.map(g=>`<div class="intermi-row"><span class="intermi-label">${g}</span><span class="intermi-val" style="color:var(--cguest)">invité</span></div>`).join('')
         + `</div>`
       : '';
     heuresBody = `${heuresDisclaimer}${rows}
