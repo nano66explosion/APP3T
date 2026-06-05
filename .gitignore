@@ -1,0 +1,7 @@
+# Données réelles — NE PAS publier
+*.xlsx
+copie*.xlsx
+
+# Divers
+.DS_Store
+.claude/

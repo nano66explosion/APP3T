@@ -274,6 +274,22 @@ select:focus{outline:none;border-color:var(--muted2)}
 .bdg-h{background:rgba(255,255,255,.07);color:var(--muted2)}
 .bdg-guest{background:#f472b622;color:var(--cguest)}
 .bdg-cancel{background:#f8717122;color:#f87171}
+/* Heure supp : formulaire + liste */
+#hsupp-modal input,#hsupp-modal select{box-sizing:border-box;max-width:100%}
+#hsupp-modal input[type=date]::-webkit-calendar-picker-indicator,
+#hsupp-modal input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.6}
+.hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1rem}
+.hs-form > div[style*="flex"]{min-width:0}
+.hs-form > div[style*="flex"] > div{min-width:0}
+.hs-listwrap{margin-top:.5rem}
+.hs-item{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.6rem .7rem;margin-bottom:6px}
+.hs-item-main{flex:1;min-width:0}
+.hs-item-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.hs-item-date{font-size:14px;font-weight:600;text-transform:capitalize}
+.hs-item-h{font-size:13px;font-weight:600;font-family:'DM Mono',monospace;color:var(--c3t);white-space:nowrap}
+.hs-item-sub{font-size:11px;color:var(--muted2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hs-ic{background:var(--surface3);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;flex-shrink:0;cursor:pointer;font-size:14px}
+.hs-ic:hover{border-color:var(--muted)}
 /* Heures supp : formulaire + liste */
 .hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1.1rem}
 .hs-item{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:10px;padding:.6rem .7rem;margin-bottom:5px}
@@ -2214,13 +2230,18 @@ async function hsSave(ctx){
   if(up.status===401||up.status===403){ clearToken(); throw new Error("Autorisation insuffisante — reconnecte-toi."); }
   if(!up.ok) throw new Error(`Écriture impossible (HTTP ${up.status})`);
 }
-function hsRowFound(sx, stopSis){
-  const stopIdx = stopSis.findIndex(s => /STOP/i.test(s));
-  if(stopIdx < 0) return null;
-  const mStop = sx.match(new RegExp(`<c\\b[^>]*?\\br="D(\\d+)"[^>]*?t="s"[^>]*?>\\s*<v>${stopIdx}</v>`));
-  return mStop ? { row:parseInt(mStop[1],10), text:stopSis[stopIdx].replace(/<[^>]+>/g,'').trim() } : null;
+// Détecte la ligne STOP (chaîne partagée OU texte en ligne) → {row, text} ou null
+function hsFindStop(sx, sis){
+  const stopIdx = sis.findIndex(s => /STOP/i.test(s));
+  if(stopIdx >= 0){
+    const m = sx.match(new RegExp(`<c\\b[^>]*?\\br="D(\\d+)"[^>]*?t="s"[^>]*?>\\s*<v>${stopIdx}</v>`));
+    if(m) return { row:parseInt(m[1],10), text:sis[stopIdx].replace(/<[^>]+>/g,'').trim() };
+  }
+  const mi = sx.match(/<c\b[^>]*?\br="D(\d+)"[^>]*?t="inlineStr">[\s\S]*?<t[^>]*>([^<]*STOP[^<]*)<\/t>/i);
+  if(mi) return { row:parseInt(mi[1],10), text:mi[2].trim() };
+  return null;
 }
-// Écrit les 4 cellules A/B/C/D d'une ligne donnée (styles repris de la ligne, sinon ligne 3)
+// Écrit les 4 cellules A/B/C/D d'une ligne (styles repris de la ligne, sinon ligne 3)
 function hsWriteRow(sx, R, iso, debut, fin, motif){
   const sA = hsGetStyle(sx,'A'+R)||hsGetStyle(sx,'A3'), sB = hsGetStyle(sx,'B'+R)||hsGetStyle(sx,'B3'),
         sC = hsGetStyle(sx,'C'+R)||hsGetStyle(sx,'C3'), mS = hsGetStyle(sx,'D'+R)||hsGetStyle(sx,'D3');
@@ -2238,33 +2259,74 @@ function hsWriteRow(sx, R, iso, debut, fin, motif){
   }
   return sx;
 }
+// Vide les cellules A/B/C/D d'une ligne (en gardant les styles)
+function hsClearRow(sx, R, stopRow){
+  for(const col of ['A','B','C','D']){
+    const ref = col+R;
+    // ne pas toucher la cellule D si c'est la ligne STOP
+    if(col==='D' && R===stopRow) continue;
+    const s = hsGetStyle(sx, ref);
+    const out = hsReplaceCell(sx, ref, `<c r="${ref}"${s?` s="${s}"`:''}/>`);
+    if(out !== null) sx = out;
+  }
+  return sx;
+}
 
-// AJOUT — bloqué si STOP présent ; sinon à la suite de la dernière ligne datée
-async function addHeureSupp(reg, iso, debut, fin, motif){
+// Cœur : réécrit TOUTES les entrées triées (date puis heure) et compactées dès la
+// ligne 3, sans trous, et replace le STOP juste en dessous s'il existait.
+async function rewriteHeuresSupp(reg, entries){
   const ctx = await hsOpenSheet(reg);
-  const stop = hsRowFound(ctx.sx, ctx.sis);
-  if(stop) throw new Error(`Période clôturée par le patron (« ${stop.text} »). Impossible d'ajouter une heure supp.`);
-  let last = 2, dm; const dRe = /<c\b[^>]*?\br="A(\d+)"[^>]*?>\s*<v>\d/g;
-  while((dm = dRe.exec(ctx.sx))){ last = Math.max(last, parseInt(dm[1],10)); }
-  ctx.sx = hsWriteRow(ctx.sx, last+1, iso, debut, fin, motif);
+  const stop = hsFindStop(ctx.sx, ctx.sis);
+  // dernière ligne actuellement utilisée (pour nettoyer le surplus)
+  let maxRow = 2, m;
+  const aRe = /<c\b[^>]*?\br="A(\d+)"[^>]*?>\s*<v>/g;
+  while((m = aRe.exec(ctx.sx))) maxRow = Math.max(maxRow, parseInt(m[1],10));
+  const dRe = /<c\b[^>]*?\br="D(\d+)"[^>]*?>(?:[\s\S]*?<t)/g;
+  while((m = dRe.exec(ctx.sx))) maxRow = Math.max(maxRow, parseInt(m[1],10));
+  if(stop) maxRow = Math.max(maxRow, stop.row);
+
+  // tri chronologique (date, puis heure de début)
+  const list = entries.slice().sort((a,b)=>
+    a.iso!==b.iso ? (a.iso<b.iso?-1:1) : (a.debut<b.debut?-1:a.debut>b.debut?1:0));
+  const MAXROWS = 30; // plage de la formule E (E3:E32)
+  if(list.length > MAXROWS) throw new Error(`Trop d'entrées (${list.length}) pour ce modèle (max ${MAXROWS}).`);
+
+  let R = 3;
+  for(const e of list){ ctx.sx = hsWriteRow(ctx.sx, R, e.iso, e.debut, e.fin, e.motif); R++; }
+  // Replace le STOP juste sous les entrées
+  let clearFrom = R;
+  if(stop){
+    const sD = hsGetStyle(ctx.sx,'D'+stop.row) || hsGetStyle(ctx.sx,'D'+R);
+    // vide A/B/C de la ligne STOP cible puis écrit le texte STOP
+    for(const col of ['A','B','C']){ const ref=col+R; const s=hsGetStyle(ctx.sx,ref); const o=hsReplaceCell(ctx.sx,ref,`<c r="${ref}"${s?` s="${s}"`:''}/>`); if(o) ctx.sx=o; }
+    const o = hsReplaceCell(ctx.sx, 'D'+R, `<c r="D${R}"${sD?` s="${sD}"`:''} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(stop.text)}</t></is></c>`);
+    if(o) ctx.sx = o;
+    clearFrom = R + 1;
+  }
+  // nettoie les anciennes lignes restantes
+  for(let r = clearFrom; r <= maxRow; r++) ctx.sx = hsClearRow(ctx.sx, r, -1);
   await hsSave(ctx);
   return ctx.sheetName;
 }
-// MODIFICATION d'une ligne existante (pas de blocage STOP)
-async function editHeureSupp(reg, rowNum, iso, debut, fin, motif){
-  const ctx = await hsOpenSheet(reg);
-  ctx.sx = hsWriteRow(ctx.sx, rowNum, iso, debut, fin, motif);
-  await hsSave(ctx);
+
+// AJOUT — bloqué si STOP présent ; sinon ajoute puis réorganise
+async function addHeureSupp(reg, iso, debut, fin, motif){
+  const { entries, stop } = await readHeuresSupp(reg);
+  if(stop) throw new Error(`Période clôturée par le patron (« ${stop} »). Impossible d'ajouter une heure supp.`);
+  entries.push({ iso, debut, fin, motif });
+  return rewriteHeuresSupp(reg, entries);
 }
-// SUPPRESSION d'une ligne (on vide A/B/C/D en gardant les styles)
+// MODIFICATION d'une ligne existante → on met à jour puis on réorganise
+async function editHeureSupp(reg, rowNum, iso, debut, fin, motif){
+  const { entries } = await readHeuresSupp(reg);
+  const e = entries.find(x=>x.rowNum===rowNum);
+  if(e){ e.iso=iso; e.debut=debut; e.fin=fin; e.motif=motif; }
+  await rewriteHeuresSupp(reg, entries);
+}
+// SUPPRESSION → on retire puis on réorganise (plus de trou)
 async function deleteHeureSupp(reg, rowNum){
-  const ctx = await hsOpenSheet(reg);
-  for(const col of ['A','B','C','D']){
-    const ref = col+rowNum; const s = hsGetStyle(ctx.sx, ref);
-    const out = hsReplaceCell(ctx.sx, ref, `<c r="${ref}"${s?` s="${s}"`:''}/>`);
-    if(out !== null) ctx.sx = out;
-  }
-  await hsSave(ctx);
+  const { entries } = await readHeuresSupp(reg);
+  await rewriteHeuresSupp(reg, entries.filter(x=>x.rowNum!==rowNum));
 }
 // LECTURE des heures supp d'un régisseur (pour le récap)
 async function readHeuresSupp(reg){
