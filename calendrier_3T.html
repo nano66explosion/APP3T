@@ -1860,7 +1860,7 @@ function initFirebase(){
     _fbMessaging = firebase.messaging();
     _fbMessaging.onMessage(payload => {
       const n = (payload && payload.notification) || {};
-      showNotif(n.title || '🎭 3T TECH', n.body || '');
+      showNotif(n.title || '🎭 3T TECH', n.body || '', (n.tag || (payload && payload.data && payload.data.tag)));
     });
   }catch(e){ console.warn('initFirebase (messaging):', e); }
   return _fbApp;
@@ -1988,8 +1988,8 @@ async function disableNotifications(){
   updateNotifLabel();
   toast('🔕 Notifications désactivées', 'ok');
 }
-function showNotif(title, body){
-  const opts = { body, icon:'icon-192.png', badge:'icon-192.png', tag:title };
+function showNotif(title, body, tag){
+  const opts = { body, icon:'icon-192.png', badge:'icon-192.png', tag: tag || title };
   if(navigator.serviceWorker && navigator.serviceWorker.ready){
     navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts))
       .catch(()=>{ try{ new Notification(title, opts); }catch(e){} });

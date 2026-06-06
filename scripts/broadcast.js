@@ -22,13 +22,16 @@ const body = (process.env.BODY || '').trim();
   if (!tokens.length) { console.log('Aucun appareil enregistré.'); return; }
   console.log('Jetons uniques :', tokens.length);
 
+  const tag = 'broadcast-' + Date.now();   // même tag pour cet envoi → pas de doublon affiché
   let sent = 0;
   for (let i = 0; i < tokens.length; i += 500) {
     const batch = tokens.slice(i, i + 500);
     const res = await messaging.sendEachForMulticast({
       tokens: batch,
-      notification: { title, body },
-      webpush: { fcmOptions: { link: APP_URL } }
+      webpush: {
+        notification: { title, body, icon: 'icon-192.png', badge: 'icon-192.png', tag },
+        fcmOptions: { link: APP_URL }
+      }
     });
     sent += res.successCount;
     res.responses.forEach((r, j) => {

@@ -57,11 +57,16 @@ async function getTokensByReg() {
   return map;
 }
 
-// Envoi multicast + nettoyage des jetons invalides
-async function sendTo(tokens, title, body, link) {
+// Envoi multicast + nettoyage des jetons invalides.
+// `tag` : notifications de même tag → fusionnées par l'OS (pas de doublon).
+async function sendTo(tokens, title, body, link, tag) {
   if (!tokens.length) return 0;
   const res = await messaging.sendEachForMulticast({
-    tokens, notification: { title, body }, webpush: { fcmOptions: { link: link || APP_URL } }
+    tokens,
+    webpush: {
+      notification: { title, body, icon: 'icon-192.png', badge: 'icon-192.png', tag: tag || '3t' },
+      fcmOptions: { link: link || APP_URL }
+    }
   });
   res.responses.forEach((r, i) => {
     if (!r.success) {
@@ -99,7 +104,7 @@ async function remindTomorrow(tokensByReg) {
   let total = 0;
   for (const [reg, list] of Object.entries(perReg)) {
     const body = list.map(e => `${e.spec} · ${salleLbl(e.salle)}${e.h ? ' ' + e.h : ''}`).join('\n');
-    const n = await sendTo(tokensByReg[reg] || [], '🎭 Régie demain', body, APP_URL + '#today');
+    const n = await sendTo(tokensByReg[reg] || [], '🎭 Régie demain', body, APP_URL + '#today', 'regie-' + tomorrow);
     total += n;
     console.log(`  ${reg}: ${n} envoyé(s)`);
   }
@@ -146,7 +151,7 @@ async function checkStops(tokensByReg) {
       const prev = await ref.get();
       if (prev.exists && prev.data().stopText === stopText) continue;  // déjà notifié
 
-      const n = await sendTo(tokensByReg[reg] || [], '🔒 Heures supp clôturées', `${f.name} — ${stopText}`);
+      const n = await sendTo(tokensByReg[reg] || [], '🔒 Heures supp clôturées', `${f.name} — ${stopText}`, APP_URL, 'stop-' + reg + '-' + f.id);
       await ref.set({ reg, file: f.name, stopText, at: new Date().toISOString() });
       console.log(`  STOP ${reg} (${f.name}) → ${n} envoyé(s)`);
     }
