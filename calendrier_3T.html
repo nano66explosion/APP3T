@@ -2051,6 +2051,13 @@ function hsUpdateDuree(){
   } else el.textContent = '';
 }
 
+// Heures calculées depuis Début/Fin (arrondi au quart d'heure), en décimal (1.5 = 1h30)
+function hsComputeHours(deb, fin){
+  if(!deb || !fin) return null;
+  const mins = (timeFracFromHM(fin) - timeFracFromHM(deb)) * 24 * 60;
+  if(mins <= 0) return null;
+  return Math.round((mins/60)/0.25) * 0.25;
+}
 const HS_MOIS = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 function hsDateLabel(iso){
   if(!iso) return '—'; const [y,m,d]=iso.split('-').map(Number);
@@ -2461,7 +2468,8 @@ async function readHeuresSupp(reg){
       debut: typeof b==='number' ? hmFromFrac(b) : '',
       fin: typeof c==='number' ? hmFromFrac(c) : '',
       motif: ds,
-      heures: typeof e==='number' ? e : null
+      // Calculé dans l'app (la valeur en cache de la formule peut être périmée)
+      heures: hsComputeHours(typeof b==='number'?hmFromFrac(b):'', typeof c==='number'?hmFromFrac(c):'')
     });
   }
   return { entries, stop };
