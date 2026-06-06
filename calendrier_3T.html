@@ -2308,9 +2308,16 @@ async function resolveHsuppStep(){
 // Trouve le fichier base heures spectacles dans le dossier (nom commençant par "Base HEURES")
 async function resolveBaseFile(){
   const files = await listHsuppFiles();
-  const match = files.find(f => hsNorm(f.name).startsWith('BASE HEURE'));
-  if(!match) throw new Error("Fichier « Base HEURES… » introuvable dans le dossier Drive.");
-  return match;
+  const matches = files.filter(f => hsNorm(f.name).startsWith('BASE HEURE'));
+  if(!matches.length) throw new Error("Fichier « Base HEURES… » introuvable dans le dossier Drive.");
+  // S'il y en a plusieurs (ex. ancien « …Modèle » + nouveau), on prend :
+  // 1) ceux qui ne sont PAS un modèle, 2) le plus récemment modifié.
+  matches.sort((a,b)=>{
+    const am = /MODELE/.test(hsNorm(a.name)) ? 1 : 0, bm = /MODELE/.test(hsNorm(b.name)) ? 1 : 0;
+    if(am !== bm) return am - bm;                       // non-modèle d'abord
+    return (b.modifiedTime||'').localeCompare(a.modifiedTime||'');  // puis plus récent
+  });
+  return matches[0];
 }
 
 // Trouve le fichier "HEURES <MOIS> <ANNÉE>" du mois donné dans le dossier Drive
@@ -2338,7 +2345,7 @@ const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder';
 // Liste le contenu d'UN dossier Drive (fichiers + sous-dossiers)
 async function driveListFolder(folderId){
   const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,modifiedTime)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     { headers:{ Authorization:'Bearer '+accessToken } });
   if(r.status===401){ clearToken(); silentRefresh(); throw new Error('Session expirée'); }
   if(!r.ok) throw new Error(`Lecture du dossier impossible (HTTP ${r.status})`);
