@@ -5,6 +5,11 @@
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
+// Force la nouvelle version du service worker à prendre le relais immédiatement
+// (évite qu'une ancienne version continue d'afficher les notifs en double).
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDXOF7_eTKMDYp8swxmoznEfyxY8_4ArP0",
   authDomain: "tapp-2c0a8.firebaseapp.com",
