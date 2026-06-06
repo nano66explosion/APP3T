@@ -2289,14 +2289,29 @@ async function resolveHsuppForMonth(dateObj){
 
 const HS_MOIS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 // Liste tous les fichiers du dossier heures supp
-async function listHsuppFiles(){
-  if(!HSUPP_FOLDER_ID) return [];
-  const q = encodeURIComponent(`'${HSUPP_FOLDER_ID}' in parents and trashed=false`);
+const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder';
+// Liste le contenu d'UN dossier Drive (fichiers + sous-dossiers)
+async function driveListFolder(folderId){
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
   const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     { headers:{ Authorization:'Bearer '+accessToken } });
   if(r.status===401){ clearToken(); silentRefresh(); throw new Error('Session expirée'); }
   if(!r.ok) throw new Error(`Lecture du dossier impossible (HTTP ${r.status})`);
   return (await r.json()).files || [];
+}
+// Liste les fichiers heures supp : dossier principal + ses sous-dossiers (ex. "heures 25-26",
+// où sont archivés les mois passés). Un seul niveau de profondeur. Renvoie les fichiers (pas les dossiers).
+async function listHsuppFiles(){
+  if(!HSUPP_FOLDER_ID) return [];
+  const top = await driveListFolder(HSUPP_FOLDER_ID);
+  const files = top.filter(f => f.mimeType !== DRIVE_FOLDER_MIME);
+  for(const sub of top.filter(f => f.mimeType === DRIVE_FOLDER_MIME)){
+    try{
+      const inner = await driveListFolder(sub.id);
+      files.push(...inner.filter(f => f.mimeType !== DRIVE_FOLDER_MIME));
+    }catch(e){ console.warn('Sous-dossier heures supp illisible :', sub.name, e); }
+  }
+  return files;
 }
 // Déduit {monthIndex, year, label} du nom "HEURES <MOIS> <ANNÉE>"
 function hsParseMonthYear(name){
@@ -2331,10 +2346,12 @@ async function loadRecapHsupp(reg, containerId, totalElId){
   const totEl = totalElId ? document.getElementById(totalElId) : null;
   if(!el) return;
   try{
+    const seenMonths = new Set();
     const files = (await listHsuppFiles())
       .map(f => ({ f, my: hsParseMonthYear(f.name) }))
       .filter(x => x.my)
-      .sort((a,b) => (a.my.year*12+a.my.monthIndex) - (b.my.year*12+b.my.monthIndex));
+      .sort((a,b) => (a.my.year*12+a.my.monthIndex) - (b.my.year*12+b.my.monthIndex))
+      .filter(x => { const k = x.my.year*12 + x.my.monthIndex; if(seenMonths.has(k)) return false; seenMonths.add(k); return true; });
     if(!files.length){ el.innerHTML = '<div style="color:var(--muted);font-size:13px">Aucun fichier heures supp.</div>'; if(totEl) totEl.textContent='0 h'; return; }
     let rows = '', grand = 0;
     for(const { f, my } of files){

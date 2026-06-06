@@ -121,6 +121,7 @@ async function checkStops(tokensByReg) {
     supportsAllDrives: true, includeItemsFromAllDrives: true
   });
   const files = (list.data.files || []).filter(f => {
+    if (f.mimeType === 'application/vnd.google-apps.folder') return false;   // ignore les sous-dossiers (ex. "heures 25-26")
     const n = (f.name || '').toUpperCase();
     return n.includes('HEURE') && !n.includes('BASE');
   });
