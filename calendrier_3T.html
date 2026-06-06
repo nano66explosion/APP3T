@@ -1183,6 +1183,30 @@ function parseBaseHeures(wb){
   return result;
 }
 
+// Distance d'édition (Optimal String Alignment : gère ajout/oubli/substitution/transposition)
+function _osa(a,b){
+  const m=a.length, n=b.length;
+  const d=Array.from({length:m+1},()=>new Array(n+1).fill(0));
+  for(let i=0;i<=m;i++) d[i][0]=i;
+  for(let j=0;j<=n;j++) d[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+    const cost=a[i-1]===b[j-1]?0:1;
+    d[i][j]=Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1]+cost);
+    if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]) d[i][j]=Math.min(d[i][j], d[i-2][j-2]+1);
+  }
+  return d[m][n];
+}
+// Deux mots se ressemblent-ils malgré une coquille ? (ex. vensie↔venise, 3crime↔crime, monlogues↔monologue)
+function _wordFuzzy(a,b){
+  if(a===b) return true;
+  const mn=Math.min(a.length,b.length);
+  if(mn<4) return false;            // mots trop courts : correspondance exacte exigée
+  const d=_osa(a,b);
+  if(d<=1) return true;             // 1 faute tolérée
+  if(mn>=8 && d<=2) return true;    // 2 fautes seulement sur les mots longs
+  return false;
+}
+
 // Retrouve l'entrée base correspondant à un nom de spectacle du plan tech
 function matchBaseSpec(specName){
   const k = normSpec(specName);
@@ -1192,14 +1216,14 @@ function matchBaseSpec(specName){
   // contains dans un sens ou l'autre
   let hit = keys.find(bk => bk.includes(k) || k.includes(bk));
   if(hit) return baseHeures[hit];
-  // recouvrement de mots (≥2 mots communs, ou 1 mot long commun)
+  // recouvrement de mots, tolérant aux coquilles (distance d'édition)
   const words = k.split(' ').filter(w=>w.length>2);
   let best=null, bestScore=0;
   keys.forEach(bk=>{
     const bw = bk.split(' ').filter(w=>w.length>2);
-    const common = words.filter(w=>bw.includes(w));
-    const score = common.reduce((s,w)=>s+w.length,0);
-    if(common.length>=1 && score>bestScore){ bestScore=score; best=bk; }
+    let score=0, common=0;
+    words.forEach(w=>{ if(bw.some(x=>_wordFuzzy(w,x))){ common++; score+=w.length; } });
+    if(common>=1 && score>bestScore){ bestScore=score; best=bk; }
   });
   if(best && bestScore>=4) return baseHeures[best];
   return null;
