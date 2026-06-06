@@ -1,0 +1,29 @@
+name: Notification à toute l'équipe
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: "Titre de la notif"
+        default: "📣 3T TECH"
+        required: true
+      body:
+        description: "Message"
+        required: true
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install
+        working-directory: scripts
+      - run: node broadcast.js
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          TITLE: ${{ inputs.title }}
+          BODY: ${{ inputs.body }}
