@@ -47,11 +47,13 @@ function isoInParis(offsetDays) {
 
 // Jetons d'appareils groupés par régisseur
 async function getTokensByReg() {
-  const map = {};
+  const sets = {};
   (await db.collection('pushTokens').get()).forEach(doc => {
     const d = doc.data();
-    if (d.reg && d.token) (map[d.reg] = map[d.reg] || []).push(d.token);
+    if (d.reg && d.token) (sets[d.reg] = sets[d.reg] || new Set()).add(d.token);
   });
+  const map = {};
+  for (const [reg, s] of Object.entries(sets)) map[reg] = [...s];   // dédoublonnage
   return map;
 }
 

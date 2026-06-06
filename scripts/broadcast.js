@@ -16,9 +16,11 @@ const body = (process.env.BODY || '').trim();
 (async () => {
   if (!body) { console.error('Message vide.'); process.exit(1); }
 
-  const tokens = [];
-  (await db.collection('pushTokens').get()).forEach(d => { const t = d.data().token; if (t) tokens.push(t); });
+  const set = new Set();
+  (await db.collection('pushTokens').get()).forEach(d => { const t = d.data().token; if (t) set.add(t); });
+  const tokens = [...set];   // dédoublonnage des jetons identiques
   if (!tokens.length) { console.log('Aucun appareil enregistré.'); return; }
+  console.log('Jetons uniques :', tokens.length);
 
   let sent = 0;
   for (let i = 0; i < tokens.length; i += 500) {
