@@ -361,6 +361,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 .hp-warn{font-size:11px;color:#f87171;margin-top:.4rem}
 .hp-note{font-size:10px;color:var(--c3tc);margin-top:.5rem}
 .pos-btn{margin-top:.6rem;width:100%;padding:8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s;border:1px solid}
+.team-table .tt-act{white-space:nowrap}
+.team-table .tt-act .pos-btn{margin-top:0;width:auto;padding:5px 9px;font-size:11px}
 .pos-btn:disabled{opacity:.5;cursor:wait}
 .pos-btn.add{background:#4ade8018;border-color:#4ade8055;color:var(--c3t)}
 .pos-btn.add:hover:not(:disabled){background:#4ade8028}
@@ -2830,24 +2832,8 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
         else meta = `${salleLabel}${withStr}`;
       }
 
-      // Bouton "se positionner" / "se retirer" (uniquement régies de salle, pas tournée)
-      // Toujours affiché si applicable ; le contrôle du type de fichier se fait au clic.
-      let actionHTML = '';
-      if (me && e.src && e.salle !== 'Tournée') {
-        const iAmIn = (e.regies||[]).some(r => r.reg === me && r.role !== 'observateur');
-        if (e.unassigned) {
-          const i = dayActions.push({type:'add', src:e.src, spec:e.spec||'—', me, salleLabel, dateLabel}) - 1;
-          actionHTML = `<button id="act-${i}" class="pos-btn add" onclick="doPosition(${i})">➕ Me positionner</button>`;
-        } else if (iAmIn) {
-          // Pas de retrait sur un mois déjà passé
-          const now = new Date();
-          const isPastMonth = (y < now.getFullYear()) || (y === now.getFullYear() && m < now.getMonth()+1);
-          if (!isPastMonth) {
-            const i = dayActions.push({type:'remove', src:e.src, spec:e.spec||'—', me, salleLabel, dateLabel}) - 1;
-            actionHTML = `<button id="act-${i}" class="pos-btn remove" onclick="doPosition(${i})">➖ Me retirer</button>`;
-          }
-        }
-      }
+      // Bouton "se positionner" / "se retirer" (fonctionne en perso ET en équipe)
+      const actionHTML = posActionHTML(e, y, m, dateLabel);
 
       cardsHTML += `<div class="event-card ${cls}">
         <div class="ev-top">
@@ -3178,7 +3164,29 @@ function buildDayMap(reg, y, m) {
   return map;
 }
 
-function eventCardHTML(e, reg, teamMode) {
+// Bouton "Me positionner / Me retirer" pour une entrée (réutilisé partout).
+// Empile l'action dans dayActions et renvoie le HTML du bouton (ou '').
+function posActionHTML(e, y, m, dateLabel){
+  const me = myRegName();
+  if(!(me && e.src && e.salle !== 'Tournée')) return '';
+  const salleLabel = e.salle==='3TC'?'3T Côté':e.salle==='GT'?'Grand Théâtre':e.salle;
+  if(e.unassigned){
+    const i = dayActions.push({type:'add', src:e.src, spec:e.spec||'—', me, salleLabel, dateLabel}) - 1;
+    return `<button id="act-${i}" class="pos-btn add" onclick="doPosition(${i})">➕ Me positionner</button>`;
+  }
+  const iAmIn = (e.regies||[]).some(r => r.reg === me && r.role !== 'observateur');
+  if(iAmIn){
+    const now = new Date();
+    const isPast = (y < now.getFullYear()) || (y === now.getFullYear() && m < now.getMonth()+1);
+    if(!isPast){
+      const i = dayActions.push({type:'remove', src:e.src, spec:e.spec||'—', me, salleLabel, dateLabel}) - 1;
+      return `<button id="act-${i}" class="pos-btn remove" onclick="doPosition(${i})">➖ Me retirer</button>`;
+    }
+  }
+  return '';
+}
+
+function eventCardHTML(e, reg, teamMode, posCtx) {
   let cls = 'egt';
   if (e.salle==='3T') cls='e3t';
   else if (e.salle==='3TC') cls='e3tc';
@@ -3212,10 +3220,12 @@ function eventCardHTML(e, reg, teamMode) {
       : e.myRole==='observateur' ? `${salleLabel} · heures techniques${withStr}`
       : `${salleLabel}${withStr}`;
   }
+  const action = posCtx ? posActionHTML(e, posCtx.y, posCtx.m, posCtx.dateLabel) : '';
   return `<div class="event-card ${cls}${e.cancelled?' ecancel':''}">
     <div class="ev-top"><span class="ev-name">${e.spec||'—'}</span><div class="ev-badges">${badges.join('')}</div></div>
     <div class="ev-meta">${meta}</div>
     ${who}
+    ${action}
   </div>`;
 }
 
@@ -3231,6 +3241,7 @@ function renderTeamTable(y, m){
   const salleColor = {'3T':'var(--c3t)','3TC':'var(--c3tc)','GT':'var(--cgt)','Tournée':'var(--ctour)'};
   const me = myRegName();
   const nbDays = new Date(y, m, 0).getDate();
+  dayActions = [];   // actions "Me positionner / Me retirer" du tableau
 
   let rows = '';
   for (let d = 1; d <= nbDays; d++) {
@@ -3250,18 +3261,20 @@ function renderTeamTable(y, m){
       if (e.cancelled) specCell += ' <span class="ev-badge bdg-cancel">❌ annulé</span>';
       else if (e.guest) specCell += ' <span class="ev-badge bdg-guest">🎤 invité</span>';
       const rowCls = (isToday?'tt-today':'') + (idx===0?' tt-daystart':'') + (e.cancelled?' tt-cancel':(e.guest?' tt-guest':''));
+      const action = posActionHTML(e, y, m, `${jourStr[dow]} ${d}`);
       rows += `<tr class="${rowCls}">
         <td class="tt-day">${idx===0?`<b>${d}</b> ${jourStr[dow]}`:''}</td>
         <td><span class="tt-salle" style="--sc:${salleColor[e.salle]||'var(--muted)'}">${salleLabelOf(e.salle)}</span></td>
         <td class="tt-spec">${specCell}</td>
         <td class="tt-h">${e.h||''}</td>
         <td class="tt-regs">${who}</td>
+        <td class="tt-act">${action}</td>
       </tr>`;
     });
   }
   if (!rows) return '<div style="padding:2rem;text-align:center;color:var(--muted);font-size:14px">Aucune activité ce mois</div>';
   return `<div class="team-table-wrap"><table class="team-table">
-    <thead><tr><th>Jour</th><th>Salle</th><th>Spectacle</th><th>H.</th><th>Régisseurs</th></tr></thead>
+    <thead><tr><th>Jour</th><th>Salle</th><th>Spectacle</th><th>H.</th><th>Régisseurs</th><th></th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
@@ -3279,6 +3292,7 @@ function renderList(reg, y, m) {
   let html = '<div class="list-view">';
   let hasSomething = false;
   const nbDays = new Date(y, m, 0).getDate();
+  dayActions = [];   // actions "Me positionner / Me retirer" de l'agenda
   for (let d = 1; d <= nbDays; d++) {
     const entries = dayMap[d];
     if (!entries || entries.length === 0) continue;
@@ -3287,12 +3301,14 @@ function renderList(reg, y, m) {
     const isToday = isoKey === todayKey;
     const dow = new Date(y, m-1, d).getDay();
     const jourNom = jourStr[dow];
+    const dateLabel = `${jourNom} ${d}`;
+    const posCtx = { y, m, dateLabel };
     html += `<div class="list-day${isToday?' is-today':''}">
       <div class="list-day-header">
         <span class="list-day-num">${d}</span>
         <span class="list-day-label">${jourNom}</span>
       </div>
-      <div class="list-day-events">${entries.map(e => eventCardHTML(e, reg, teamMode)).join('')}</div>
+      <div class="list-day-events">${entries.map(e => eventCardHTML(e, reg, teamMode, posCtx)).join('')}</div>
     </div>`;
   }
   if (!hasSomething) html += '<div style="padding:2rem;text-align:center;color:var(--muted);font-size:14px">Aucune régie ce mois</div>';
