@@ -2594,6 +2594,21 @@ function computeSeason(reg){
   return t;
 }
 
+// Couverture du calcul d'heures sur TOUT le théâtre (tous régisseurs, toute la saison) :
+// quels spectacles sont calculables (présents dans la base), lesquels manquent, lesquels sont invités.
+function computeCoverage(){
+  const calc = {}, unmatched = {}, guests = {};
+  allDays.forEach(d => (d.entries||[]).forEach(e => {
+    if(e.salle === 'Tournée' || e.cancelled) return;
+    const name = e.spec || '—';
+    if(e.guest){ guests[name] = (guests[name]||0)+1; return; }
+    if(matchBaseSpec(e.spec)){ calc[name] = (calc[name]||0)+1; }
+    else { unmatched[name] = (unmatched[name]||0)+1; }
+  }));
+  const sortNames = o => Object.keys(o).sort((a,b)=>a.localeCompare(b,'fr'));
+  return { calc: sortNames(calc), unmatched: sortNames(unmatched), guests: sortNames(guests) };
+}
+
 function openIntermittence(){
   const reg = getMyReg() || getCurrentReg() || '';
   const s = computeSeason(reg);
@@ -2625,6 +2640,23 @@ function openIntermittence(){
 
   const unm = s.guests.length
     ? `<div style="margin-top:.6rem;font-size:11px;color:var(--cguest)">🎤 Artistes invités (hors calcul) : ${s.guests.join(', ')}</div>` : '';
+
+  // Couverture du calcul d'heures (tout le théâtre)
+  const cov = computeCoverage();
+  const covList = (arr, color) => `<div style="font-size:12px;color:${color};margin:.2rem 0 .8rem;line-height:1.5">${arr.length ? arr.join(' · ') : '—'}</div>`;
+  const coverageBlock = `
+    <details class="intermi-block" style="margin-bottom:1rem">
+      <summary style="font-size:12px;color:var(--muted);cursor:pointer;text-transform:uppercase;letter-spacing:.6px;list-style:none">Couverture du calcul d'heures (tout le théâtre) ▾</summary>
+      <div style="margin-top:.75rem">
+        <div class="intermi-row"><span class="intermi-label" style="color:var(--c3t)">✅ Calculables (dans la base)</span><span class="intermi-val">${cov.calc.length}</span></div>
+        ${covList(cov.calc, 'var(--muted)')}
+        <div class="intermi-row"><span class="intermi-label" style="color:var(--c3tc)">❌ Non trouvés dans la base</span><span class="intermi-val">${cov.unmatched.length}</span></div>
+        ${covList(cov.unmatched, 'var(--c3tc)')}
+        <div class="intermi-row"><span class="intermi-label" style="color:var(--cguest)">🎤 Invités (exclus du calcul)</span><span class="intermi-val">${cov.guests.length}</span></div>
+        ${covList(cov.guests, 'var(--cguest)')}
+        <div style="font-size:11px;color:var(--muted)">Les « non trouvés » sont les spectacles à ajouter dans le fichier base heures pour qu'ils soient calculés.</div>
+      </div>
+    </details>`;
 
   document.getElementById('intermittence-body').innerHTML = `
     <div class="modal-sub" style="margin-bottom:1.25rem">${who} · Saison ${saison}</div>
@@ -2665,6 +2697,8 @@ function openIntermittence(){
       <summary style="font-size:12px;color:var(--muted);cursor:pointer;text-transform:uppercase;letter-spacing:.6px;list-style:none">Par spectacle ▾</summary>
       <div style="margin-top:.75rem">${specRows}${unm}</div>
     </details>
+
+    ${coverageBlock}
 
     ${baseWarn}`;
 
