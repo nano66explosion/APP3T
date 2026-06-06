@@ -9,8 +9,8 @@
 
 ## 🌐 Déploiement & dépôt
 
-- **Repo GitHub** : `nano66explosion/3ttest` — branche **`main`** (déploiement direct).
-- **Site** : `https://nano66explosion.github.io/3ttest/calendrier_3T.html`
+- **Repo GitHub** : `nano66explosion/APP3T` — branche **`main`** (déploiement direct). *(Anciennement `3ttest`, renommé le 2026-06-06 ; les anciens liens redirigent.)*
+- **Site** : `https://nano66explosion.github.io/APP3T/calendrier_3T.html`
 - **Workflow** : les modifs sont **commit + push directement sur `main`** (push auto possible :
   identifiants enregistrés dans le trousseau macOS). Une branche `dev` existe mais inutilisée pour l'instant.
 - **`.gitignore`** : exclut les `*.xlsx` (données réelles à ne pas publier), `.DS_Store`, `.claude/`.
