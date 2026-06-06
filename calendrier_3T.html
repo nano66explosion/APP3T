@@ -754,7 +754,7 @@ select:focus{outline:none;border-color:var(--muted2)}
     <div class="settings-block">
       <label class="file-label">🔔 Notifications</label>
       <div class="file-name" id="lbl-notif" style="color:var(--text)"></div>
-      <button class="file-btn" onclick="requestNotifications()" style="margin-top:.4rem">Activer les rappels</button>
+      <button class="file-btn" id="btn-notif" onclick="toggleNotifications()" style="margin-top:.4rem">Activer les rappels</button>
       <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Rappel de ta régie du jour / du lendemain à l'ouverture de l'app, <b>et</b> — quand le push est activé — la veille d'une régie même app fermée.</div>
     </div>
 
@@ -1900,6 +1900,7 @@ async function publishSchedule(){
 // Récupère un jeton FCM pour cet appareil et l'enregistre dans Firestore
 async function enablePush(){
   if(!pushConfigured()){ return; }
+  if(isPushDisabled()){ return; }
   if(!('serviceWorker' in navigator)){ return; }
   if(Notification.permission !== 'granted'){ return; }
   initFirebase();
@@ -1929,20 +1930,45 @@ async function savePushToken(token){
 }
 // Si le push est déjà autorisé, on rafraîchit le jeton au démarrage (+ après changement de régisseur)
 function refreshPushRegistration(){
-  if(pushConfigured() && notifSupported() && Notification.permission === 'granted'){ enablePush(); }
+  if(pushConfigured() && notifSupported() && Notification.permission === 'granted' && !isPushDisabled()){ enablePush(); }
 }
+function isPushDisabled(){ return localStorage.getItem('3t_push_disabled') === '1'; }
+function notifActive(){ return notifSupported() && Notification.permission === 'granted' && !isPushDisabled(); }
 function updateNotifLabel(){
   const el = document.getElementById('lbl-notif');
+  const btn = document.getElementById('btn-notif');
   if(!el) return;
   if(!notifSupported()){
     el.textContent = (isIOS() && !isStandalone())
       ? '📲 Installe l\'app sur l\'écran d\'accueil pour activer les notifications'
       : 'Non supporté sur cet appareil';
+    if(btn) btn.textContent = 'Activer les rappels';
     return;
   }
-  el.textContent = Notification.permission === 'granted' ? '✅ Activées'
-    : Notification.permission === 'denied' ? '🚫 Bloquées (à réautoriser dans le navigateur)'
-    : 'Désactivées';
+  let txt, btnTxt;
+  if(Notification.permission === 'denied'){ txt = '🚫 Bloquées (à réautoriser dans le navigateur)'; btnTxt = 'Activer les rappels'; }
+  else if(notifActive()){ txt = '✅ Activées'; btnTxt = '🔕 Désactiver les notifications'; }
+  else { txt = isPushDisabled() ? '🔕 Désactivées' : 'Désactivées'; btnTxt = 'Activer les rappels'; }
+  el.textContent = txt;
+  if(btn) btn.textContent = btnTxt;
+}
+// Bouton unique : active ou désactive selon l'état
+function toggleNotifications(){
+  if(notifActive()){ disableNotifications(); }
+  else { localStorage.removeItem('3t_push_disabled'); requestNotifications(); }
+}
+// Désactive : supprime le jeton FCM (plus de push) + bloque la ré-inscription auto
+async function disableNotifications(){
+  localStorage.setItem('3t_push_disabled', '1');
+  const tk = localStorage.getItem('3t_push_token');
+  try{
+    if(pushConfigured()){ initFirebase(); }
+    if(tk && _fbDb){ await _fbDb.collection('pushTokens').doc(tk).delete(); }
+    if(_fbMessaging && _fbMessaging.deleteToken){ await _fbMessaging.deleteToken(); }
+  }catch(e){ console.warn('disableNotifications:', e); }
+  localStorage.removeItem('3t_push_token');
+  updateNotifLabel();
+  toast('🔕 Notifications désactivées', 'ok');
 }
 function showNotif(title, body){
   const opts = { body, icon:'icon-192.png', badge:'icon-192.png', tag:title };
@@ -1953,7 +1979,7 @@ function showNotif(title, body){
 }
 // Rappels pertinents quand l'app s'ouvre : ta régie aujourd'hui / demain
 function checkReminders(){
-  if(!notifSupported() || Notification.permission !== 'granted') return;
+  if(!notifSupported() || Notification.permission !== 'granted' || isPushDisabled()) return;
   const me = getMyReg(); if(!me || !allDays.length) return;
   const salleLbl = s => s==='3TC'?'3T Côté':s==='GT'?'Grand Théâtre':s;
   [0,1].forEach(off => {
