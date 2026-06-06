@@ -56,7 +56,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 input[type=file]{display:none}
 
 /* ── APP ── */
-#app-screen{display:none;max-width:480px;margin:0 auto;min-height:100vh;display:none;flex-direction:column}
+#app-screen{display:none;max-width:480px;margin:0 auto;height:100vh;height:100dvh;overflow:hidden;flex-direction:column}
 
 /* ── HEADER ── */
 .app-header{padding:calc(1rem + env(safe-area-inset-top)) 1rem .75rem;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:20}
@@ -275,8 +275,13 @@ select:focus{outline:none;border-color:var(--muted2)}
 .bdg-guest{background:#f472b622;color:var(--cguest)}
 .bdg-cancel{background:#f8717122;color:#f87171}
 /* Heure supp : formulaire + liste */
-#hsupp-modal input,#hsupp-modal select{box-sizing:border-box;width:100%;max-width:100%;min-width:0}
-#hsupp-modal .hs-form select{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;-webkit-appearance:none;appearance:none}
+#hsupp-modal .modal-card{max-width:440px;width:100%;box-sizing:border-box;overflow-x:hidden}
+#hsupp-modal *{box-sizing:border-box}
+#hsupp-modal #hs-reg,.hs-input{display:block;width:100%;max-width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.8rem;-webkit-appearance:none;appearance:none}
+.hs-timerow{display:flex;align-items:center;gap:6px;margin-bottom:.5rem}
+.hs-tlabel{flex:0 0 46px;font-size:12px;color:var(--muted)}
+.hs-tsel{flex:1;min-width:0;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 8px;font-size:15px;text-align:center;color:var(--text);font-family:inherit;-webkit-appearance:none;appearance:none}
+.hs-tsep{flex:0 0 auto;color:var(--muted);font-size:13px}
 #hsupp-modal input[type=date]::-webkit-calendar-picker-indicator,
 #hsupp-modal input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.6}
 .hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1rem}
@@ -674,20 +679,22 @@ select:focus{outline:none;border-color:var(--muted2)}
     <div class="hs-form">
       <div id="hs-form-title" style="font-size:12px;font-weight:600;color:var(--c3t);margin-bottom:.6rem">➕ Nouvelle heure supp</div>
       <label class="file-label">Date</label>
-      <input id="hs-date" type="date" style="width:100%;margin-bottom:.8rem;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit">
-      <div style="display:flex;gap:10px">
-        <div style="flex:1;min-width:0">
-          <label class="file-label">Début</label>
-          <select id="hs-debut" onchange="hsUpdateDuree()"></select>
-        </div>
-        <div style="flex:1;min-width:0">
-          <label class="file-label">Fin</label>
-          <select id="hs-fin" onchange="hsUpdateDuree()"></select>
-        </div>
+      <input id="hs-date" type="date" class="hs-input">
+      <div class="hs-timerow">
+        <span class="hs-tlabel">Début</span>
+        <select id="hs-debut-h" class="hs-tsel" onchange="hsUpdateDuree()"></select>
+        <span class="hs-tsep">h</span>
+        <select id="hs-debut-m" class="hs-tsel" onchange="hsUpdateDuree()"></select>
       </div>
-      <div id="hs-duree" style="font-size:12px;color:var(--c3t);margin:.5rem 0 .8rem;min-height:16px"></div>
+      <div class="hs-timerow">
+        <span class="hs-tlabel">Fin</span>
+        <select id="hs-fin-h" class="hs-tsel" onchange="hsUpdateDuree()"></select>
+        <span class="hs-tsep">h</span>
+        <select id="hs-fin-m" class="hs-tsel" onchange="hsUpdateDuree()"></select>
+      </div>
+      <div id="hs-duree" style="font-size:12px;color:var(--c3t);margin:.4rem 0 .8rem;min-height:16px"></div>
       <label class="file-label">Motif</label>
-      <input id="hs-motif" type="text" placeholder="ex. montage + filage faux british" style="width:100%;margin-bottom:.9rem;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit">
+      <input id="hs-motif" type="text" class="hs-input" placeholder="ex. montage + filage faux british">
       <div id="hs-error" style="font-size:12px;color:#f87171;margin-bottom:.5rem;min-height:16px"></div>
       <div style="display:flex;gap:8px">
         <button class="go-btn" id="hs-submit" onclick="submitHeureSupp()" style="flex:1">Ajouter</button>
@@ -1977,18 +1984,21 @@ function forgetHsupp(){
 let hsEditRow = null;     // ligne en cours d'édition (null = mode ajout)
 let hsEntries = [];       // dernières entrées chargées
 
-// Remplit un menu déroulant d'heures par quart d'heure (00:00 → 23:45),
-// en garantissant la présence de la valeur courante (entrées anciennes hors quart).
-function hsFillTimeSelect(id, current){
-  const opts = [];
-  for(let h=0;h<24;h++) for(const m of [0,15,30,45]){
-    opts.push(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`);
-  }
-  if(current && !opts.includes(current)) opts.push(current);
-  opts.sort();
-  const sel = document.getElementById(id);
-  sel.innerHTML = `<option value="">--:--</option>` + opts.map(o=>`<option value="${o}">${o}</option>`).join('');
-  sel.value = current || '';
+// Heure (00–23) et quart d'heure (00/15/30/45) séparés, pour Début et Fin.
+function hsFillTimeSelects(prefix, current){
+  const [ch, cm] = (current||'').split(':');
+  const hSel = document.getElementById(prefix+'-h'), mSel = document.getElementById(prefix+'-m');
+  let hOpts = []; for(let h=0;h<24;h++) hOpts.push(String(h).padStart(2,'0'));
+  let mOpts = ['00','15','30','45'];
+  if(cm && !mOpts.includes(cm)) { mOpts.push(cm); mOpts.sort(); }   // quart non standard d'une vieille entrée
+  hSel.innerHTML = `<option value="">--</option>` + hOpts.map(o=>`<option value="${o}">${o}</option>`).join('');
+  mSel.innerHTML = `<option value="">--</option>` + mOpts.map(o=>`<option value="${o}">${o}</option>`).join('');
+  hSel.value = ch || ''; mSel.value = cm || '';
+}
+// Récupère "HH:MM" (ou '' si incomplet) depuis les 2 selects d'un préfixe
+function hsGetTime(prefix){
+  const h = document.getElementById(prefix+'-h').value, m = document.getElementById(prefix+'-m').value;
+  return (h && m) ? `${h}:${m}` : '';
 }
 
 async function openHsupp(){
@@ -1996,7 +2006,7 @@ async function openHsupp(){
   const sel = document.getElementById('hs-reg');
   sel.innerHTML = REGS.map(r=>`<option value="${r.nom}">${r.nom}</option>`).join('');
   if(getMyReg()) sel.value = getMyReg();
-  hsFillTimeSelect('hs-debut'); hsFillTimeSelect('hs-fin');
+  hsFillTimeSelects('hs-debut'); hsFillTimeSelects('hs-fin');
   hsCancelEdit();
   const today = new Date();
   document.getElementById('hs-date').value =
@@ -2019,7 +2029,7 @@ async function openHsupp(){
 function closeHsupp(){ document.getElementById('hsupp-modal').style.display = 'none'; }
 
 function hsUpdateDuree(){
-  const deb = document.getElementById('hs-debut').value, fin = document.getElementById('hs-fin').value;
+  const deb = hsGetTime('hs-debut'), fin = hsGetTime('hs-fin');
   const el = document.getElementById('hs-duree');
   if(deb && fin){
     let mins = (timeFracFromHM(fin) - timeFracFromHM(deb))*24*60;
@@ -2067,8 +2077,8 @@ function hsEdit(rowNum){
   const e = hsEntries.find(x=>x.rowNum===rowNum); if(!e) return;
   hsEditRow = rowNum;
   document.getElementById('hs-date').value = e.iso;
-  hsFillTimeSelect('hs-debut', e.debut);
-  hsFillTimeSelect('hs-fin', e.fin);
+  hsFillTimeSelects('hs-debut', e.debut);
+  hsFillTimeSelects('hs-fin', e.fin);
   document.getElementById('hs-motif').value = e.motif;
   document.getElementById('hs-form-title').textContent = '✏️ Modifier l\'heure supp';
   document.getElementById('hs-submit').textContent = 'Enregistrer';
@@ -2083,14 +2093,15 @@ function hsCancelEdit(){
   document.getElementById('hs-cancel').style.display = 'none';
   document.getElementById('hs-error').textContent = '';
   document.getElementById('hs-duree').textContent = '';
-  ['hs-debut','hs-fin','hs-motif'].forEach(id=>document.getElementById(id).value='');
+  hsFillTimeSelects('hs-debut'); hsFillTimeSelects('hs-fin');
+  document.getElementById('hs-motif').value = '';
 }
 
 async function submitHeureSupp(){
   const reg = document.getElementById('hs-reg').value;
   const iso = document.getElementById('hs-date').value;
-  const deb = document.getElementById('hs-debut').value;
-  const fin = document.getElementById('hs-fin').value;
+  const deb = hsGetTime('hs-debut');
+  const fin = hsGetTime('hs-fin');
   const motif = document.getElementById('hs-motif').value.trim();
   const err = document.getElementById('hs-error');
   if(!accessToken){ err.textContent = "Reconnecte-toi à Google."; return; }
@@ -2590,7 +2601,8 @@ function isTeamMode() { return document.getElementById('team-toggle')?.checked; 
 function getCurrentReg() { return document.getElementById('reg-select').value; }
 
 function renderStats(reg, y, m, teamMode) {
-  const dayMap = teamMode ? buildTeamDayMap(y, m) : buildDayMap(reg, y, m);
+  // Les stats + le calcul d'heures restent TOUJOURS personnels (mode équipe ignoré).
+  const dayMap = buildDayMap(reg, y, m);
   const nbDays = new Date(y, m, 0).getDate();
   let nR = 0, nT = 0;
   Object.values(dayMap).forEach(entries => entries.forEach(e => {
@@ -2618,7 +2630,8 @@ function renderStats(reg, y, m, teamMode) {
       ${heuresPopHTML(heures)}
     </div>
     <div class="stat-card"><div class="stat-l">Tournées</div><div class="stat-v">${nT}</div><div class="stat-s">~180€</div></div>`;
-  renderTodayCard(reg, dayMap);
+  // La "régie du jour" suit le mode équipe (toute l'équipe ou perso)
+  renderTodayCard(reg, teamMode ? buildTeamDayMap(y, m) : dayMap);
 }
 
 // Contenu du panneau de détail des heures (survol/clic sur la carte)
@@ -3279,8 +3292,9 @@ function renderList(reg, y, m) {
 
 // ── RÉSUMÉ VIEW ────────────────────────────────────────────────────────────
 function renderResume(reg, y, m) {
-  const teamMode = isTeamMode();
-  const dayMap = teamMode ? buildTeamDayMap(y, m) : buildDayMap(reg, y, m);
+  // Le résumé reste TOUJOURS personnel (mode équipe ignoré).
+  const teamMode = false;
+  const dayMap = buildDayMap(reg, y, m);
   const nbDays = new Date(y, m, 0).getDate();
 
   // Build spectacle breakdown
