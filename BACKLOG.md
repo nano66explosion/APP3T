@@ -57,7 +57,11 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   ⚠️ Pas de vrai push serveur (GitHub Pages statique).
 - Bouton **🔄 Rafraîchir** : recharge plan + base depuis Drive.
 - **Page d'aide 💡** (modale `help-modal`) : mode d'emploi complet avec **sommaire cliquable**
-  (15 rubriques, scroll interne via `helpJump`/`helpTop`). Bouton 💡 dans l'en-tête ET sur l'écran de connexion.
+  (16 rubriques, scroll interne via `helpJump`/`helpTop`). Bouton 💡 dans l'en-tête ET sur l'écran de connexion.
+  Rubrique 15 « En détail » : explique concrètement ce que l'app **lit et écrit** dans le plan tech et le fichier heures supp.
+- **Barre de chargement à la connexion** (`login-steps`) : 4 étapes affichées en direct avec spinner →
+  ✅ vert / ⚠️ (Connexion Google · Plan tech · Base heures · Fichier heures supp du mois) + barre de progression
+  (`setStep`, `loginStepsShow`). Le fichier heures supp du mois est désormais repéré dès la connexion (`ensureDefaultFiles`).
 
 ### Écran de connexion / Paramètres
 - Écran d'accueil sobre. **Fenêtre « Paramètres »** (modale) : sélection manuelle plan/base/heures supp,
@@ -161,12 +165,12 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **3. Toasts de confirmation** ✅/❌ après positionnement / heures supp / refresh. ✅ FAIT
 - [x] **4. Bouton « Aujourd'hui »** (« Auj. ») dans la nav du mois → revient au mois courant. ✅ FAIT
 - [x] **5. Élargir la colonne en paysage** téléphone (760px). ✅ FAIT
-- [ ] **6. Recherche accessible partout** — loupe/champ dans l'en-tête ouvrant la recherche de spectacle depuis n'importe quelle vue.
-- [ ] **7. Filtres dans l'agenda** — puces : « mes régies », « non attribuées », par salle (utile en réunion planning).
+- [x] **6. Recherche accessible partout** — bouton loupe 🔍 dans l'en-tête (`openSearch`) : bascule sur la Grille et place le focus dans le champ de recherche spectacle, depuis n'importe quelle vue. ✅ FAIT
+- [x] **7. Filtres dans l'agenda** — puces (`agenda-filters`) : Toutes / Mes régies / Non attribuées / par salle (3T, 3T Côté, GT, Tournée). Marche en agenda perso, équipe mobile ET tableau équipe PC. ✅ FAIT
 - [x] **8. Pastilles colorées pour les rôles** — point couleur par rôle (titulaire vert / doublon bleu / observateur anneau gris / formateur ambre) au lieu des tags texte `(obs.)`/`(form.)`. Helper `roleDot()`, légende mise à jour. ✅ FAIT
 - [x] **9. Thème clair** — variables CSS claires (`:root[data-theme="light"]`), bouton bascule **dès la page de connexion** ET dans ⚙️ Paramètres, mémorisé en localStorage (`3t_theme`), `theme-color` synchronisé. Boutons inversés corrigés (`color:var(--bg)` au lieu de `#0f0f0f`). ✅ FAIT
 - [ ] **10. Accessibilité** — meilleurs contrastes des gris, taille de police ajustable.
-- [ ] **11. Vue patron** — heures supp de toute l'équipe côte à côte + clôture (poser le STOP) depuis l'app.
+- [~] **11. Vue patron** — ~~heures supp de toute l'équipe + clôture STOP~~. **ABANDONNÉ** (décision utilisateur, 2026-06-06).
 - [ ] **12. Export PDF / impression** d'un récap mensuel (régies + heures supp + progression 507h).
 - [ ] **13. Détection des conflits** — alerter si un régisseur est sur 2 salles à la même heure (chevauchement de créneaux).
 - [x] **14. Alerte régies non attribuées** — bandeau « ⚠️ X régies sans personne ce mois » sous les stats (compté en vue équipe, annulés exclus). ✅ FAIT
