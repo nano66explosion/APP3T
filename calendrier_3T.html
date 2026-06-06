@@ -3540,26 +3540,6 @@ function renderResume(reg, y, m) {
     resumeHTML += acc('htech', 'Heures techniques', htBody, true);
   }
 
-  // Intermittence accordion
-  const intermiBody = `<div class="intermi-block" style="margin-bottom:0">
-    <div class="intermi-row">
-      <span class="intermi-label">Régies ce mois</span>
-      <span class="intermi-val">${nRegies} spectacles</span>
-    </div>
-    <div class="intermi-row" style="margin-bottom:0">
-      <span class="intermi-label">Heures tech</span>
-      <span class="intermi-val">${htTotal !== null ? htTotal+'h' : '—'}</span>
-    </div>
-    <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:.5rem">Progression vers 507h</div>
-      <div class="progress-track"><div class="progress-fill" style="width:${Math.min(100,Math.round(((htTotal||0)/507)*100))}%"></div></div>
-      <div class="progress-label">
-        <span>${htTotal !== null ? htTotal+'h' : '—'}</span>
-        <span>507h</span>
-      </div>
-    </div>
-  </div>`;
-  resumeHTML += acc('intermi', 'Intermittence', intermiBody, false);
 
   // Top régisseurs (always shown, based on full team data)
   const teamMap = buildTeamDayMap(y, m);
