@@ -2446,7 +2446,25 @@ function launchApp() {
   refreshPushRegistration();
   // #16 — publie le planning à venir pour le cron d'envoi
   publishSchedule();
+  // #16 — si on arrive via le clic d'une notif (#today), aller à la régie du jour
+  handleNotifNav();
 }
+
+// Clic sur la notif « régie demain » (lien #today) → accueil, aujourd'hui, régie du jour
+function handleNotifNav(){
+  if(location.hash !== '#today') return;
+  // nettoie le hash pour ne pas re-déclencher au prochain rafraîchissement
+  try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  if(!appIsOpen()) return;
+  if(typeof switchView === 'function') switchView('grid');
+  goToday();   // mois courant + jour = aujourd'hui + rendu
+  setTimeout(() => {
+    const el = document.getElementById('today-card-wrap') || document.getElementById('stats');
+    if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 250);
+}
+// App déjà ouverte et menée vers #today par le clic de notif
+window.addEventListener('hashchange', handleNotifNav);
 
 // ─── PROFIL LOCAL (régisseur + avatar emoji) ─────────────────────────────────
 const EMOJI_CHOICES = ['😎','🎭','🎬','🎤','🎸','🥁','🎧','🔦','⚡','🛠️','🚀','🦊','🐺','🐱','🦁','🐻','🦉','🐧','🌟','🔥','💡','🎯','🍀','👑'];

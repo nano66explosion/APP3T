@@ -56,10 +56,10 @@ async function getTokensByReg() {
 }
 
 // Envoi multicast + nettoyage des jetons invalides
-async function sendTo(tokens, title, body) {
+async function sendTo(tokens, title, body, link) {
   if (!tokens.length) return 0;
   const res = await messaging.sendEachForMulticast({
-    tokens, notification: { title, body }, webpush: { fcmOptions: { link: APP_URL } }
+    tokens, notification: { title, body }, webpush: { fcmOptions: { link: link || APP_URL } }
   });
   res.responses.forEach((r, i) => {
     if (!r.success) {
@@ -97,7 +97,7 @@ async function remindTomorrow(tokensByReg) {
   let total = 0;
   for (const [reg, list] of Object.entries(perReg)) {
     const body = list.map(e => `${e.spec} · ${salleLbl(e.salle)}${e.h ? ' ' + e.h : ''}`).join('\n');
-    const n = await sendTo(tokensByReg[reg] || [], '🎭 Régie demain', body);
+    const n = await sendTo(tokensByReg[reg] || [], '🎭 Régie demain', body, APP_URL + '#today');
     total += n;
     console.log(`  ${reg}: ${n} envoyé(s)`);
   }

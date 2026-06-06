@@ -18,25 +18,9 @@ if (FIREBASE_CONFIG.projectId) {
   firebase.initializeApp(FIREBASE_CONFIG);
   const messaging = firebase.messaging();
 
-  // Message reçu alors que l'app est en arrière-plan / fermée
-  messaging.onBackgroundMessage((payload) => {
-    const n = (payload && payload.notification) || {};
-    self.registration.showNotification(n.title || '🎭 3T TECH', {
-      body: n.body || '',
-      icon: 'icon-192.png',
-      badge: 'icon-192.png',
-      data: (payload && payload.data) || {}
-    });
-  });
+  // Message en arrière-plan / app fermée.
+  // Les messages avec une charge "notification" sont affichés automatiquement
+  // par Firebase, et le clic ouvre le lien défini dans webpush.fcmOptions.link
+  // (ex. .../calendrier_3T.html#today). On ne définit donc PAS de gestionnaire
+  // notificationclick ici : Firebase s'en charge et respecte ce lien.
 }
-
-// Clic sur la notification → ouvrir / focus l'app
-self.addEventListener('notificationclick', (e) => {
-  e.notification.close();
-  e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) { if ('focus' in c) return c.focus(); }
-      if (self.clients.openWindow) return self.clients.openWindow('calendrier_3T.html');
-    })
-  );
-});
