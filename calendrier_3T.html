@@ -1634,12 +1634,32 @@ async function ensureDefaultFiles(){
     localStorage.setItem('3t_plan_file_name', m.name);
     localStorage.setItem('3t_plan_file_mime', m.mimeType);
   }
-  if(!getSavedBaseId() && DEFAULT_BASE_ID){
-    const m = await driveGetMeta(DEFAULT_BASE_ID);
-    localStorage.setItem('3t_base_file_id', m.id);
-    localStorage.setItem('3t_base_file_name', m.name);
-    localStorage.setItem('3t_base_file_mime', m.mimeType);
+  // Base heures : on la retrouve par NOM dans le dossier Drive (commence par "Base HEURES"),
+  // car son ID peut changer (ex. nouvelle année) mais pas le début de son nom.
+  try {
+    const b = await resolveBaseFile();
+    localStorage.setItem('3t_base_file_id', b.id);
+    localStorage.setItem('3t_base_file_name', b.name);
+    localStorage.setItem('3t_base_file_mime', b.mimeType);
+  } catch(e){
+    console.warn('resolveBaseFile:', e);
+    // repli : ancien ID par défaut si rien d'enregistré
+    if(!getSavedBaseId() && DEFAULT_BASE_ID){
+      try { const m = await driveGetMeta(DEFAULT_BASE_ID);
+        localStorage.setItem('3t_base_file_id', m.id);
+        localStorage.setItem('3t_base_file_name', m.name);
+        localStorage.setItem('3t_base_file_mime', m.mimeType);
+      } catch(_){}
+    }
   }
+}
+
+// Trouve le fichier base heures spectacles dans le dossier (nom commençant par "Base HEURES")
+async function resolveBaseFile(){
+  const files = await listHsuppFiles();
+  const match = files.find(f => hsNorm(f.name).startsWith('BASE HEURE'));
+  if(!match) throw new Error("Fichier « Base HEURES… » introuvable dans le dossier Drive.");
+  return match;
 }
 
 // Trouve le fichier "HEURES <MOIS> <ANNÉE>" du mois donné dans le dossier Drive
