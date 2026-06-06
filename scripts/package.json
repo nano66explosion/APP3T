@@ -1,0 +1,9 @@
+{
+  "name": "3t-push-reminders",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Envoi des rappels push (régie demain) pour Calendrier 3T",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

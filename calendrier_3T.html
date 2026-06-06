@@ -1853,15 +1853,49 @@ function initFirebase(){
   if(_fbApp || !pushConfigured() || typeof firebase === 'undefined') return _fbApp;
   try{
     _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+    _fbDb = firebase.firestore();        // d'abord Firestore (marche partout)
+  }catch(e){ console.warn('initFirebase (firestore):', e); }
+  try{
+    // messaging() peut échouer sur navigateurs non supportés (ex. Safari onglet) → isolé
     _fbMessaging = firebase.messaging();
-    _fbDb = firebase.firestore();
-    // Message reçu quand l'app est au premier plan → on l'affiche nous-mêmes
     _fbMessaging.onMessage(payload => {
       const n = (payload && payload.notification) || {};
       showNotif(n.title || '🎭 3T TECH', n.body || '');
     });
-  }catch(e){ console.warn('initFirebase:', e); }
+  }catch(e){ console.warn('initFirebase (messaging):', e); }
   return _fbApp;
+}
+
+// #16 — Publie le planning à venir dans Firestore (lu ensuite par le cron d'envoi).
+// Toutes les dates ≥ aujourd'hui, avec pour chaque régie ses régisseurs (hors
+// observateurs), tournées et annulés exclus. Tourné à chaque ouverture / refresh.
+let _lastPublish = 0;
+async function publishSchedule(){
+  if(!pushConfigured() || !allDays.length) return;
+  initFirebase();
+  if(!_fbDb) return;
+  if(Date.now() - _lastPublish < 60000) return;   // pas plus d'une fois/minute
+  _lastPublish = Date.now();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = {};
+  allDays.forEach(d => {
+    const dt = new Date(d.date); dt.setHours(0,0,0,0);
+    if(dt < today) return;
+    const iso = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+    (d.entries||[]).forEach(e => {
+      if(e.cancelled || e.salle === 'Tournée') return;
+      const regs = (e.regies||[]).filter(r => r.role !== 'observateur').map(r => r.reg);
+      if(!regs.length) return;
+      (days[iso] = days[iso] || []).push({ salle:e.salle, spec:e.spec||'—', h:e.h||'', regs });
+    });
+  });
+  try{
+    await _fbDb.collection('schedule').doc('v1').set({
+      updatedAt: new Date().toISOString(),
+      by: getMyReg() || '',
+      days
+    });
+  }catch(e){ console.warn('publishSchedule:', e); }
 }
 // Récupère un jeton FCM pour cet appareil et l'enregistre dans Firestore
 async function enablePush(){
@@ -2366,6 +2400,8 @@ function launchApp() {
   checkReminders();
   // #16 — (ré)enregistre l'appareil pour le push si déjà autorisé
   refreshPushRegistration();
+  // #16 — publie le planning à venir pour le cron d'envoi
+  publishSchedule();
 }
 
 // ─── PROFIL LOCAL (régisseur + avatar emoji) ─────────────────────────────────
@@ -3236,6 +3272,7 @@ async function refreshData(){
     }
     if(btn){ btn.textContent = '✅'; setTimeout(()=>{ btn.textContent='🔄'; btn.disabled=false; }, 1200); }
     toast('✅ Données à jour', 'ok');
+    publishSchedule();   // #16 — republie le planning après refresh
   }catch(err){
     toast('❌ Rafraîchissement impossible', 'err');
     if(btn){ btn.textContent='🔄'; btn.disabled=false; }
@@ -3299,6 +3336,7 @@ async function doPosition(i){
       await writeXlsxCell(getSavedFileId(), a.src.sheet, a.src.row0, a.src.col0, newVal, a.type==='remove' && !newVal);
     }
     await reloadPlanSilent();
+    publishSchedule();   // #16 — republie le planning après (dé)positionnement
     toast(a.type==='add' ? '✅ Tu es positionné' : '✅ Tu es retiré', 'ok');
   }catch(err){
     toast('❌ ' + err.message, 'err');
