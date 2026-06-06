@@ -373,7 +373,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 /* ── MOBILE : contrôles (équipe/légende/onglets) collés en haut au défilement ── */
 @media (max-width:767px){
   .app-header{position:static}
-  .app-controls{position:sticky;top:0;z-index:18;background:var(--bg);box-shadow:0 4px 10px rgba(0,0,0,.25)}
+  .app-controls{position:sticky;top:0;z-index:18;background:var(--bg);
+    padding-top:env(safe-area-inset-top);box-shadow:0 4px 10px rgba(0,0,0,.25)}
   #view-container{overflow:visible}
 }
 
