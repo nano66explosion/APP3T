@@ -54,6 +54,7 @@
   --cguest:#db2777;
   --today:#1c1a18;
 }
+:root[data-theme="light"] body{background:var(--bg)}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
 /* ── UPLOAD ── */
@@ -65,9 +66,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .file-row{margin-bottom:1rem}
 .file-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:.5rem;display:block}
 .file-btn{display:inline-flex;align-items:center;gap:8px;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;transition:background .15s}
-.file-btn:hover{background:#333}
+.file-btn:hover{background:var(--surface2)}
 .file-name{font-size:11px;color:var(--c3t);margin-top:5px;min-height:16px;font-family:'DM Mono',monospace}
-.go-btn{width:100%;margin-top:1.5rem;padding:13px;background:var(--text);color:#0f0f0f;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s}
+.go-btn{width:100%;margin-top:1.5rem;padding:13px;background:var(--text);color:var(--bg);border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .15s}
 .go-btn:disabled{opacity:.3;cursor:not-allowed}
 .go-btn:not(:disabled):hover{opacity:.88}
 input[type=file]{display:none}
@@ -160,7 +161,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 .modal-sub{font-size:12px;color:var(--muted2);line-height:1.5;margin-bottom:1.5rem}
 .emoji-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
 .emoji-opt{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--surface3);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:.12s}
-.emoji-opt:hover{background:#333}
+.emoji-opt:hover{background:var(--surface2)}
 .emoji-opt.sel{border-color:var(--c3t);background:#4ade8020}
 /* Paramètres de connexion */
 .settings-block{padding:1rem 0;border-bottom:1px solid var(--border)}
@@ -243,7 +244,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 /* ── VIEW TOGGLE ── */
 .view-tabs{display:flex;gap:4px;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg)}
 .vtab{flex:1;padding:6px 4px;font-size:12px;font-weight:500;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;text-align:center}
-.vtab.active{background:var(--text);color:#0f0f0f;border-color:var(--text)}
+.vtab.active{background:var(--text);color:var(--bg);border-color:var(--text)}
 .vtab:not(.active):hover{border-color:var(--muted);color:var(--muted2)}
 
 /* ── LIST VIEW ── */
@@ -511,6 +512,7 @@ select:focus{outline:none;border-color:var(--muted2)}
     <div id="drive-status" style="font-size:12px;color:var(--muted);min-height:40px;text-align:center;line-height:1.6"></div>
 
     <div class="login-saved-file" id="login-saved-file"></div>
+    <button id="btn-theme-login" onclick="toggleTheme()" style="background:none;border:1px solid var(--border);border-radius:10px;padding:7px 14px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit;margin-top:1rem">🎨 Thème</button>
   </div>
 </div>
 
@@ -1371,10 +1373,16 @@ function toggleTheme(){
   updateThemeLabel();
 }
 function updateThemeLabel(){
+  const label = getTheme() === 'light' ? '🌙 Passer en sombre' : '☀️ Passer en clair';
   const btn = document.getElementById('btn-theme');
-  if(btn) btn.textContent = getTheme() === 'light' ? '🌙 Passer en sombre' : '☀️ Passer en clair';
+  if(btn) btn.textContent = label;
+  const btnLogin = document.getElementById('btn-theme-login');
+  if(btnLogin) btnLogin.textContent = label;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', getTheme() === 'light' ? '#f5f3ef' : '#0f0f0f');
 }
 applyTheme(getTheme());
+document.addEventListener('DOMContentLoaded', updateThemeLabel);
 
 // Pastille colorée selon le rôle du régisseur (titulaire/doublon/observateur/formateur)
 function roleDot(r){

@@ -162,7 +162,7 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [ ] **6. Recherche accessible partout** — loupe/champ dans l'en-tête ouvrant la recherche de spectacle depuis n'importe quelle vue.
 - [ ] **7. Filtres dans l'agenda** — puces : « mes régies », « non attribuées », par salle (utile en réunion planning).
 - [x] **8. Pastilles colorées pour les rôles** — point couleur par rôle (titulaire vert / doublon bleu / observateur anneau gris / formateur ambre) au lieu des tags texte `(obs.)`/`(form.)`. Helper `roleDot()`, légende mise à jour. ✅ FAIT
-- [x] **9. Thème clair** — jeu de variables CSS clair (`:root[data-theme="light"]`) + bouton bascule dans ⚙️ Paramètres, mémorisé en localStorage (`3t_theme`). ✅ FAIT
+- [x] **9. Thème clair** — variables CSS claires (`:root[data-theme="light"]`), bouton bascule **dès la page de connexion** ET dans ⚙️ Paramètres, mémorisé en localStorage (`3t_theme`), `theme-color` synchronisé. Boutons inversés corrigés (`color:var(--bg)` au lieu de `#0f0f0f`). ✅ FAIT
 - [ ] **10. Accessibilité** — meilleurs contrastes des gris, taille de police ajustable.
 - [ ] **11. Vue patron** — heures supp de toute l'équipe côte à côte + clôture (poser le STOP) depuis l'app.
 - [ ] **12. Export PDF / impression** d'un récap mensuel (régies + heures supp + progression 507h).
