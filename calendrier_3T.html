@@ -169,6 +169,20 @@ select:focus{outline:none;border-color:var(--muted2)}
 .settings-block .file-label{margin-bottom:.6rem}
 .settings-block .file-btn{display:inline-flex}
 .settings-block summary::-webkit-details-marker{display:none}
+/* Page d'aide */
+.help-toc{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:.75rem .9rem;margin-bottom:1.25rem}
+.help-toc-title{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:.5rem}
+.help-toc a{display:block;color:var(--text);text-decoration:none;font-size:13px;padding:.28rem 0;border-bottom:1px solid var(--border);cursor:pointer}
+.help-toc a:last-child{border-bottom:none}
+.help-toc a:hover{color:var(--c3t)}
+.help-section{margin-bottom:1.4rem;scroll-margin-top:.5rem}
+.help-section h3{font-size:15px;font-weight:600;margin:0 0 .45rem;letter-spacing:-.3px}
+.help-section p{font-size:13px;line-height:1.6;color:var(--text);margin:0 0 .5rem}
+.help-section ul{margin:.3rem 0 .6rem;padding-left:1.1rem}
+.help-section li{font-size:13px;line-height:1.55;color:var(--text);margin-bottom:.3rem}
+.help-section .muted{color:var(--muted2)}
+.help-back{display:block;text-align:right;font-size:11px;color:var(--muted);text-decoration:none;cursor:pointer;margin-top:.2rem}
+.help-back:hover{color:var(--c3t)}
 /* Accordion */
 .accordion{background:var(--surface);border-radius:12px;overflow:hidden;margin-bottom:.75rem}
 .accordion-header{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;cursor:pointer;user-select:none}
@@ -512,7 +526,10 @@ select:focus{outline:none;border-color:var(--muted2)}
     <div id="drive-status" style="font-size:12px;color:var(--muted);min-height:40px;text-align:center;line-height:1.6"></div>
 
     <div class="login-saved-file" id="login-saved-file"></div>
-    <button id="btn-theme-login" onclick="toggleTheme()" style="background:none;border:1px solid var(--border);border-radius:10px;padding:7px 14px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit;margin-top:1rem">🎨 Thème</button>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:1rem">
+      <button id="btn-theme-login" onclick="toggleTheme()" style="background:none;border:1px solid var(--border);border-radius:10px;padding:7px 14px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit">🎨 Thème</button>
+      <button onclick="openHelp()" style="background:none;border:1px solid var(--border);border-radius:10px;padding:7px 14px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit">💡 Aide</button>
+    </div>
   </div>
 </div>
 
@@ -529,6 +546,7 @@ select:focus{outline:none;border-color:var(--muted2)}
         <button class="back-btn" onclick="refreshData()" id="btn-refresh" title="Rafraîchir les données">🔄</button>
         <button class="back-btn" onclick="openHsupp()">⏱️ Heure supp</button>
         <button class="back-btn" onclick="openIntermittence()">📊 Intermittence</button>
+        <button class="back-btn" onclick="openHelp()">💡 Aide</button>
         <button class="back-btn" onclick="openSettingsModal()">⚙️ Paramètres</button>
         <button class="back-btn" onclick="resetApp()">🚪 Déconnexion</button>
       </div>
@@ -773,6 +791,155 @@ select:focus{outline:none;border-color:var(--muted2)}
         <span id="hs-total" style="font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:var(--c3t)"></span>
       </div>
       <div id="hs-list"><div style="color:var(--muted);font-size:13px;padding:.5rem 0">Chargement…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── AIDE / MODE D'EMPLOI ── -->
+<div id="help-modal" class="modal-overlay" style="display:none;z-index:70" onclick="if(event.target===this)closeHelp()">
+  <div class="modal-card" id="help-card" style="text-align:left;max-width:560px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+      <div class="modal-title">💡 Aide &amp; mode d'emploi</div>
+      <button onclick="closeHelp()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div class="modal-sub">Tout le fonctionnement de l'appli. Clique sur une rubrique du sommaire pour y aller directement.</div>
+
+    <div class="help-toc">
+      <div class="help-toc-title">Sommaire</div>
+      <a onclick="helpJump('h-connexion')">1. Connexion &amp; fichiers Google Drive</a>
+      <a onclick="helpJump('h-vues')">2. Les vues : Grille · Agenda · Résumé</a>
+      <a onclick="helpJump('h-nav')">3. Naviguer dans les mois</a>
+      <a onclick="helpJump('h-recherche')">4. Recherche (date / spectacle)</a>
+      <a onclick="helpJump('h-equipe')">5. Voir toute l'équipe</a>
+      <a onclick="helpJump('h-legende')">6. Couleurs, rôles, invités &amp; annulés</a>
+      <a onclick="helpJump('h-position')">7. Se positionner / se retirer d'une régie</a>
+      <a onclick="helpJump('h-heures')">8. Heures spectacles (calcul auto)</a>
+      <a onclick="helpJump('h-hsupp')">9. Heures supplémentaires</a>
+      <a onclick="helpJump('h-interm')">10. Intermittence (507h)</a>
+      <a onclick="helpJump('h-profil')">11. Profil &amp; récap régisseur</a>
+      <a onclick="helpJump('h-notif')">12. Notifications</a>
+      <a onclick="helpJump('h-theme')">13. Thème clair / sombre</a>
+      <a onclick="helpJump('h-pwa')">14. Installer l'app (PWA)</a>
+      <a onclick="helpJump('h-limites')">15. Bon à savoir / limites</a>
+    </div>
+
+    <div class="help-section" id="h-connexion">
+      <h3>1. Connexion &amp; fichiers Google Drive</h3>
+      <p>À l'ouverture, connecte-toi avec ton compte Google (bouton <b>« Se connecter à Google »</b>). L'appli va chercher automatiquement, dans le dossier Drive partagé :</p>
+      <ul>
+        <li><b>Le plan tech</b> du théâtre (planning des régies).</li>
+        <li><b>La base heures</b> (fichier commençant par « Base HEURES ») pour le calcul des heures spectacles.</li>
+        <li><b>Le fichier heures supp</b> du mois courant (« HEURES &lt;MOIS&gt; &lt;ANNÉE&gt; »).</li>
+      </ul>
+      <p>La connexion reste active ~1 h puis se renouvelle toute seule. Le bouton <b>🔄 Rafraîchir</b> recharge les données depuis Drive. Tu peux choisir les fichiers manuellement dans <b>⚙️ Paramètres</b> si besoin.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-vues">
+      <h3>2. Les vues : Grille · Agenda · Résumé</h3>
+      <ul>
+        <li><b>Grille</b> : calendrier du mois. Le jour J est illuminé (contour vert). Une pastille de couleur indique la salle, 🎤 signale un artiste invité, ❌ un spectacle annulé.</li>
+        <li><b>Agenda</b> : la liste des activités jour par jour (cartes sur mobile, tableau sur PC).</li>
+        <li><b>Résumé</b> : accordéons (spectacles du mois, heures calculées, tournées, top régisseurs).</li>
+      </ul>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-nav">
+      <h3>3. Naviguer dans les mois</h3>
+      <p>Les flèches <b>‹ ›</b> changent de mois, le menu déroulant choisit directement un mois, et <b>« Auj. »</b> revient au mois courant. En haut, sous les stats, un bandeau <b>⚠️</b> t'alerte s'il reste des régies sans personne ce mois.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-recherche">
+      <h3>4. Recherche</h3>
+      <p>Tu peux chercher <b>par date</b> (sélecteur de jour) ou <b>par spectacle / artiste</b> (champ texte). Les résultats sont regroupés en Spectacles, Invités et Tournées.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-equipe">
+      <h3>5. Voir toute l'équipe</h3>
+      <p>L'interrupteur <b>« Voir toute l'équipe »</b> affiche les régies de tous les régisseurs (grille, agenda, régie du jour). Les <b>stats et le résumé restent toujours personnels</b> (les tiens). En mode perso, choisis le régisseur affiché dans le menu déroulant.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-legende">
+      <h3>6. Couleurs, rôles, invités &amp; annulés</h3>
+      <p><b>Salles</b> (pastille de couleur) : 3T (vert), 3T Côté (orange), Grand Théâtre (bleu), Tournée (violet), Observation (gris).</p>
+      <p><b>Rôles</b> (petit point devant le nom du régisseur) :</p>
+      <ul>
+        <li><span class="role-dot rd-tit"></span> <b>Titulaire</b> (vert)</li>
+        <li><span class="role-dot rd-doub"></span> <b>Doublon</b> (bleu)</li>
+        <li><span class="role-dot rd-obs"></span> <b>Observateur</b> (anneau gris) — présent mais hors comptage d'heures.</li>
+        <li><span class="role-dot rd-form"></span> <b>Formateur</b> (ambre)</li>
+      </ul>
+      <p><b>🎤 Artiste invité</b> : nom en orange dans le plan → badge rose, exclu du calcul d'heures. <b>❌ Annulé</b> : spectacle barré → exclu des heures et du comptage de régies.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-position">
+      <h3>7. Se positionner / se retirer d'une régie</h3>
+      <p>Dans le détail d'un jour (grille), une carte d'agenda ou le tableau équipe, le bouton te permet de <b>te positionner</b> sur une régie ou de <b>t'en retirer</b>. La modification est écrite directement dans le fichier Drive. ⚠️ Pas de retrait possible sur un <b>mois passé</b>.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-heures">
+      <h3>8. Heures spectacles (calcul automatique)</h3>
+      <p>La carte <b>« Heures spect. »</b> (clic/survol pour le détail) calcule tes heures à partir de la base : pour chaque représentation = montage (selon la salle) + durée + démontage + 1 h de service. Les invités et les spectacles annulés sont exclus ; les spectacles absents de la base sont signalés à part.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-hsupp">
+      <h3>9. Heures supplémentaires</h3>
+      <p>Bouton <b>⏱️ Heure supp</b> dans l'en-tête. Dans la fenêtre : choisis le régisseur, la <b>date</b>, l'heure de <b>début et de fin</b> (au quart d'heure), un motif → la durée se calcule toute seule. Le récap en dessous liste tes heures déclarées : tu peux <b>éditer ou supprimer</b> chaque ligne.</p>
+      <ul>
+        <li>Les lignes sont triées et compactées automatiquement (pas de trous).</li>
+        <li>La ligne <b>TOTAL</b> n'est jamais touchée ; le total exact est recalculé par l'appli.</li>
+        <li>Si le patron a posé un <b>STOP</b> (période clôturée), la saisie est bloquée pour ce mois.</li>
+        <li>Limite d'environ <b>30 lignes par mois</b> (un message prévient quand c'est atteint).</li>
+      </ul>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-interm">
+      <h3>10. Intermittence (507h)</h3>
+      <p>Le bouton <b>📊 Intermittence</b> ouvre une jauge de progression vers <b>507 h</b> sur la saison : totaux, détail par mois et par spectacle, total régies / tournées, et le <b>cumul des heures supp de l'année</b>.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-profil">
+      <h3>11. Profil &amp; récap régisseur</h3>
+      <p>Dans <b>⚙️ Paramètres</b>, associe ce navigateur à <b>ton régisseur</b> et choisis un avatar emoji. Un <b>clic sur l'avatar</b> ouvre ton récapitulatif : stats, liste des spectacles (Théâtre / Invités / Tournées) et total des heures supp par mois + cumul.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-notif">
+      <h3>12. Notifications</h3>
+      <p>Active les <b>rappels</b> dans ⚙️ Paramètres : à l'ouverture de l'app, tu es prévenu de ta régie du jour ou du lendemain. <span class="muted">Ce sont des notifications locales (pas de push quand l'app est fermée).</span></p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-theme">
+      <h3>13. Thème clair / sombre</h3>
+      <p>Le bouton <b>🎨 Thème</b> (sur l'écran de connexion et dans ⚙️ Paramètres) bascule entre le mode sombre et le mode clair. Ton choix est mémorisé pour les prochaines fois.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-pwa">
+      <h3>14. Installer l'app (PWA)</h3>
+      <p>Tu peux installer l'appli sur ton téléphone comme une vraie app : <b>iPhone</b> → bouton Partager → « Sur l'écran d'accueil » ; <b>Android</b> → menu du navigateur → « Installer l'application ». Elle s'ouvre alors en plein écran avec son icône 3T.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-limites" style="margin-bottom:.3rem">
+      <h3>15. Bon à savoir / limites</h3>
+      <ul>
+        <li>L'écriture (positionnement, heures supp) nécessite une <b>connexion internet</b>.</li>
+        <li>La connexion Google dure ~1 h puis se renouvelle ; il n'y a pas de session infinie.</li>
+        <li>La détection des invités (couleur) et des annulés (barré) dépend de la mise en forme du fichier Drive.</li>
+        <li>En cas de souci, commence par <b>🔄 Rafraîchir</b>, puis vérifie les fichiers dans ⚙️ Paramètres.</li>
+      </ul>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
     </div>
   </div>
 </div>
@@ -2122,6 +2289,25 @@ function openIntermittence(){
 
 function closeIntermittence(){
   document.getElementById('intermittence-modal').style.display = 'none';
+}
+
+// ─── AIDE / MODE D'EMPLOI ───────────────────────────────────────────────────
+function openHelp(){
+  const m = document.getElementById('help-modal');
+  m.style.display = 'flex';
+  const card = document.getElementById('help-card');
+  if(card) card.scrollTop = 0;
+}
+function closeHelp(){
+  document.getElementById('help-modal').style.display = 'none';
+}
+function helpJump(id){
+  const el = document.getElementById(id);
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+function helpTop(){
+  const card = document.getElementById('help-card');
+  if(card) card.scrollTo({top:0, behavior:'smooth'});
 }
 
 // ─── RÉCAP RÉGISSEUR : tous les spectacles connus du régisseur (saison) ───────

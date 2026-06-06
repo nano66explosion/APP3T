@@ -56,6 +56,8 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - **Notifications locales** (à l'ouverture) : rappel régie du jour / lendemain (bouton dans Paramètres).
   ⚠️ Pas de vrai push serveur (GitHub Pages statique).
 - Bouton **🔄 Rafraîchir** : recharge plan + base depuis Drive.
+- **Page d'aide 💡** (modale `help-modal`) : mode d'emploi complet avec **sommaire cliquable**
+  (15 rubriques, scroll interne via `helpJump`/`helpTop`). Bouton 💡 dans l'en-tête ET sur l'écran de connexion.
 
 ### Écran de connexion / Paramètres
 - Écran d'accueil sobre. **Fenêtre « Paramètres »** (modale) : sélection manuelle plan/base/heures supp,
