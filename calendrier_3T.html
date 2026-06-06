@@ -265,6 +265,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 .cal-mic{font-size:10px;margin-left:3px;vertical-align:middle}
 .cal-warn{font-size:10px;margin-left:3px;vertical-align:middle}
 .cal-conflict{font-size:10px;margin-left:3px;vertical-align:middle}
+.cal-special{margin-top:2px;display:flex;flex-wrap:wrap;gap:2px}
+.cal-special span{font-size:8px;line-height:1.1;font-weight:600;color:var(--c3tc);background:#fb923c1f;border:1px solid #fb923c3a;border-radius:4px;padding:1px 3px;white-space:nowrap}
 .cal-cancel{font-size:9px;line-height:1}
 .dot.d3t{background:var(--c3t)}
 .dot.d3tc{background:var(--c3tc)}
@@ -334,6 +336,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 .ev-badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:500;white-space:nowrap}
 .bdg-h{background:rgba(255,255,255,.07);color:var(--muted2)}
 .bdg-guest{background:#f472b622;color:var(--cguest)}
+.bdg-special{background:#fb923c22;color:var(--c3tc)}
 .bdg-cancel{background:#f8717122;color:#f87171}
 /* Heure supp : formulaire + liste */
 #hsupp-modal .modal-card{max-width:440px;width:100%;box-sizing:border-box;overflow-x:hidden}
@@ -1324,6 +1327,22 @@ function cleanSpec(raw){
     .trim();
 }
 
+// Particularités d'une représentation (privatisation, coop, semi privé…) :
+// la pièce reste la même → on retire la mention du nom et on la garde à part (pastille).
+const SPECIAL_PATTERNS = [
+  { re:/privatisation/i,        label:'Privatisation' },
+  { re:/semi[\s-]*priv[ée]s?/i, label:'Semi privé' },
+  { re:/priv[ée]s?/i,           label:'Privé' },
+  { re:/\bcoop\b/i,             label:'Coop' },
+];
+function extractSpecial(name){
+  let s = String(name||'');
+  const labels = [];
+  SPECIAL_PATTERNS.forEach(p => { if(p.re.test(s)){ labels.push(p.label); s = s.replace(p.re,' '); } });
+  s = s.replace(/\s+/g,' ').trim();
+  return { special: labels.join(' '), name: s };
+}
+
 // Parse a régie cell: "Jules" / "Jules/Théo" / "Rizzo(Simon)"
 // Returns [{reg, role}]
 // role: 'titulaire' | 'doublon' | 'observateur' | 'formateur'
@@ -1548,7 +1567,9 @@ function parsePlanTech(wb){
         const specRaw=String(row[slot.cS]||'').trim();
         const regRaw=String(row[slot.cR]||'').trim();
         if(!specRaw&&!regRaw) return;
-        const specNom=cleanSpec(specRaw);
+        // Particularité (privatisation, coop, semi privé…) → retirée du nom, gardée à part
+        const { special, name:specCore } = extractSpecial(cleanSpec(specRaw));
+        const specNom=specCore;
         const regies=parseRegie(regRaw);
         regies.forEach(r=>regSet.add(r.reg));
         // Annulé = nom du spectacle barré ; Invité = nom du spectacle en orange
@@ -1556,8 +1577,8 @@ function parsePlanTech(wb){
         const regRef  = `${sheetName}!${colLetter(slot.cR)}${ri+1}`;
         const cancelled = struckCells.has(specRef) || struckCells.has(regRef);
         const guest = guestCells.has(specRef);
-        if(specNom||regies.length>0)
-          entries.push({salle:slot.salle,h:slot.h,spec:specNom,regies,cancelled,guest,
+        if(specNom||special||regies.length>0)
+          entries.push({salle:slot.salle,h:slot.h,spec:specNom,special,regies,cancelled,guest,
             unassigned:regies.length===0&&!!specNom,
             // Provenance pour pouvoir écrire dans le Google Sheet
             src:{sheet:sheetName,row0:ri,col0:slot.cR,rawReg:regRaw}});
@@ -3765,10 +3786,14 @@ function renderCalendar() {
     const hasUnassigned = (warnMap[d] || []).some(e => e.unassigned && !e.cancelled);
     const warnMark = hasUnassigned ? '<span class="cal-warn" title="Régie sans personne">⚠️</span>' : '';
     const conflictMark = conflictDays.has(d) ? '<span class="cal-conflict" title="Conflit d\'horaire">💥</span>' : '';
+    // Particularités du jour (privatisation, coop, semi privé…) → pastilles
+    const specials = [...new Set((warnMap[d] || []).filter(e => e.special && !e.cancelled).map(e => e.special))];
+    const specialMark = specials.length ? `<div class="cal-special">${specials.map(s=>`<span title="${s}">${s}</span>`).join('')}</div>` : '';
 
     cells += `<div class="cal-cell${hasEvents?' has-events':''}${isToday?' is-today':''}${isSelected?' selected':''}" onclick="selectDay(${d})">
       <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}${conflictMark}</div>
       ${dots ? `<div class="dot-row">${dots}</div>` : ''}
+      ${specialMark}
     </div>`;
   }
 
@@ -3832,6 +3857,7 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
       if (e.h) badges.push(`<span class="ev-badge bdg-h">${e.h}</span>`);
       if (e.cancelled) badges.push('<span class="ev-badge bdg-cancel">❌ annulé</span>');
       if (e.guest) badges.push('<span class="ev-badge bdg-guest">🎤 invité</span>');
+      if (e.special) badges.push(`<span class="ev-badge bdg-special">${e.special}</span>`);
 
       let meta;
       if (teamMode) {
@@ -3916,6 +3942,7 @@ function renderTodayCard(reg, dayMap) {
     if (e.h) badges.push(`<span class="today-badge">${e.h}</span>`);
     if (e.cancelled) badges.push('<span class="today-badge tb-cancel">❌ annulé</span>');
     if (e.guest) badges.push('<span class="today-badge tb-guest">🎤 invité</span>');
+    if (e.special) badges.push(`<span class="today-badge">${e.special}</span>`);
     if (e.myRole==='observateur') badges.push('<span class="today-badge">observation</span>');
     if (e.isFormateur) badges.push('<span class="today-badge">formation</span>');
     if (others.length) badges.push(`<span class="today-badge">avec ${others.join(', ')}</span>`);
@@ -4225,6 +4252,7 @@ function eventCardHTML(e, reg, teamMode, posCtx) {
   if (e.h) badges.push(`<span class="ev-badge bdg-h">${e.h}</span>`);
   if (e.cancelled) badges.push('<span class="ev-badge bdg-cancel">❌ annulé</span>');
   if (e.guest) badges.push('<span class="ev-badge bdg-guest">🎤 invité</span>');
+  if (e.special) badges.push(`<span class="ev-badge bdg-special">${e.special}</span>`);
 
   let meta, who = '';
   if (teamMode) {
@@ -4285,6 +4313,7 @@ function renderTeamTable(y, m){
       let specCell = e.spec||'—';
       if (e.cancelled) specCell += ' <span class="ev-badge bdg-cancel">❌ annulé</span>';
       else if (e.guest) specCell += ' <span class="ev-badge bdg-guest">🎤 invité</span>';
+      if (e.special) specCell += ` <span class="ev-badge bdg-special">${e.special}</span>`;
       const rowCls = (isToday?'tt-today':'') + (idx===0?' tt-daystart':'') + (e.cancelled?' tt-cancel':(e.guest?' tt-guest':''));
       const action = posActionHTML(e, y, m, `${jourStr[dow]} ${d}`);
       rows += `<tr class="${rowCls}">
