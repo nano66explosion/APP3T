@@ -374,9 +374,10 @@ select:focus{outline:none;border-color:var(--muted2)}
 
 /* ── MOBILE : contrôles (équipe/légende/onglets) collés en haut au défilement ── */
 @media (max-width:767px){
-  .app-header{position:static}
-  .app-controls{position:sticky;top:0;z-index:18;background:var(--bg);
-    padding-top:env(safe-area-inset-top);box-shadow:0 4px 10px rgba(0,0,0,.25)}
+  /* En-tête collé en haut (avec safe-area), puis bloc de contrôles collé juste dessous.
+     Le décalage 'top' du bloc de contrôles = hauteur de l'en-tête, calculé en JS. */
+  .app-header{position:sticky;top:0;z-index:20;background:var(--bg)}
+  .app-controls{position:sticky;top:0;z-index:18;background:var(--bg);box-shadow:0 4px 10px rgba(0,0,0,.25)}
   #view-container{overflow:visible}
 }
 
@@ -1433,9 +1434,16 @@ function hasWriteScope(){
 
 // Re-render au redimensionnement (bascule tableau PC ↔ cartes mobile)
 let _resizeT = null;
+// Place le bloc de contrôles (équipe/légende/onglets) juste sous l'en-tête collé (mobile)
+function updateStickyOffsets(){
+  const ctrl = document.querySelector('.app-controls');
+  const hdr = document.querySelector('.app-header');
+  if(!ctrl || !hdr) return;
+  ctrl.style.top = window.matchMedia('(max-width:767px)').matches ? (hdr.offsetHeight + 'px') : '';
+}
 window.addEventListener('resize', () => {
   clearTimeout(_resizeT);
-  _resizeT = setTimeout(() => { if (appIsOpen()) renderCalendar(); }, 200);
+  _resizeT = setTimeout(() => { if (appIsOpen()) { renderCalendar(); updateStickyOffsets(); } }, 200);
 });
 
 // ─── PWA : enregistrement du service worker ──────────────────────────────────
@@ -1749,6 +1757,7 @@ function launchApp() {
   document.getElementById('app-screen').style.display = 'flex';
   populateSelects();
   renderCalendar();
+  requestAnimationFrame(updateStickyOffsets);
   // Première utilisation : pas encore de régisseur associé → on demande
   if (!getMyReg() && allRegs.length) openProfileModal();
   // Rappels (notifications locales) si déjà autorisées
