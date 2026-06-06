@@ -1699,16 +1699,17 @@ function sumHsuppHours(wb, reg){
   }
   return Math.round(total*100)/100;
 }
-// Charge les totaux par mois pour le récap (asynchrone) et les injecte
-async function loadRecapHsupp(reg, containerId){
+// Charge les totaux par mois (asynchrone) et les injecte ; remplit aussi le cumul annuel si totalElId
+async function loadRecapHsupp(reg, containerId, totalElId){
   const el = document.getElementById(containerId);
+  const totEl = totalElId ? document.getElementById(totalElId) : null;
   if(!el) return;
   try{
     const files = (await listHsuppFiles())
       .map(f => ({ f, my: hsParseMonthYear(f.name) }))
       .filter(x => x.my)
       .sort((a,b) => (a.my.year*12+a.my.monthIndex) - (b.my.year*12+b.my.monthIndex));
-    if(!files.length){ el.innerHTML = '<div style="color:var(--muted);font-size:13px">Aucun fichier heures supp.</div>'; return; }
+    if(!files.length){ el.innerHTML = '<div style="color:var(--muted);font-size:13px">Aucun fichier heures supp.</div>'; if(totEl) totEl.textContent='0 h'; return; }
     let rows = '', grand = 0;
     for(const { f, my } of files){
       const ab = await fetchDriveWorkbook(f.id, f.mimeType);
@@ -1717,10 +1718,13 @@ async function loadRecapHsupp(reg, containerId){
       grand += t;
       rows += `<div class="rc-row"><div class="rc-content"><span class="rc-name">${my.label}</span></div><span class="rc-count">${t} h</span></div>`;
     }
+    const grandR = Math.round(grand*100)/100;
     el.innerHTML = rows +
-      `<div class="rc-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:.6rem"><div class="rc-content"><span class="rc-name" style="font-weight:600">Total cumulé</span></div><span class="rc-count" style="color:var(--c3t)">${Math.round(grand*100)/100} h</span></div>`;
+      `<div class="rc-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:.6rem"><div class="rc-content"><span class="rc-name" style="font-weight:600">Total cumulé</span></div><span class="rc-count" style="color:var(--c3t)">${grandR} h</span></div>`;
+    if(totEl) totEl.textContent = `${grandR} h`;
   }catch(e){
     el.innerHTML = `<div style="color:#f87171;font-size:12px">❌ ${e.message}</div>`;
+    if(totEl) totEl.textContent = '—';
   }
 }
 
@@ -1961,6 +1965,7 @@ function openIntermittence(){
     <div class="intermi-block">
       <div class="intermi-row"><span class="intermi-label">Total régies</span><span class="intermi-val">${s.regies}</span></div>
       <div class="intermi-row"><span class="intermi-label">Total tournées</span><span class="intermi-val">${s.tournees}</span></div>
+      <div class="intermi-row"><span class="intermi-label">Total heures supp (année)</span><span class="intermi-val" id="intermi-hs-total" style="color:var(--c3t)">⏳</span></div>
       <div class="intermi-row"><span class="intermi-label">Montages</span><span class="intermi-val">${s.montage}h</span></div>
       <div class="intermi-row"><span class="intermi-label">Durées spectacles</span><span class="intermi-val">${s.duree}h</span></div>
       <div class="intermi-row"><span class="intermi-label">Démontages</span><span class="intermi-val">${s.demontage}h</span></div>
@@ -1985,7 +1990,7 @@ function openIntermittence(){
     ${baseWarn}`;
 
   document.getElementById('intermittence-modal').style.display = 'flex';
-  loadRecapHsupp(reg, 'intermi-hsupp');
+  loadRecapHsupp(reg, 'intermi-hsupp', 'intermi-hs-total');
 }
 
 function closeIntermittence(){
