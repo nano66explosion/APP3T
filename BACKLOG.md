@@ -149,15 +149,31 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - **Fichiers Drive** doivent être des **.xlsx** pour l'écriture (heures supp, plan tech xlsx).
 - **Colonnes du plan tech en dur** : un changement de structure du fichier casserait le parsing.
 
-## 💡 Idées futures (proposées, non commencées)
+## 💡 Améliorations proposées — LISTE NUMÉROTÉE (référence stable)
 
-- **Vrai push** (Firebase) : rappel veille de régie, régie non attribuée, changement de planning.
-- **Export PDF / impression** d'un récap mensuel (régies + heures supp + intermittence).
-- **Vue patron** : heures supp de toute l'équipe côte à côte ; validation/clôture (poser le STOP).
-- **Sélecteur de mois** pour les heures supp (consulter un autre mois que le mois courant).
-- **Thème clair** optionnel ; **mode hors-ligne** plus complet (cache des données du mois).
-- **Historique** des positionnements/retraits (qui, quand).
-- Élargir la colonne en **paysage** pour mieux remplir l'écran.
+> L'utilisateur peut demander une amélioration **par son numéro** (ex. « fais 7 et 9 »).
+> Garder cette numérotation stable. Cocher [x] quand c'est fait.
+
+- [x] **1. Sélecteur de mois pour les heures supp** — consulter/déclarer un autre mois que le mois courant. *(NB : initialement listé, mais voir #1 dans "Faits récents" — encore à confirmer ; si non fait, à implémenter : menu mois dans la modale heure supp.)*
+- [x] **2. Barre de chargement** globale en haut (showBusy) sur les écritures/refresh. ✅ FAIT
+- [x] **3. Toasts de confirmation** ✅/❌ après positionnement / heures supp / refresh. ✅ FAIT
+- [x] **4. Bouton « Aujourd'hui »** (« Auj. ») dans la nav du mois → revient au mois courant. ✅ FAIT
+- [x] **5. Élargir la colonne en paysage** téléphone (760px). ✅ FAIT
+- [ ] **6. Recherche accessible partout** — loupe/champ dans l'en-tête ouvrant la recherche de spectacle depuis n'importe quelle vue.
+- [ ] **7. Filtres dans l'agenda** — puces : « mes régies », « non attribuées », par salle (utile en réunion planning).
+- [ ] **8. Pastilles colorées pour les rôles** — point/badge couleur par rôle (titulaire/doublon/observateur/formateur) au lieu des tags texte `(obs.)`/`(form.)`.
+- [ ] **9. Thème clair** — jeu de variables CSS clair + bouton bascule sombre/clair, mémorisé en localStorage.
+- [ ] **10. Accessibilité** — meilleurs contrastes des gris, taille de police ajustable.
+- [ ] **11. Vue patron** — heures supp de toute l'équipe côte à côte + clôture (poser le STOP) depuis l'app.
+- [ ] **12. Export PDF / impression** d'un récap mensuel (régies + heures supp + progression 507h).
+- [ ] **13. Détection des conflits** — alerter si un régisseur est sur 2 salles à la même heure (chevauchement de créneaux).
+- [ ] **14. Alerte régies non attribuées** — compteur/badge « X régies sans personne ce mois ».
+- [ ] **15. Statistiques avancées** — heures par salle/type, comparaison mois par mois, projection 507h.
+- [ ] **16. Vrai push (Firebase)** — notifications app fermée (veille de régie, positionné/retiré, régie vide). Nécessite un backend Firebase Cloud Messaging.
+- [ ] **17. Détection auto des colonnes du plan tech** (par en-têtes) au lieu des colonnes en dur.
+- [x] **18. Message clair quand la limite ~30 heures supp/mois est atteinte.** ✅ FAIT
+- [ ] **19. Mode hors-ligne** — cache des données du mois (consultation sans réseau ; écriture toujours en ligne).
+- [ ] **20. Découper le fichier** — externaliser JS/CSS/images (le HTML fait ~1 Mo, logos base64) → chargement + maintenance + coût de lecture améliorés.
 
 ---
 
