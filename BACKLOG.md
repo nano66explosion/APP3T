@@ -197,7 +197,7 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **18. Message clair quand la limite ~30 heures supp/mois est atteinte.** ✅ FAIT
 - [ ] **19. Mode hors-ligne** — cache des données du mois (consultation sans réseau ; écriture toujours en ligne).
 - [ ] **20. Découper le fichier** — externaliser JS/CSS/images (le HTML fait ~1 Mo, logos base64) → chargement + maintenance + coût de lecture améliorés.
-- [ ] **21. Refonte interface page principale** — look « appli » avec menus (barre d'onglets/nav plus marquée, en-tête repensé, navigation claire). **EN COURS** (post-V1).
+- [~] **21. Refonte interface page principale** — **EN COURS** (post-V1). 1ʳᵉ version : **barre d'onglets en bas** sur mobile (`bottom-nav` : 📅 Calendrier · 📋 Agenda · ⏱️ Heures · ⋯ Plus) + **menu « Plus »** en bottom-sheet (`more-modal` : Résumé, Intermittence, Recherche, Aide, Paramètres, Déconnexion). En-tête mobile allégé (🔄 + ⚙️) ; **PC inchangé** (onglets + boutons en haut, barre du bas masquée). `updateBottomNav`/`openMoreMenu`.
 
 ---
 
