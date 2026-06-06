@@ -37,6 +37,23 @@
   --cguest:#f472b6;
   --today:#f0ede8;
 }
+:root[data-theme="light"]{
+  --bg:#f5f3ef;
+  --surface:#ffffff;
+  --surface2:#efece6;
+  --surface3:#e7e3dc;
+  --border:#d8d3ca;
+  --text:#1c1a18;
+  --muted:#8a857e;
+  --muted2:#6b6660;
+  --c3t:#16a34a;
+  --c3tc:#ea580c;
+  --cgt:#2563eb;
+  --ctour:#9333ea;
+  --cobs:#64748b;
+  --cguest:#db2777;
+  --today:#1c1a18;
+}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
 
 /* ── UPLOAD ── */
@@ -186,8 +203,14 @@ select:focus{outline:none;border-color:var(--muted2)}
 .stat-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
 .stat-v{font-size:20px;font-weight:600;font-family:'DM Mono',monospace;line-height:1}
 .stat-s{font-size:10px;color:var(--muted);margin-top:2px}
+.unassigned-alert{grid-column:1/-1;background:#fb923c1a;border:1px solid #fb923c40;border-radius:10px;padding:.5rem .7rem;font-size:12px;color:var(--c3tc);font-weight:600}
 
 /* ── LEGEND ── */
+.role-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle;flex-shrink:0}
+.rd-tit{background:var(--c3t)}
+.rd-doub{background:var(--cgt)}
+.rd-obs{background:transparent;border:1.5px solid var(--cobs)}
+.rd-form{background:#fbbf24}
 .legend{display:flex;gap:10px;padding:.5rem 1rem;border-bottom:1px solid var(--border);overflow-x:auto}
 .legend::-webkit-scrollbar{display:none}
 .leg{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted2);white-space:nowrap}
@@ -546,6 +569,9 @@ select:focus{outline:none;border-color:var(--muted2)}
     <div class="leg"><div class="leg-dot" style="background:var(--ctour)"></div>Tournée</div>
     <div class="leg"><div class="leg-dot" style="background:var(--cobs)"></div>Observation</div>
     <div class="leg"><span style="font-size:12px">🎤</span>Artiste invité</div>
+    <div class="leg"><span class="role-dot rd-doub"></span>Doublon</div>
+    <div class="leg"><span class="role-dot rd-obs"></span>Observateur</div>
+    <div class="leg"><span class="role-dot rd-form"></span>Formateur</div>
   </div>
 
   <div class="view-tabs">
@@ -651,6 +677,12 @@ select:focus{outline:none;border-color:var(--muted2)}
       <label class="file-label">👤 Mon régisseur</label>
       <div class="file-name" id="lbl-profile" style="color:var(--text)"></div>
       <button class="file-btn" onclick="openProfileModal()" style="margin-top:.4rem">Changer régisseur / avatar</button>
+    </div>
+
+    <!-- Thème -->
+    <div class="settings-block">
+      <label class="file-label">🎨 Thème</label>
+      <button class="file-btn" id="btn-theme" onclick="toggleTheme()" style="margin-top:.4rem">Basculer clair / sombre</button>
     </div>
 
     <!-- Notifications -->
@@ -1322,7 +1354,35 @@ function openSettingsModal() {
   updateProfileLabel();
   updateNotifLabel();
   refreshHsuppLabel();
+  updateThemeLabel();
   document.getElementById('settings-modal').style.display = 'flex';
+}
+
+// ── Thème clair / sombre (mémorisé) ──
+function applyTheme(theme){
+  if(theme === 'light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+}
+function getTheme(){ return localStorage.getItem('3t_theme') === 'light' ? 'light' : 'dark'; }
+function toggleTheme(){
+  const next = getTheme() === 'light' ? 'dark' : 'light';
+  localStorage.setItem('3t_theme', next);
+  applyTheme(next);
+  updateThemeLabel();
+}
+function updateThemeLabel(){
+  const btn = document.getElementById('btn-theme');
+  if(btn) btn.textContent = getTheme() === 'light' ? '🌙 Passer en sombre' : '☀️ Passer en clair';
+}
+applyTheme(getTheme());
+
+// Pastille colorée selon le rôle du régisseur (titulaire/doublon/observateur/formateur)
+function roleDot(r){
+  let cls='rd-tit', t='Titulaire';
+  if(r.role === 'observateur'){ cls='rd-obs'; t='Observateur'; }
+  else if(r.isFormateur){ cls='rd-form'; t='Formateur'; }
+  else if(r.role === 'doublon'){ cls='rd-doub'; t='Doublon'; }
+  return `<span class="role-dot ${cls}" title="${t}"></span>`;
 }
 
 function updateProfileLabel() {
@@ -2797,6 +2857,12 @@ function renderStats(reg, y, m, teamMode) {
     if (e.salle === 'Tournée') nT++;
     else if (e.myRole !== 'observateur' && !e.unassigned) nR++;
   }));
+  // Régies non attribuées du mois (toute l'équipe) → alerte
+  let nUnassigned = 0;
+  const teamMap = buildTeamDayMap(y, m);
+  Object.values(teamMap).forEach(entries => entries.forEach(e => {
+    if (e.unassigned && !e.cancelled) nUnassigned++;
+  }));
   // Heures calculées depuis la base heures spectacles
   const heures = computeHeures(dayMap);
   let hLabel, hSub;
@@ -2816,7 +2882,8 @@ function renderStats(reg, y, m, teamMode) {
       <div class="stat-v">${hLabel}</div><div class="stat-s">${hSub}</div>
       ${heuresPopHTML(heures)}
     </div>
-    <div class="stat-card"><div class="stat-l">Tournées</div><div class="stat-v">${nT}</div><div class="stat-s">~180€</div></div>`;
+    <div class="stat-card"><div class="stat-l">Tournées</div><div class="stat-v">${nT}</div><div class="stat-s">~180€</div></div>`
+    + (nUnassigned > 0 ? `<div class="unassigned-alert">⚠️ ${nUnassigned} régie${nUnassigned>1?'s':''} sans personne ce mois</div>` : '');
   // La "régie du jour" suit le mode équipe (toute l'équipe ou perso)
   renderTodayCard(reg, teamMode ? buildTeamDayMap(y, m) : dayMap);
 }
@@ -2990,10 +3057,7 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
       let meta;
       if (teamMode) {
         // Show ALL régisseurs of the team for this entry
-        const regies = (e.regies || []).map(r => {
-          const tag = r.role === 'observateur' ? ' (obs.)' : (r.isFormateur ? ' (form.)' : '');
-          return r.reg + tag;
-        });
+        const regies = (e.regies || []).map(r => roleDot(r) + r.reg);
         const who = regies.length ? regies.join(', ') : (e.unassigned ? 'Personne assigné' : '—');
         const salleStr = e.salle === 'Tournée' ? 'Tournée' : salleLabel;
         meta = `${salleStr} · ${who}`;
@@ -3196,8 +3260,7 @@ function searchByDate() {
     if (e.regies && e.regies.length) {
       chips = e.regies.map(r => {
         const isObs = r.role === 'observateur';
-        const tag = isObs ? ' (obs.)' : (r.isFormateur ? ' (form.)' : '');
-        return `<span class="search-reg-chip${isObs?' obs':''}">${r.reg}${tag}</span>`;
+        return `<span class="search-reg-chip${isObs?' obs':''}">${roleDot(r)}${r.reg}</span>`;
       }).join('');
     } else if (e.unassigned) {
       chips = `<span class="search-reg-chip">Personne assigné</span>`;
@@ -3378,9 +3441,8 @@ function eventCardHTML(e, reg, teamMode, posCtx) {
   if (teamMode) {
     // Mode équipe : on liste TOUS les régisseurs positionnés (moi inclus)
     const list = (e.regies||[]).map(r => {
-      const tag = r.role==='observateur' ? ' (obs.)' : (r.isFormateur ? ' (form.)' : '');
       const isMe = r.reg === myRegName();
-      return `<span class="ev-reg${isMe?' me':''}">${r.reg}${tag}</span>`;
+      return `<span class="ev-reg${isMe?' me':''}">${roleDot(r)}${r.reg}</span>`;
     });
     who = list.length
       ? `<div class="ev-regs">${list.join('')}</div>`
@@ -3427,9 +3489,8 @@ function renderTeamTable(y, m){
     const dow = new Date(y, m-1, d).getDay();
     entries.forEach((e, idx) => {
       const regs = (e.regies||[]).map(r=>{
-        const tag = r.role==='observateur'?' (obs.)':(r.isFormateur?' (form.)':'');
         const isMe = r.reg===me;
-        return `<span class="ev-reg${isMe?' me':''}">${r.reg}${tag}</span>`;
+        return `<span class="ev-reg${isMe?' me':''}">${roleDot(r)}${r.reg}</span>`;
       });
       const who = regs.length ? regs.join('') : `<span class="ev-reg none">Non attribué</span>`;
       let specCell = e.spec||'—';

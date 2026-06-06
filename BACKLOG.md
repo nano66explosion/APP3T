@@ -3,7 +3,7 @@
 > Application web mono-fichier (`calendrier_3T.html`) pour gérer le planning des régies
 > d'un théâtre (3T), les heures, les heures supplémentaires et l'intermittence.
 > Déployée en PWA sur GitHub Pages.
-> **Dernière mise à jour : 2026-06-05**
+> **Dernière mise à jour : 2026-06-06**
 
 ---
 
@@ -161,13 +161,13 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **5. Élargir la colonne en paysage** téléphone (760px). ✅ FAIT
 - [ ] **6. Recherche accessible partout** — loupe/champ dans l'en-tête ouvrant la recherche de spectacle depuis n'importe quelle vue.
 - [ ] **7. Filtres dans l'agenda** — puces : « mes régies », « non attribuées », par salle (utile en réunion planning).
-- [ ] **8. Pastilles colorées pour les rôles** — point/badge couleur par rôle (titulaire/doublon/observateur/formateur) au lieu des tags texte `(obs.)`/`(form.)`.
-- [ ] **9. Thème clair** — jeu de variables CSS clair + bouton bascule sombre/clair, mémorisé en localStorage.
+- [x] **8. Pastilles colorées pour les rôles** — point couleur par rôle (titulaire vert / doublon bleu / observateur anneau gris / formateur ambre) au lieu des tags texte `(obs.)`/`(form.)`. Helper `roleDot()`, légende mise à jour. ✅ FAIT
+- [x] **9. Thème clair** — jeu de variables CSS clair (`:root[data-theme="light"]`) + bouton bascule dans ⚙️ Paramètres, mémorisé en localStorage (`3t_theme`). ✅ FAIT
 - [ ] **10. Accessibilité** — meilleurs contrastes des gris, taille de police ajustable.
 - [ ] **11. Vue patron** — heures supp de toute l'équipe côte à côte + clôture (poser le STOP) depuis l'app.
 - [ ] **12. Export PDF / impression** d'un récap mensuel (régies + heures supp + progression 507h).
 - [ ] **13. Détection des conflits** — alerter si un régisseur est sur 2 salles à la même heure (chevauchement de créneaux).
-- [ ] **14. Alerte régies non attribuées** — compteur/badge « X régies sans personne ce mois ».
+- [x] **14. Alerte régies non attribuées** — bandeau « ⚠️ X régies sans personne ce mois » sous les stats (compté en vue équipe, annulés exclus). ✅ FAIT
 - [ ] **15. Statistiques avancées** — heures par salle/type, comparaison mois par mois, projection 507h.
 - [ ] **16. Vrai push (Firebase)** — notifications app fermée (veille de régie, positionné/retiré, régie vide). Nécessite un backend Firebase Cloud Messaging.
 - [ ] **17. Détection auto des colonnes du plan tech** (par en-têtes) au lieu des colonnes en dur.
