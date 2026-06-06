@@ -1661,6 +1661,69 @@ async function resolveHsuppForMonth(dateObj){
   return match;
 }
 
+const HS_MOIS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+// Liste tous les fichiers du dossier heures supp
+async function listHsuppFiles(){
+  if(!HSUPP_FOLDER_ID) return [];
+  const q = encodeURIComponent(`'${HSUPP_FOLDER_ID}' in parents and trashed=false`);
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    { headers:{ Authorization:'Bearer '+accessToken } });
+  if(r.status===401){ clearToken(); silentRefresh(); throw new Error('Session expirée'); }
+  if(!r.ok) throw new Error(`Lecture du dossier impossible (HTTP ${r.status})`);
+  return (await r.json()).files || [];
+}
+// Déduit {monthIndex, year, label} du nom "HEURES <MOIS> <ANNÉE>"
+function hsParseMonthYear(name){
+  const n = hsNorm(name);
+  if(!n.includes('HEURE')) return null;
+  const monthIndex = HS_MOIS_UP.findIndex(M => n.includes(M));
+  if(monthIndex < 0) return null;
+  const nums = n.match(/\d{2,4}/g) || [];
+  const raw = nums.length ? nums[nums.length-1] : '';
+  const year = raw ? (raw.length>=4 ? parseInt(raw,10) : 2000+parseInt(raw,10)) : 0;
+  return { monthIndex, year, label: `${HS_MOIS_FULL[monthIndex]} ${raw}` };
+}
+// Total des heures supp d'un régisseur dans un classeur (ignore STOP/TOTAL)
+function sumHsuppHours(wb, reg){
+  const sheetName = heuresSheetForReg(reg, wb.SheetNames);
+  if(!sheetName) return 0;
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header:1, raw:true, defval:null });
+  let total = 0;
+  for(let i=2;i<rows.length;i++){
+    const row = rows[i]||[];
+    const d = (typeof row[3]==='string') ? row[3].trim() : '';
+    if(/^TOTAL\b/i.test(d)) break;
+    if(/STOP/i.test(d)) continue;
+    const h = hsComputeHours(typeof row[1]==='number'?hmFromFrac(row[1]):'', typeof row[2]==='number'?hmFromFrac(row[2]):'');
+    if(h) total += h;
+  }
+  return Math.round(total*100)/100;
+}
+// Charge les totaux par mois pour le récap (asynchrone) et les injecte
+async function loadRecapHsupp(reg, containerId){
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  try{
+    const files = (await listHsuppFiles())
+      .map(f => ({ f, my: hsParseMonthYear(f.name) }))
+      .filter(x => x.my)
+      .sort((a,b) => (a.my.year*12+a.my.monthIndex) - (b.my.year*12+b.my.monthIndex));
+    if(!files.length){ el.innerHTML = '<div style="color:var(--muted);font-size:13px">Aucun fichier heures supp.</div>'; return; }
+    let rows = '', grand = 0;
+    for(const { f, my } of files){
+      const ab = await fetchDriveWorkbook(f.id, f.mimeType);
+      const wb = XLSX.read(ab, { type:'array' });
+      const t = sumHsuppHours(wb, reg);
+      grand += t;
+      rows += `<div class="rc-row"><div class="rc-content"><span class="rc-name">${my.label}</span></div><span class="rc-count">${t} h</span></div>`;
+    }
+    el.innerHTML = rows +
+      `<div class="rc-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:.6rem"><div class="rc-content"><span class="rc-name" style="font-weight:600">Total cumulé</span></div><span class="rc-count" style="color:var(--c3t)">${Math.round(grand*100)/100} h</span></div>`;
+  }catch(e){
+    el.innerHTML = `<div style="color:#f87171;font-size:12px">❌ ${e.message}</div>`;
+  }
+}
+
 async function loadBaseHeuresById(fileId, fileName, mimeType) {
   try {
     const arrayBuffer = await fetchDriveWorkbook(fileId, mimeType);
@@ -1981,9 +2044,14 @@ function openRegRecap(){
   body += section('🚐','Tournées', tours);
   if(!all.length) body += `<div style="color:var(--muted);font-size:13px;padding:1.5rem 0;text-align:center">Aucun spectacle trouvé pour ${reg||'ce régisseur'}.</div>`;
 
+  // Heures supp par mois (lu depuis le dossier Drive, chargé en différé)
+  body += `<div class="rc-group">⏱️ Heures supplémentaires</div>`
+        + `<div id="recap-hsupp"><div style="color:var(--muted);font-size:13px">⏳ Lecture des fichiers heures…</div></div>`;
+
   document.getElementById('recap-title').textContent = 'Récapitulatif';
   document.getElementById('recap-body').innerHTML = body;
   document.getElementById('recap-modal').style.display = 'flex';
+  loadRecapHsupp(reg, 'recap-hsupp');
 }
 function closeRegRecap(){
   document.getElementById('recap-modal').style.display = 'none';
