@@ -2352,7 +2352,7 @@ async function loadRecapHsupp(reg, containerId, totalElId){
       .filter(x => x.my)
       .sort((a,b) => (a.my.year*12+a.my.monthIndex) - (b.my.year*12+b.my.monthIndex))
       .filter(x => { const k = x.my.year*12 + x.my.monthIndex; if(seenMonths.has(k)) return false; seenMonths.add(k); return true; });
-    if(!files.length){ el.innerHTML = '<div style="color:var(--muted);font-size:13px">Aucun fichier heures supp.</div>'; if(totEl) totEl.textContent='0 h'; return; }
+    if(!files.length){ el.innerHTML = '<div style="color:var(--muted);font-size:13px">Aucun fichier heures supp.</div>'; if(totEl) totEl.textContent='0 h'; return 0; }
     let rows = '', grand = 0;
     for(const { f, my } of files){
       const ab = await fetchDriveWorkbook(f.id, f.mimeType);
@@ -2365,9 +2365,11 @@ async function loadRecapHsupp(reg, containerId, totalElId){
     el.innerHTML = rows +
       `<div class="rc-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:.6rem"><div class="rc-content"><span class="rc-name" style="font-weight:600">Total cumulé</span></div><span class="rc-count" style="color:var(--c3t)">${grandR} h</span></div>`;
     if(totEl) totEl.textContent = `${grandR} h`;
+    return grandR;
   }catch(e){
     el.innerHTML = `<div style="color:#f87171;font-size:12px">❌ ${e.message}</div>`;
     if(totEl) totEl.textContent = '—';
+    return null;
   }
 }
 
@@ -2627,14 +2629,15 @@ function openIntermittence(){
   document.getElementById('intermittence-body').innerHTML = `
     <div class="modal-sub" style="margin-bottom:1.25rem">${who} · Saison ${saison}</div>
 
-    <!-- Jauge 507h -->
+    <!-- Jauge 507h (spectacles + heures supp) -->
     <div class="intermi-block">
       <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.25rem">
-        <span style="font-size:30px;font-weight:600;font-family:'DM Mono',monospace">${s.hours}h</span>
+        <span id="intermi-gauge-hours" style="font-size:30px;font-weight:600;font-family:'DM Mono',monospace">${s.hours}h</span>
         <span style="font-size:13px;color:var(--muted)">/ ${OBJECTIF_HEURES}h</span>
       </div>
-      <div class="progress-track" style="height:12px"><div class="progress-fill" style="height:12px;width:${pct}%;background:${gaugeColor}"></div></div>
-      <div class="progress-label"><span>${pct}%</span><span>${reste>0?`reste ${reste}h`:'objectif atteint 🎉'}</span></div>
+      <div class="progress-track" style="height:12px"><div class="progress-fill" id="intermi-gauge-fill" style="height:12px;width:${pct}%;background:${gaugeColor}"></div></div>
+      <div class="progress-label"><span id="intermi-gauge-pct">${pct}%</span><span id="intermi-gauge-reste">${reste>0?`reste ${reste}h`:'objectif atteint 🎉'}</span></div>
+      <div style="font-size:11px;color:var(--muted);margin-top:.4rem">${s.hours}h spectacles <span id="intermi-gauge-supp">+ … h supp</span></div>
     </div>
 
     <!-- Totaux saison -->
@@ -2666,7 +2669,25 @@ function openIntermittence(){
     ${baseWarn}`;
 
   document.getElementById('intermittence-modal').style.display = 'flex';
-  loadRecapHsupp(reg, 'intermi-hsupp', 'intermi-hs-total');
+  // Charge les heures supp (async) puis recalcule la jauge = spectacles + heures supp
+  loadRecapHsupp(reg, 'intermi-hsupp', 'intermi-hs-total').then(hsupp => {
+    if(hsupp == null) return;                 // erreur de lecture → on garde les heures spectacles seules
+    updateIntermiGauge(s.hours, hsupp);
+  });
+}
+
+// Met à jour la jauge 507h avec le total combiné (heures spectacles + heures supp)
+function updateIntermiGauge(specHours, hsuppHours){
+  const total = Math.round((specHours + hsuppHours) * 100) / 100;
+  const pct = Math.min(100, Math.round((total / OBJECTIF_HEURES) * 100));
+  const reste = Math.max(0, Math.round((OBJECTIF_HEURES - total) * 100) / 100);
+  const color = pct>=100 ? 'var(--c3t)' : pct>=66 ? '#facc15' : 'var(--c3tc)';
+  const set = (id, fn) => { const el = document.getElementById(id); if(el) fn(el); };
+  set('intermi-gauge-hours', el => el.textContent = `${total}h`);
+  set('intermi-gauge-fill',  el => { el.style.width = pct+'%'; el.style.background = color; });
+  set('intermi-gauge-pct',   el => el.textContent = pct+'%');
+  set('intermi-gauge-reste', el => el.textContent = reste>0 ? `reste ${reste}h` : 'objectif atteint 🎉');
+  set('intermi-gauge-supp',  el => el.textContent = `+ ${Math.round(hsuppHours*100)/100}h supp`);
 }
 
 function closeIntermittence(){
