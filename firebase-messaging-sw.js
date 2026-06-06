@@ -6,12 +6,12 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
 const FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyDXOF7_eTKMDYp8swxmoznEfyxY8_4ArP0",
+  authDomain: "tapp-2c0a8.firebaseapp.com",
+  projectId: "tapp-2c0a8",
+  storageBucket: "tapp-2c0a8.firebasestorage.app",
+  messagingSenderId: "960662160605",
+  appId: "1:960662160605:web:ea08946dca820ba381c734"
 };
 
 if (FIREBASE_CONFIG.projectId) {
