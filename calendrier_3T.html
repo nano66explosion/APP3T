@@ -1596,7 +1596,7 @@ const FIREBASE_CONFIG = {
   appId: "1:960662160605:web:ea08946dca820ba381c734"
 };
 // Clé VAPID publique (console Firebase → Cloud Messaging → Web Push certificates).
-const FCM_VAPID_KEY = "";
+const FCM_VAPID_KEY = "BNC0bgTU3xlkLZIh39qyZSdqAkKximdg1bJlsxDlIOU6prDwNaWfPZvoBH8YygRBxwtmUaHtsQyNEXrIdfHQkJs";
 // Le push est-il configuré ?
 function pushConfigured(){ return !!(FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.apiKey && FCM_VAPID_KEY); }
 function getClientId() { return localStorage.getItem('3t_client_id') || DEFAULT_CLIENT_ID; }
