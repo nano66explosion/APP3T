@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '0 6-21/2 * * *'   # toutes les 2h de 8h à 23h (Paris) -> STOP détecté vite
   workflow_dispatch: {}
+  
 jobs:
   send:
     runs-on: ubuntu-latest
