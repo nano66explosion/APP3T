@@ -74,6 +74,13 @@ async function sendTo(tokens, title, body) {
 
 // ─── 1) Rappels « régie demain » ─────────────────────────────────────────────
 async function remindTomorrow(tokensByReg) {
+  // Le rappel « régie demain » ne part que le soir (17h–22h Paris), même si le
+  // cron tourne plusieurs fois par jour (la détection STOP, elle, tourne à chaque run).
+  const parisNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+  if (parisNow.getHours() < 17 || parisNow.getHours() >= 22) {
+    console.log('Régie demain — hors créneau du soir (17h–22h), on n\'envoie pas.');
+    return;
+  }
   const tomorrow = isoInParis(1);
   console.log('Régie demain — cible :', tomorrow);
   const snap = await db.collection('schedule').doc('v1').get();

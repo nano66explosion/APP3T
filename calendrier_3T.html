@@ -1916,11 +1916,26 @@ async function enablePush(){
     }
   }catch(e){ console.warn('enablePush:', e); }
 }
+// Identifiant stable de CET appareil (1 entrée par appareil → pas de doublons)
+function getDeviceId(){
+  let id = localStorage.getItem('3t_device_id');
+  if(!id){
+    id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+       : 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2);
+    localStorage.setItem('3t_device_id', id);
+  }
+  return id;
+}
 // Enregistre / met à jour le jeton de l'appareil + le régisseur associé dans Firestore
 async function savePushToken(token){
   if(!_fbDb || !token) return;
   try{
-    await _fbDb.collection('pushTokens').doc(token).set({
+    // Migration : supprime l'éventuel ancien doc indexé par le jeton (ancien schéma)
+    const prev = localStorage.getItem('3t_push_token');
+    if(prev){ _fbDb.collection('pushTokens').doc(prev).delete().catch(()=>{}); }
+    _fbDb.collection('pushTokens').doc(token).delete().catch(()=>{});
+    // Nouveau schéma : 1 doc par appareil
+    await _fbDb.collection('pushTokens').doc(getDeviceId()).set({
       token,
       reg: getMyReg() || '',
       platform: navigator.userAgent,
@@ -1963,7 +1978,10 @@ async function disableNotifications(){
   const tk = localStorage.getItem('3t_push_token');
   try{
     if(pushConfigured()){ initFirebase(); }
-    if(tk && _fbDb){ await _fbDb.collection('pushTokens').doc(tk).delete(); }
+    if(_fbDb){
+      await _fbDb.collection('pushTokens').doc(getDeviceId()).delete().catch(()=>{});
+      if(tk) await _fbDb.collection('pushTokens').doc(tk).delete().catch(()=>{}); // ancien schéma
+    }
     if(_fbMessaging && _fbMessaging.deleteToken){ await _fbMessaging.deleteToken(); }
   }catch(e){ console.warn('disableNotifications:', e); }
   localStorage.removeItem('3t_push_token');
