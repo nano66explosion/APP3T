@@ -369,6 +369,21 @@ select:focus{outline:none;border-color:var(--muted2)}
 .pos-btn.remove{background:transparent;border-color:var(--border);color:var(--muted2)}
 .pos-btn.remove:hover:not(:disabled){border-color:#f87171;color:#f87171}
 
+/* Paysage téléphone (large mais court) : élargir la colonne pour mieux remplir l'écran */
+@media (min-width:768px) and (max-height:499px){
+  #app-screen{max-width:760px}
+}
+/* Barre de chargement (haut de l'écran) */
+#topbar-loader{position:fixed;top:0;left:0;height:3px;width:0;background:var(--c3t);z-index:100;transition:width .3s ease,opacity .3s;opacity:0;box-shadow:0 0 8px var(--c3t)}
+#topbar-loader.on{opacity:1}
+/* Toast (confirmation) */
+#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+  background:var(--surface3);border:1px solid var(--border);border-radius:12px;padding:10px 16px;font-size:13px;font-weight:600;
+  color:var(--text);box-shadow:0 8px 30px rgba(0,0,0,.5);z-index:101;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:88vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.ok{border-color:#4ade8055}
+#toast.err{border-color:#f8717155;color:#f87171}
+
 /* Par défaut (mobile), les wrappers de colonnes sont transparents : layout inchangé */
 .app-col{display:contents}
 
@@ -450,6 +465,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 </style>
 </head>
 <body>
+<div id="topbar-loader"></div>
+<div id="toast"></div>
 
 <!-- ── UPLOAD ── -->
 <div id="upload-screen">
@@ -495,6 +512,7 @@ select:focus{outline:none;border-color:var(--muted2)}
       <button class="mnav-btn" onclick="changeMonth(-1)">‹</button>
       <select id="mois-select" onchange="renderCalendar()"></select>
       <button class="mnav-btn" onclick="changeMonth(1)">›</button>
+      <button class="mnav-btn" onclick="goToday()" title="Revenir à aujourd'hui" style="width:auto;padding:0 10px;font-size:12px">Auj.</button>
     </div>
   </div>
 
@@ -1554,6 +1572,27 @@ function setStatus(msg) {
   document.getElementById('drive-status').textContent = msg;
 }
 
+// ─── Barre de chargement + toasts ────────────────────────────────────────────
+let _busyCount = 0;
+function showBusy(on){
+  _busyCount = Math.max(0, _busyCount + (on ? 1 : -1));
+  const bar = document.getElementById('topbar-loader');
+  if(!bar) return;
+  if(_busyCount > 0){ bar.classList.add('on'); bar.style.width = '85%'; }
+  else { bar.style.width = '100%'; bar.classList.remove('on'); setTimeout(()=>{ if(_busyCount===0) bar.style.width='0'; }, 350); }
+}
+// Exécute une promesse en affichant la barre de chargement
+async function withBusy(promise){ showBusy(true); try { return await promise; } finally { showBusy(false); } }
+let _toastT = null;
+function toast(msg, type){
+  const el = document.getElementById('toast');
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'show ' + (type||'');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(()=>{ el.className = el.className.replace('show','').trim(); }, 2600);
+}
+
 // ─── DRIVE PICKER ────────────────────────────────────────────────────────────
 // kind : 'plan' (plan tech) ou 'base' (base heures spectacles)
 function pickDriveFile(kind) {
@@ -2237,24 +2276,29 @@ async function submitHeureSupp(){
   if(timeFracFromHM(fin) <= timeFracFromHM(deb)){ err.textContent = "La fin doit être après le début."; return; }
   const btn = document.getElementById('hs-submit'); const orig = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳…'; err.textContent = '';
+  showBusy(true);
   try{
-    if(hsEditRow){ await editHeureSupp(reg, hsEditRow, iso, deb, fin, motif); }
+    const editing = !!hsEditRow;
+    if(editing){ await editHeureSupp(reg, hsEditRow, iso, deb, fin, motif); }
     else { await addHeureSupp(reg, iso, deb, fin, motif); }
     hsCancelEdit();
     await hsReloadList();
     btn.disabled = false;
+    toast(editing ? '✅ Heure modifiée' : '✅ Heure supp ajoutée', 'ok');
   }catch(e){
     err.textContent = '❌ ' + e.message;
     btn.disabled = false; btn.textContent = orig;
-  }
+  }finally{ showBusy(false); }
 }
 
 async function hsDelete(rowNum){
   const e = hsEntries.find(x=>x.rowNum===rowNum); if(!e) return;
   if(!confirm(`Supprimer l'heure supp du ${hsDateLabel(e.iso)} (${e.motif}) ?`)) return;
   const reg = document.getElementById('hs-reg').value;
-  try{ await deleteHeureSupp(reg, rowNum); await hsReloadList(); }
-  catch(err){ alert('❌ ' + err.message); }
+  showBusy(true);
+  try{ await deleteHeureSupp(reg, rowNum); await hsReloadList(); toast('🗑️ Heure supprimée', 'ok'); }
+  catch(err){ toast('❌ ' + err.message, 'err'); }
+  finally{ showBusy(false); }
 }
 
 // ─── ÉCRITURE DU PLANNING (Google Sheets) ────────────────────────────────────
@@ -2513,7 +2557,7 @@ async function rewriteHeuresSupp(reg, entries){
     return a.debut < b.debut ? -1 : a.debut > b.debut ? 1 : 0;
   });
   const capacity = writeMax - 3 + 1 - (stop ? 1 : 0);
-  if(list.length > capacity) throw new Error(`Trop d'entrées (${list.length}) pour ce modèle (max ${capacity}).`);
+  if(list.length > capacity) throw new Error(`Limite atteinte : ${capacity} heures supp max par mois pour cet onglet (tu en as ${list.length}). Supprime-en une ou demande à agrandir le modèle.`);
 
   let R = 3;
   for(const e of list){ ctx.sx = hsWriteRow(ctx.sx, R, e.iso, e.debut, e.fin, e.motif); R++; }
@@ -2599,6 +2643,7 @@ async function refreshData(){
   const btn = document.getElementById('btn-refresh');
   if(!accessToken){ alert("Reconnecte-toi à Google d'abord."); return; }
   if(btn){ btn.disabled = true; btn.textContent = '⏳'; }
+  showBusy(true);
   try{
     if(getSavedBaseId()){
       await loadBaseHeuresById(getSavedBaseId(), getSavedBaseName(), getSavedBaseMime());
@@ -2607,10 +2652,21 @@ async function refreshData(){
       await reloadPlanSilent();
     }
     if(btn){ btn.textContent = '✅'; setTimeout(()=>{ btn.textContent='🔄'; btn.disabled=false; }, 1200); }
+    toast('✅ Données à jour', 'ok');
   }catch(err){
-    alert('❌ Rafraîchissement impossible — ' + err.message);
+    toast('❌ Rafraîchissement impossible', 'err');
     if(btn){ btn.textContent='🔄'; btn.disabled=false; }
-  }
+  }finally{ showBusy(false); }
+}
+
+// Bouton "Aujourd'hui" : revient au mois courant (s'il existe dans les données)
+function goToday(){
+  const now = new Date();
+  const mk = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const sel = document.getElementById('mois-select');
+  if([...sel.options].some(o=>o.value===mk)){ sel.value = mk; }
+  selectedDay = now.getDate();
+  renderCalendar();
 }
 
 // Le "moi" pour le positionnement = régisseur de connexion (ou sélectionné à défaut)
@@ -2651,6 +2707,7 @@ async function doPosition(i){
   }
   if(!confirm(msg)) return;
   try{
+    showBusy(true);
     const btn = document.getElementById('act-'+i);
     if(btn){ btn.disabled = true; btn.textContent = '⏳…'; }
     if(isSheet){
@@ -2659,10 +2716,11 @@ async function doPosition(i){
       await writeXlsxCell(getSavedFileId(), a.src.sheet, a.src.row0, a.src.col0, newVal, a.type==='remove' && !newVal);
     }
     await reloadPlanSilent();
+    toast(a.type==='add' ? '✅ Tu es positionné' : '✅ Tu es retiré', 'ok');
   }catch(err){
-    alert('❌ ' + err.message);
+    toast('❌ ' + err.message, 'err');
     console.error(err);
-  }
+  }finally{ showBusy(false); }
 }
 
 function resetApp(){
