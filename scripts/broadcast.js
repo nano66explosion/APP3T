@@ -10,7 +10,7 @@ const db = admin.firestore();
 const messaging = admin.messaging();
 
 const APP_URL = 'https://nano66explosion.github.io/APP3T/calendrier_3T.html';
-const title = (process.env.TITLE || '📣 3T TECH').trim();
+const title = (process.env.TITLE || '📣 Info équipe').trim();
 const body = (process.env.BODY || '').trim();
 
 (async () => {
