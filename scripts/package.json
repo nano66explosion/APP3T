@@ -4,6 +4,8 @@
   "private": true,
   "description": "Envoi des rappels push (régie demain) pour Calendrier 3T",
   "dependencies": {
-    "firebase-admin": "^12.7.0"
+    "firebase-admin": "^12.7.0",
+    "googleapis": "^144.0.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }
