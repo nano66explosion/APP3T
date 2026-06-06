@@ -56,7 +56,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 input[type=file]{display:none}
 
 /* ── APP ── */
-#app-screen{display:none;max-width:480px;margin:0 auto;height:100vh;height:100dvh;overflow:hidden;flex-direction:column}
+#app-screen{display:none;max-width:480px;margin:0 auto;min-height:100vh;min-height:100dvh;flex-direction:column}
 
 /* ── HEADER ── */
 .app-header{padding:calc(1rem + env(safe-area-inset-top)) 1rem .75rem;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:20}
@@ -370,6 +370,13 @@ select:focus{outline:none;border-color:var(--muted2)}
 /* Par défaut (mobile), les wrappers de colonnes sont transparents : layout inchangé */
 .app-col{display:contents}
 
+/* ── MOBILE : contrôles (équipe/légende/onglets) collés en haut au défilement ── */
+@media (max-width:767px){
+  .app-header{position:static}
+  .app-controls{position:sticky;top:0;z-index:18;background:var(--bg);box-shadow:0 4px 10px rgba(0,0,0,.25)}
+  #view-container{overflow:visible}
+}
+
 /* ── VERSION PC (écran large) ── */
 @media (min-width:768px){
   /* Deux colonnes : gauche (logo→régie du jour) | droite (équipe→calendrier) */
@@ -495,6 +502,7 @@ select:focus{outline:none;border-color:var(--muted2)}
   <!-- COLONNE DROITE (PC) : voir toute l'équipe → calendrier -->
   <div class="app-col app-col-right">
 
+  <div class="app-controls">
   <div class="team-toggle-row">
     <label class="team-toggle-label">
       <label class="toggle-switch">
@@ -523,6 +531,7 @@ select:focus{outline:none;border-color:var(--muted2)}
     <button class="vtab" id="tab-list" onclick="switchView('list')">📋 Agenda</button>
     <button class="vtab" id="tab-resume" onclick="switchView('resume')">📊 Résumé</button>
   </div>
+  </div><!-- /app-controls -->
 
   <div id="view-container" style="overflow-y:auto;flex:1">
     <!-- Grid view -->
