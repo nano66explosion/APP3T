@@ -173,7 +173,7 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [~] **11. Vue patron** — ~~heures supp de toute l'équipe + clôture STOP~~. **ABANDONNÉ** (décision utilisateur, 2026-06-06).
 - [ ] **12. Export PDF / impression** d'un récap mensuel (régies + heures supp + progression 507h).
 - [ ] **13. Détection des conflits** — alerter si un régisseur est sur 2 salles à la même heure (chevauchement de créneaux).
-- [x] **14. Alerte régies non attribuées** — bandeau « ⚠️ X régies sans personne ce mois » sous les stats (compté en vue équipe, annulés exclus). ✅ FAIT
+- [x] **14. Alerte régies non attribuées** — bandeau « ⚠️ X régies sans personne ce mois » sous les stats (compté en vue équipe, annulés exclus). **+** marqueur **⚠️** sur chaque jour concerné dans le calendrier, **+** bandeau **cliquable** → modale `unassigned-modal` listant date / salle / spectacle, clic sur une ligne → ouvre le jour dans la grille (`showUnassigned`/`gotoUnassigned`). ✅ FAIT
 - [ ] **15. Statistiques avancées** — heures par salle/type, comparaison mois par mois, projection 507h.
 - [ ] **16. Vrai push (Firebase)** — notifications app fermée (veille de régie, positionné/retiré, régie vide). Nécessite un backend Firebase Cloud Messaging.
 - [ ] **17. Détection auto des colonnes du plan tech** (par en-têtes) au lieu des colonnes en dur.

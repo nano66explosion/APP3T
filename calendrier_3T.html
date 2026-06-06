@@ -218,7 +218,15 @@ select:focus{outline:none;border-color:var(--muted2)}
 .stat-l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}
 .stat-v{font-size:20px;font-weight:600;font-family:'DM Mono',monospace;line-height:1}
 .stat-s{font-size:10px;color:var(--muted);margin-top:2px}
-.unassigned-alert{grid-column:1/-1;background:#fb923c1a;border:1px solid #fb923c40;border-radius:10px;padding:.5rem .7rem;font-size:12px;color:var(--c3tc);font-weight:600}
+.unassigned-alert{grid-column:1/-1;background:#fb923c1a;border:1px solid #fb923c40;border-radius:10px;padding:.5rem .7rem;font-size:12px;color:var(--c3tc);font-weight:600;cursor:pointer;transition:background .12s}
+.unassigned-alert:hover{background:#fb923c2e}
+.ua-row{display:flex;align-items:center;gap:10px;padding:.6rem .2rem;border-bottom:1px solid var(--border);cursor:pointer}
+.ua-row:last-child{border-bottom:none}
+.ua-row:hover{background:var(--surface2)}
+.ua-date{font-size:13px;font-weight:600;min-width:84px;flex-shrink:0;text-transform:capitalize}
+.ua-salle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted2)}
+.ua-salle::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--uac,var(--muted));flex-shrink:0}
+.ua-spec{font-size:13px;color:var(--text);flex:1}
 
 /* ── LEGEND ── */
 .role-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle;flex-shrink:0}
@@ -248,6 +256,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 .dot-row{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px}
 .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .cal-mic{font-size:10px;margin-left:3px;vertical-align:middle}
+.cal-warn{font-size:10px;margin-left:3px;vertical-align:middle}
 .cal-cancel{font-size:9px;line-height:1}
 .dot.d3t{background:var(--c3t)}
 .dot.d3tc{background:var(--c3tc)}
@@ -479,6 +488,7 @@ select:focus{outline:none;border-color:var(--muted2)}
   .dot{width:10px;height:10px}
   .dot-row{gap:4px;margin-top:4px}
   .cal-mic{font-size:14px;margin-left:4px}
+  .cal-warn{font-size:14px;margin-left:4px}
   .cal-cancel{font-size:13px}
   /* Stats et onglets plus lisibles */
   .stat-v{font-size:24px}
@@ -994,6 +1004,18 @@ select:focus{outline:none;border-color:var(--muted2)}
       </ul>
       <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
     </div>
+  </div>
+</div>
+
+<!-- ── RÉGIES NON ATTRIBUÉES (clic sur la fiche jaune) ── -->
+<div id="unassigned-modal" class="modal-overlay" style="display:none;z-index:70" onclick="if(event.target===this)closeUnassigned()">
+  <div class="modal-card" style="text-align:left;max-width:480px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+      <div class="modal-title">⚠️ Régies sans personne</div>
+      <button onclick="closeUnassigned()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div class="modal-sub" id="unassigned-sub"></div>
+    <div id="unassigned-body"></div>
   </div>
 </div>
 
@@ -2416,6 +2438,53 @@ function helpTop(){
   if(card) card.scrollTo({top:0, behavior:'smooth'});
 }
 
+// ─── RÉGIES NON ATTRIBUÉES (détail au clic sur la fiche jaune) ───────────────
+function showUnassigned(){
+  const mk = document.getElementById('mois-select').value;
+  const [y, m] = mk.split('-').map(Number);
+  const teamMap = buildTeamDayMap(y, m);
+  const jourStr = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const moisStr = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const salleLabelOf = s => s==='3TC'?'3T Côté':s==='GT'?'Grand Théâtre':s;
+  const salleColor = {'3T':'var(--c3t)','3TC':'var(--c3tc)','GT':'var(--cgt)','Tournée':'var(--ctour)'};
+  const nbDays = new Date(y, m, 0).getDate();
+  const rows = [];
+  for(let d=1; d<=nbDays; d++){
+    (teamMap[d]||[]).forEach(e => {
+      if(!e.unassigned || e.cancelled) return;
+      const dow = new Date(y, m-1, d).getDay();
+      rows.push({ d, dateLabel: `${jourStr[dow]} ${d}`, salle: e.salle, spec: e.spec || '—', h: e.h || '' });
+    });
+  }
+  const sub = document.getElementById('unassigned-sub');
+  const body = document.getElementById('unassigned-body');
+  sub.textContent = `${moisStr[m-1]} ${y} · ${rows.length} régie${rows.length>1?'s':''} à pourvoir`;
+  if(rows.length === 0){
+    body.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Toutes les régies de ce mois sont attribuées 🎉</div>';
+  } else {
+    body.innerHTML = rows.map(r =>
+      `<div class="ua-row" onclick="gotoUnassigned(${r.d})">
+        <span class="ua-date">${r.dateLabel}</span>
+        <span class="ua-salle" style="--uac:${salleColor[r.salle]||'var(--muted)'}">${salleLabelOf(r.salle)}${r.h?' · '+r.h:''}</span>
+        <span class="ua-spec">${r.spec}</span>
+      </div>`
+    ).join('');
+  }
+  document.getElementById('unassigned-modal').style.display = 'flex';
+}
+function closeUnassigned(){
+  document.getElementById('unassigned-modal').style.display = 'none';
+}
+// Clic sur une ligne → ferme la modale et ouvre le jour concerné dans la grille
+function gotoUnassigned(d){
+  closeUnassigned();
+  if(currentView !== 'grid'){ switchView('grid'); }
+  selectedDay = d;
+  renderCalendar();
+  const cell = document.querySelectorAll('#cal-grid .cal-cell:not(.empty)')[d-1];
+  if(cell) cell.scrollIntoView({block:'center', behavior:'smooth'});
+}
+
 // ─── RÉCAP RÉGISSEUR : tous les spectacles connus du régisseur (saison) ───────
 function openRegRecap(){
   const reg = getCurrentReg() || getMyReg() || '';
@@ -3183,7 +3252,7 @@ function renderStats(reg, y, m, teamMode) {
       ${heuresPopHTML(heures)}
     </div>
     <div class="stat-card"><div class="stat-l">Tournées</div><div class="stat-v">${nT}</div><div class="stat-s">~180€</div></div>`
-    + (nUnassigned > 0 ? `<div class="unassigned-alert">⚠️ ${nUnassigned} régie${nUnassigned>1?'s':''} sans personne ce mois</div>` : '');
+    + (nUnassigned > 0 ? `<div class="unassigned-alert" onclick="showUnassigned()" title="Voir le détail">⚠️ ${nUnassigned} régie${nUnassigned>1?'s':''} sans personne ce mois <span style="opacity:.7;font-weight:400">— voir le détail ›</span></div>` : '');
   // La "régie du jour" suit le mode équipe (toute l'équipe ou perso)
   renderTodayCard(reg, teamMode ? buildTeamDayMap(y, m) : dayMap);
 }
@@ -3251,6 +3320,8 @@ function renderCalendar() {
   if (currentView === 'resume') { renderResume(reg, y, m); return; }
 
   const dayMap = teamMode ? buildTeamDayMap(y, m) : buildDayMap(reg, y, m);
+  // Repérage des régies sans personne (toujours sur toute l'équipe, quel que soit le mode)
+  const warnMap = buildTeamDayMap(y, m);
 
   // Stats + today card already rendered by renderStats() above
 
@@ -3286,9 +3357,11 @@ function renderCalendar() {
       if (e.guest) hasGuest = true;
     });
     const micMark = hasGuest ? '<span class="cal-mic" title="Artiste invité">🎤</span>' : '';
+    const hasUnassigned = (warnMap[d] || []).some(e => e.unassigned && !e.cancelled);
+    const warnMark = hasUnassigned ? '<span class="cal-warn" title="Régie sans personne">⚠️</span>' : '';
 
     cells += `<div class="cal-cell${hasEvents?' has-events':''}${isToday?' is-today':''}${isSelected?' selected':''}" onclick="selectDay(${d})">
-      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}</div>
+      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}</div>
       ${dots ? `<div class="dot-row">${dots}</div>` : ''}
     </div>`;
   }
