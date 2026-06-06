@@ -561,7 +561,6 @@ select:focus{outline:none;border-color:var(--muted2)}
       <div class="lp-step" id="step-hsupp"><span class="lp-ico">○</span><span class="lp-txt">Fichier heures supp du mois</span></div>
     </div>
 
-    <div class="login-saved-file" id="login-saved-file"></div>
     <div style="display:flex;gap:8px;justify-content:center;margin-top:1rem">
       <button id="btn-theme-login" onclick="toggleTheme()" style="background:none;border:1px solid var(--border);border-radius:10px;padding:7px 14px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit">🎨 Thème</button>
       <button onclick="openHelp()" style="background:none;border:1px solid var(--border);border-radius:10px;padding:7px 14px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit">💡 Aide</button>
@@ -2036,7 +2035,10 @@ async function ensureDefaultFiles(){
       } catch(_){}
     }
   }
-  // Heures supp : on repère le fichier du mois courant dans le dossier (sans le charger).
+}
+
+// Repère le fichier heures supp du mois courant (étape de chargement, après la base)
+async function resolveHsuppStep(){
   setStep('hsupp','loading');
   try {
     const h = await resolveHsuppForMonth(new Date());
@@ -2224,9 +2226,12 @@ async function afterPlanLoaded() {
       setStep('base','loading');
       await loadBaseHeuresById(baseId, getSavedBaseName(), getSavedBaseMime());
     } else { setStep('base','done'); }
+    // Dernière étape : repérage du fichier heures supp du mois
+    await resolveHsuppStep();
     launchApp();
   } else {
     // Aucune base configurée → on attend que l'utilisateur la choisisse
+    await resolveHsuppStep();
     promptBaseStep();
   }
 }
