@@ -3522,7 +3522,9 @@ function renderResume(reg, y, m) {
         <div class="intermi-row"><span class="intermi-label">Durées spectacles</span><span class="intermi-val">${heures.duree}h</span></div>
         <div class="intermi-row"><span class="intermi-label">Démontages</span><span class="intermi-val">${heures.demontage}h</span></div>
         <div class="intermi-row"><span class="intermi-label">Services (1h/régie)</span><span class="intermi-val">${heures.service}h</span></div>
-        <div class="intermi-row" style="margin-bottom:0"><span class="intermi-label" style="font-weight:600;color:var(--text)">Total heures</span><span class="intermi-val" style="font-weight:600;color:var(--c3t)">${heures.total}h</span></div>
+        <div class="intermi-row"><span class="intermi-label">Total spectacles</span><span class="intermi-val">${heures.total}h</span></div>
+        <div class="intermi-row"><span class="intermi-label">+ Heures supp du mois</span><span class="intermi-val" id="resume-hs">⏳</span></div>
+        <div class="intermi-row" style="margin-bottom:0;padding-top:.4rem;border-top:1px solid var(--border)"><span class="intermi-label" style="font-weight:600;color:var(--text)">Total avec heures supp</span><span class="intermi-val" id="resume-hs-total" style="font-weight:600;color:var(--c3t)">⏳</span></div>
       </div>${unm}${changeBaseBtn}`;
   }
   resumeHTML += acc('heures', `Heures calculées · ${baseHeuresLoaded?heures.total+'h':'—'}`, heuresBody, true);
@@ -3589,6 +3591,25 @@ function renderResume(reg, y, m) {
 
   resumeHTML += '</div>';
   document.getElementById('view-resume').innerHTML = resumeHTML;
+  // Ajoute les heures supp du mois au total (lecture du fichier du mois, en différé)
+  if (baseHeuresLoaded && document.getElementById('resume-hs')) loadResumeHsupp(reg, y, m, heures.total);
+}
+
+// Lit les heures supp du mois (y,m) pour reg et complète le total des heures calculées
+async function loadResumeHsupp(reg, y, m, baseTotal){
+  const hsEl = document.getElementById('resume-hs'), totEl = document.getElementById('resume-hs-total');
+  if(!hsEl) return;
+  try{
+    const f = await resolveHsuppForMonth(new Date(y, m-1, 1));
+    const ab = await fetchDriveWorkbook(f.id, f.mimeType);
+    const wb = XLSX.read(ab, { type:'array' });
+    const hs = sumHsuppHours(wb, reg);
+    hsEl.textContent = `${hs}h`;
+    if(totEl) totEl.textContent = `${Math.round((baseTotal+hs)*100)/100}h`;
+  }catch(e){
+    hsEl.textContent = '0h';
+    if(totEl) totEl.textContent = `${baseTotal}h`;
+  }
 }
 
 function toggleAccordion(id) {
