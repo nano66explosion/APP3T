@@ -2310,16 +2310,19 @@ async function hsSave(ctx){
   if(!up.ok) throw new Error(`Écriture impossible (HTTP ${up.status})`);
 }
 // Détecte la ligne STOP (chaîne partagée OU texte en ligne) → {row, text} ou null
-function hsFindStop(sx, sis){
-  const stopIdx = sis.findIndex(s => /STOP/i.test(s));
-  if(stopIdx >= 0){
-    const m = sx.match(new RegExp(`<c\\b[^>]*?\\br="D(\\d+)"[^>]*?t="s"[^>]*?>\\s*<v>${stopIdx}</v>`));
-    if(m) return { row:parseInt(m[1],10), text:sis[stopIdx].replace(/<[^>]+>/g,'').trim() };
+// Trouve la ligne dont la cellule D contient un libellé (STOP, TOTAL…) — partagé OU en ligne
+function hsFindRowByLabel(sx, sis, word){
+  const W = new RegExp(word, 'i');
+  const idx = sis.findIndex(s => W.test(s.replace(/<[^>]+>/g,'')));
+  if(idx >= 0){
+    const m = sx.match(new RegExp(`<c\\b[^>]*?\\br="D(\\d+)"[^>]*?t="s"[^>]*?>\\s*<v>${idx}</v>`));
+    if(m) return { row:parseInt(m[1],10), text:sis[idx].replace(/<[^>]+>/g,'').trim() };
   }
-  const mi = sx.match(/<c\b[^>]*?\br="D(\d+)"[^>]*?t="inlineStr">[\s\S]*?<t[^>]*>([^<]*STOP[^<]*)<\/t>/i);
-  if(mi) return { row:parseInt(mi[1],10), text:mi[2].trim() };
+  let m2; const re = /<c\b[^>]*?\br="D(\d+)"[^>]*?t="inlineStr">[\s\S]*?<t[^>]*>([^<]*)<\/t>/g;
+  while((m2 = re.exec(sx))){ if(W.test(m2[2])) return { row:parseInt(m2[1],10), text:m2[2].trim() }; }
   return null;
 }
+function hsFindStop(sx, sis){ return hsFindRowByLabel(sx, sis, 'STOP'); }
 // Écrit les 4 cellules A/B/C/D d'une ligne (styles repris de la ligne, sinon ligne 3)
 function hsWriteRow(sx, R, iso, debut, fin, motif){
   const sA = hsGetStyle(sx,'A'+R)||hsGetStyle(sx,'A3'), sB = hsGetStyle(sx,'B'+R)||hsGetStyle(sx,'B3'),
@@ -2356,34 +2359,36 @@ function hsClearRow(sx, R, stopRow){
 async function rewriteHeuresSupp(reg, entries){
   const ctx = await hsOpenSheet(reg);
   const stop = hsFindStop(ctx.sx, ctx.sis);
-  // dernière ligne actuellement utilisée (pour nettoyer le surplus)
-  let maxRow = 2, m;
-  const aRe = /<c\b[^>]*?\br="A(\d+)"[^>]*?>\s*<v>/g;
-  while((m = aRe.exec(ctx.sx))) maxRow = Math.max(maxRow, parseInt(m[1],10));
-  const dRe = /<c\b[^>]*?\br="D(\d+)"[^>]*?>(?:[\s\S]*?<t)/g;
-  while((m = dRe.exec(ctx.sx))) maxRow = Math.max(maxRow, parseInt(m[1],10));
-  if(stop) maxRow = Math.max(maxRow, stop.row);
+  const total = hsFindRowByLabel(ctx.sx, ctx.sis, 'TOTAL');   // footer à ne JAMAIS toucher
+  const totalRow = total ? total.row : Infinity;
+  // dernière ligne de DONNÉES avec formule E (avant le TOTAL) = dernière ligne écrivable
+  let eMax = 2, m; const eRe = /<c\b[^>]*?\br="E(\d+)"[^>]*?>\s*<f\b/g;
+  while((m = eRe.exec(ctx.sx))){ const r=parseInt(m[1],10); if(r < totalRow) eMax = Math.max(eMax, r); }
+  if(eMax < 3) eMax = 32;
+  const writeMax  = eMax;                              // on n'écrit jamais sur/sous le TOTAL
+  const clearTo   = total ? total.row - 1 : eMax;     // on nettoie jusqu'avant le TOTAL
 
-  // tri chronologique (date, puis heure de début)
-  const list = entries.slice().sort((a,b)=>
-    a.iso!==b.iso ? (a.iso<b.iso?-1:1) : (a.debut<b.debut?-1:a.debut>b.debut?1:0));
-  const MAXROWS = 30; // plage de la formule E (E3:E32)
-  if(list.length > MAXROWS) throw new Error(`Trop d'entrées (${list.length}) pour ce modèle (max ${MAXROWS}).`);
+  // tri chronologique (date, puis heure de début) ; entrées sans date à la fin
+  const list = entries.slice().sort((a,b)=>{
+    if(a.iso !== b.iso) return (a.iso||'9999') < (b.iso||'9999') ? -1 : 1;
+    return a.debut < b.debut ? -1 : a.debut > b.debut ? 1 : 0;
+  });
+  const capacity = writeMax - 3 + 1 - (stop ? 1 : 0);
+  if(list.length > capacity) throw new Error(`Trop d'entrées (${list.length}) pour ce modèle (max ${capacity}).`);
 
   let R = 3;
   for(const e of list){ ctx.sx = hsWriteRow(ctx.sx, R, e.iso, e.debut, e.fin, e.motif); R++; }
-  // Replace le STOP juste sous les entrées
+  // Replace le STOP juste sous les entrées (s'il existait, et dans la zone de données)
   let clearFrom = R;
   if(stop){
     const sD = hsGetStyle(ctx.sx,'D'+stop.row) || hsGetStyle(ctx.sx,'D'+R);
-    // vide A/B/C de la ligne STOP cible puis écrit le texte STOP
     for(const col of ['A','B','C']){ const ref=col+R; const s=hsGetStyle(ctx.sx,ref); const o=hsReplaceCell(ctx.sx,ref,`<c r="${ref}"${s?` s="${s}"`:''}/>`); if(o) ctx.sx=o; }
     const o = hsReplaceCell(ctx.sx, 'D'+R, `<c r="D${R}"${sD?` s="${sD}"`:''} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(stop.text)}</t></is></c>`);
     if(o) ctx.sx = o;
     clearFrom = R + 1;
   }
-  // nettoie les anciennes lignes restantes
-  for(let r = clearFrom; r <= maxRow; r++) ctx.sx = hsClearRow(ctx.sx, r, -1);
+  // nettoie les lignes de données restantes (JAMAIS la ligne TOTAL ni en dessous)
+  for(let r = clearFrom; r <= clearTo; r++) ctx.sx = hsClearRow(ctx.sx, r, -1);
   await hsSave(ctx);
   return ctx.sheetName;
 }
@@ -2416,18 +2421,23 @@ async function readHeuresSupp(reg){
   const sheetName = heuresSheetForReg(reg, wb.SheetNames);
   if(!sheetName) return { entries:[], stop:null };
   const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header:1, raw:true, defval:null });
-  const entries = []; let stop = null;
+  const entries = []; let stop = null; let lastIso = '';
   for(let i=2;i<rows.length;i++){
     const row = rows[i]||[];
     const a=row[0], b=row[1], c=row[2], d=row[3], e=row[4];
-    if(typeof d==='string' && /STOP/i.test(d)){ stop = d.trim(); continue; }
-    if((a==null) && (d==null || d==='')) continue;
+    const ds = (typeof d==='string') ? d.trim() : '';
+    if(/^TOTAL\b/i.test(ds)) break;            // pied de page → on arrête
+    if(/STOP/i.test(ds)){ stop = ds; continue; } // marqueur patron → ignoré
+    if(typeof a==='number') lastIso = isoFromExcelSerial(a);
+    // Ligne vide ?
+    const hasContent = (typeof b==='number') || (typeof c==='number') || ds!=='';
+    if(a==null && !hasContent) continue;
     entries.push({
       rowNum: i+1,
-      iso: typeof a==='number' ? isoFromExcelSerial(a) : '',
+      iso: typeof a==='number' ? isoFromExcelSerial(a) : lastIso, // date implicite héritée
       debut: typeof b==='number' ? hmFromFrac(b) : '',
       fin: typeof c==='number' ? hmFromFrac(c) : '',
-      motif: d==null?'':String(d),
+      motif: ds,
       heures: typeof e==='number' ? e : null
     });
   }
