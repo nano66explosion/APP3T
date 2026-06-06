@@ -3,7 +3,16 @@
 > Application web mono-fichier (`calendrier_3T.html`) pour gérer le planning des régies
 > d'un théâtre (3T), les heures, les heures supplémentaires et l'intermittence.
 > Déployée en PWA sur GitHub Pages.
-> **Dernière mise à jour : 2026-06-06**
+> **Dernière mise à jour : 2026-06-07**
+
+---
+
+## 🏷️ Versions
+
+- **V1** = état stable de référence (tag git **`v1`**). Notifications push complètes,
+  calcul d'heures tolérant aux coquilles, particularités, intermittence = spectacles + heures supp.
+  ➡️ Pour revenir à cet état : `git checkout v1` (ou `git reset --hard v1`).
+- **En cours** : refonte de l'interface de la page principale (look « appli » avec menus).
 
 ---
 
@@ -101,6 +110,13 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 ### Calcul d'heures (base heures spectacles)
 - Par représentation = montage(salle) + durée + démontage(salle) + 1h service (formules du fichier base).
 - Détail par spectacle ; invités et annulés exclus ; « non trouvés dans la base » signalés à part.
+- **Matching tolérant aux coquilles** (`matchBaseSpec` + distance d'édition OSA `_osa`/`_wordFuzzy`) :
+  1 faute (≥4 lettres), 2 fautes sur mots longs (≥8). Ex. 3Crime→Crime, Vensie→Venise, Monlogues→Monologue.
+- **Particularités** (`extractSpecial`) : privatisation / coop / semi privé / privé → retirées du nom
+  (la pièce est calculée normalement) et affichées en **pastille** sur la date (calendrier + détail/agenda).
+- **Base heures** : nom commençant par « Base HEURE » ; si plusieurs, prend le **non-Modèle le plus récent**.
+- **Lecture récursive** du dossier heures supp **+ sous-dossiers** (ex. « heures 25-26 ») pour le cumul annuel.
+- **Couverture du calcul** (Intermittence) : récap global ✅ calculables / ❌ non trouvés / 🎤 invités.
 
 ### Profil régisseur
 - Profil local (régisseur + emoji avatar), modifiable (clic avatar = **récap**, édition dans Paramètres).
@@ -109,7 +125,8 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - Le récap suit le **régisseur sélectionné** dans le menu déroulant.
 
 ### Page Intermittence
-- Jauge vers **507h**, totaux saison, détail par mois, par spectacle.
+- Jauge vers **507h** = **heures spectacles + heures supp** (recalculée après lecture des fichiers).
+- Totaux saison, détail par mois, par spectacle.
 - **Total régies / tournées** + **« Total heures supp (année) »** (cumul tous les fichiers du dossier).
 
 ### Édition du planning (écriture Drive)
@@ -180,6 +197,7 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **18. Message clair quand la limite ~30 heures supp/mois est atteinte.** ✅ FAIT
 - [ ] **19. Mode hors-ligne** — cache des données du mois (consultation sans réseau ; écriture toujours en ligne).
 - [ ] **20. Découper le fichier** — externaliser JS/CSS/images (le HTML fait ~1 Mo, logos base64) → chargement + maintenance + coût de lecture améliorés.
+- [ ] **21. Refonte interface page principale** — look « appli » avec menus (barre d'onglets/nav plus marquée, en-tête repensé, navigation claire). **EN COURS** (post-V1).
 
 ---
 
