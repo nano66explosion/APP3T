@@ -1825,8 +1825,19 @@ if ('serviceWorker' in navigator) {
 
 // ─── NOTIFICATIONS LOCALES ───────────────────────────────────────────────────
 function notifSupported(){ return 'Notification' in window; }
+// iOS (iPhone/iPad) ?
+function isIOS(){ return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); }
+// L'app est-elle lancée en mode installé (écran d'accueil) ?
+function isStandalone(){ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }
 function requestNotifications(){
-  if(!notifSupported()){ alert("Ton navigateur ne gère pas les notifications."); return; }
+  if(!notifSupported()){
+    if(isIOS() && !isStandalone()){
+      alert("Sur iPhone, les notifications ne marchent que si l'app est installée :\n\n1. Appuie sur le bouton Partager (carré avec une flèche)\n2. « Sur l'écran d'accueil »\n3. Ouvre l'app depuis l'icône, puis réessaie d'activer les rappels.");
+    } else {
+      alert("Ton navigateur ne gère pas les notifications.");
+    }
+    return;
+  }
   Notification.requestPermission().then(p => {
     updateNotifLabel();
     if(p === 'granted'){
@@ -1889,7 +1900,12 @@ function refreshPushRegistration(){
 function updateNotifLabel(){
   const el = document.getElementById('lbl-notif');
   if(!el) return;
-  if(!notifSupported()){ el.textContent = 'Non supporté sur cet appareil'; return; }
+  if(!notifSupported()){
+    el.textContent = (isIOS() && !isStandalone())
+      ? '📲 Installe l\'app sur l\'écran d\'accueil pour activer les notifications'
+      : 'Non supporté sur cet appareil';
+    return;
+  }
   el.textContent = Notification.permission === 'granted' ? '✅ Activées'
     : Notification.permission === 'denied' ? '🚫 Bloquées (à réautoriser dans le navigateur)'
     : 'Désactivées';
