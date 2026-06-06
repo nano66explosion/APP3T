@@ -18,6 +18,10 @@
 <script src="https://accounts.google.com/gsi/client"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- #16 Push : Firebase (compat) — chargé même si le push n'est pas encore configuré -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -751,7 +755,7 @@ select:focus{outline:none;border-color:var(--muted2)}
       <label class="file-label">🔔 Notifications</label>
       <div class="file-name" id="lbl-notif" style="color:var(--text)"></div>
       <button class="file-btn" onclick="requestNotifications()" style="margin-top:.4rem">Activer les rappels</button>
-      <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Rappel de ta régie du jour / du lendemain à l'ouverture de l'app.</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Rappel de ta régie du jour / du lendemain à l'ouverture de l'app, <b>et</b> — quand le push est activé — la veille d'une régie même app fermée.</div>
     </div>
 
     <!-- Client ID (avancé) -->
@@ -1578,6 +1582,23 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
+
+// ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
+// Config publique du projet Firebase (à coller depuis la console Firebase →
+// Paramètres du projet → Tes applications → Configuration SDK). Sans valeurs,
+// le push reste désactivé (les notifications locales continuent de marcher).
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+// Clé VAPID publique (console Firebase → Cloud Messaging → Web Push certificates).
+const FCM_VAPID_KEY = "";
+// Le push est-il configuré ?
+function pushConfigured(){ return !!(FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.apiKey && FCM_VAPID_KEY); }
 function getClientId() { return localStorage.getItem('3t_client_id') || DEFAULT_CLIENT_ID; }
 function getSavedFileId() { return localStorage.getItem('3t_plan_file_id') || ''; }
 function getSavedFileName() { return localStorage.getItem('3t_plan_file_name') || ''; }
@@ -1808,8 +1829,62 @@ function requestNotifications(){
   if(!notifSupported()){ alert("Ton navigateur ne gère pas les notifications."); return; }
   Notification.requestPermission().then(p => {
     updateNotifLabel();
-    if(p === 'granted'){ checkReminders(); }
+    if(p === 'granted'){
+      checkReminders();        // rappels locaux (app ouverte)
+      enablePush();            // #16 — push serveur (app fermée), si configuré
+    }
   });
+}
+
+// ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
+let _fbApp = null, _fbMessaging = null, _fbDb = null;
+function initFirebase(){
+  if(_fbApp || !pushConfigured() || typeof firebase === 'undefined') return _fbApp;
+  try{
+    _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+    _fbMessaging = firebase.messaging();
+    _fbDb = firebase.firestore();
+    // Message reçu quand l'app est au premier plan → on l'affiche nous-mêmes
+    _fbMessaging.onMessage(payload => {
+      const n = (payload && payload.notification) || {};
+      showNotif(n.title || '🎭 3T TECH', n.body || '');
+    });
+  }catch(e){ console.warn('initFirebase:', e); }
+  return _fbApp;
+}
+// Récupère un jeton FCM pour cet appareil et l'enregistre dans Firestore
+async function enablePush(){
+  if(!pushConfigured()){ return; }
+  if(!('serviceWorker' in navigator)){ return; }
+  if(Notification.permission !== 'granted'){ return; }
+  initFirebase();
+  if(!_fbMessaging){ return; }
+  try{
+    // Scope distinct pour ne pas écraser le service worker PWA (sw.js)
+    const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js',
+      { scope: './firebase-cloud-messaging-push-scope' });
+    const token = await _fbMessaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
+    if(token){
+      localStorage.setItem('3t_push_token', token);
+      await savePushToken(token);
+    }
+  }catch(e){ console.warn('enablePush:', e); }
+}
+// Enregistre / met à jour le jeton de l'appareil + le régisseur associé dans Firestore
+async function savePushToken(token){
+  if(!_fbDb || !token) return;
+  try{
+    await _fbDb.collection('pushTokens').doc(token).set({
+      token,
+      reg: getMyReg() || '',
+      platform: navigator.userAgent,
+      updatedAt: new Date().toISOString()
+    }, { merge:true });
+  }catch(e){ console.warn('savePushToken:', e); }
+}
+// Si le push est déjà autorisé, on rafraîchit le jeton au démarrage (+ après changement de régisseur)
+function refreshPushRegistration(){
+  if(pushConfigured() && notifSupported() && Notification.permission === 'granted'){ enablePush(); }
 }
 function updateNotifLabel(){
   const el = document.getElementById('lbl-notif');
@@ -2273,6 +2348,8 @@ function launchApp() {
   if (!getMyReg() && allRegs.length) openProfileModal();
   // Rappels (notifications locales) si déjà autorisées
   checkReminders();
+  // #16 — (ré)enregistre l'appareil pour le push si déjà autorisé
+  refreshPushRegistration();
 }
 
 // ─── PROFIL LOCAL (régisseur + avatar emoji) ─────────────────────────────────
@@ -2319,6 +2396,9 @@ function saveProfile(){
   if (emoji) localStorage.setItem('3t_my_emoji', emoji);
   closeProfileModal();
   updateProfileLabel();
+  // #16 — réassocie le jeton push au nouveau régisseur (si push déjà activé)
+  const tk = localStorage.getItem('3t_push_token');
+  if (tk && pushConfigured()){ initFirebase(); savePushToken(tk); }
   // Mises à jour de l'app seulement si elle est déjà ouverte
   if (appIsOpen()) {
     if (reg){
