@@ -1970,6 +1970,12 @@ function openIntermittence(){
     <!-- Détail par mois -->
     <div class="intermi-block"><div style="font-size:12px;color:var(--muted);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.6px">Par mois</div>${monthRows}</div>
 
+    <!-- Heures supplémentaires (lues depuis le dossier Drive) -->
+    <div class="intermi-block">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.6px">⏱️ Heures supplémentaires</div>
+      <div id="intermi-hsupp"><div style="font-size:13px;color:var(--muted)">⏳ Lecture des fichiers heures…</div></div>
+    </div>
+
     <!-- Détail par spectacle -->
     <details class="intermi-block" style="margin-bottom:1rem">
       <summary style="font-size:12px;color:var(--muted);cursor:pointer;text-transform:uppercase;letter-spacing:.6px;list-style:none">Par spectacle ▾</summary>
@@ -1979,6 +1985,7 @@ function openIntermittence(){
     ${baseWarn}`;
 
   document.getElementById('intermittence-modal').style.display = 'flex';
+  loadRecapHsupp(reg, 'intermi-hsupp');
 }
 
 function closeIntermittence(){
