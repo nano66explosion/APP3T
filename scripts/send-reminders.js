@@ -66,6 +66,7 @@ async function sendTo(tokens, title, body, link, tag) {
   if (!tokens.length) return 0;
   const res = await messaging.sendEachForMulticast({
     tokens,
+    data: { url: link || APP_URL },   // lu par le SW au clic (focus + navigation fiable vers la date)
     webpush: {
       notification: { title, body, icon: 'icon-192.png', badge: 'icon-192.png', tag: tag || '3t' },
       fcmOptions: { link: link || APP_URL }

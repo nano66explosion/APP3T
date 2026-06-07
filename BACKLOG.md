@@ -216,6 +216,12 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   aussi les formations** (`loadFormations` dans `refreshData`). Cron `notifyFormations` prévient les autres
   (lien `#f-<date>`) — **ne marque `notified:true` que si au moins 1 push est parti** (sinon réessai au run suivant),
   cron toutes les 5 min. **Règle Firestore `formations` requise.**
+  **Clic sur la notif → bonne date** : `firebase-messaging-sw.js` a un gestionnaire `notificationclick` (enregistré
+  AVANT `firebase.messaging()` + `stopImmediatePropagation` pour passer devant le défaut Firebase) qui **focus la
+  fenêtre déjà ouverte et la navigue** (sinon le clic remettait juste l'app au 1er plan sans changer le hash).
+  L'URL cible est passée dans `data.url` du message (`send-reminders.js`) ; le SW `postMessage({type:'notif-nav',hash})`
+  à la page, qui écoute (`navigator.serviceWorker` message) → `location.hash` + `handleNotifNav` → `gotoDate` (grille +
+  jour sélectionné + détail avec « Je participe »).
 
 ## 🚧 À surveiller / limites connues
 
