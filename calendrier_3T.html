@@ -1340,6 +1340,15 @@ function matchBaseSpec(specName){
 }
 
 
+// Un spectacle écrit en orange MAIS présent dans la base = vraie pièce (pas un invité).
+// On corrige le drapeau `guest` sur allDays une fois la base chargée.
+function applyGuestBaseOverride(){
+  if(!baseHeuresLoaded || !allDays.length) return;
+  allDays.forEach(d => (d.entries||[]).forEach(e => {
+    if(e.guest && e.salle !== 'Tournée' && matchBaseSpec(e.spec)) e.guest = false;
+  }));
+}
+
 // Calcule les heures du mois à partir d'un dayMap (cf. buildDayMap)
 // Retourne {total, montage, demontage, duree, service, nbRegies, specs:{}, unmatched:[]}
 function computeHeures(dayMap){
@@ -1765,7 +1774,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b5 (par mois détaillé)';
+const APP_VERSION = '2026-06-07 · b6 (orange+base = régie)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2572,6 +2581,7 @@ async function loadBaseHeuresById(fileId, fileName, mimeType) {
     refreshBaseLabel();
     setStep('base', baseHeuresLoaded ? 'done' : 'error');
     setStatus(`✅ Base heures chargée (${Object.keys(baseHeures).length} spectacles)`);
+    applyGuestBaseOverride();   // orange + dans la base = vraie pièce
     if (appIsOpen()) renderCalendar(); // rafraîchit les heures si déjà dans l'app
   } catch(err) {
     console.error('Base heures:', err);
@@ -2647,7 +2657,7 @@ async function afterPlanLoaded() {
       setStatus(`⏳ Chargement base heures "${getSavedBaseName()}"…`);
       setStep('base','loading');
       await loadBaseHeuresById(baseId, getSavedBaseName(), getSavedBaseMime());
-    } else { setStep('base','done'); }
+    } else { setStep('base','done'); applyGuestBaseOverride(); }
     // Dernière étape : repérage du fichier heures supp du mois
     await resolveHsuppStep();
     launchApp();
@@ -3709,6 +3719,7 @@ async function reloadPlanSilent(){
   const wb = XLSX.read(ab, { type: 'array' });
   const p = parsePlanTech(wb);
   allDays = p.days; allMois = p.mois; allRegs = p.regs;
+  applyGuestBaseOverride();   // orange + dans la base = vraie pièce
   renderCalendar();
   saveOfflineCache();   // #19
 }
