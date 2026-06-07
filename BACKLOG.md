@@ -29,7 +29,7 @@
   match /formations/{d} { allow read, write: if true; }
   ```
 - **GitHub Actions** (dans le repo, ajoutés via l'UI web car le token local n'a pas le scope `workflow`) :
-  `.github/workflows/push-reminders.yml` (cron `0 6-21/2 * * *` → `scripts/send-reminders.js`) et
+  `.github/workflows/push-reminders.yml` (cron `*/5 * * * *` = toutes les 5 min → `scripts/send-reminders.js`) et
   `.github/workflows/broadcast.yml` (manuel → `scripts/broadcast.js`). **Secret** `FIREBASE_SERVICE_ACCOUNT`
   (clé compte de service Firebase, JSON complet). Le compte de service doit avoir **l'API Drive activée +
   le dossier heures supp partagé** (lecture) pour la détection STOP.
@@ -210,8 +210,12 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   stockées en localStorage + doc Firestore du jeton (`prefs`) ; le cron filtre via `tokensFor`.
 - **Formations** : collection Firestore `formations` (date, heure, sujet, by, participants).
   Création (modale, menu Plus + détail d'un jour), positionnement (`toggleFormation`), suppression par le créateur.
-  Affichage : marqueur 📚 calendrier + cartes dans détail/régie du jour/semaine. Cron `notifyFormations` prévient
-  les autres (lien `#f-<date>`). **Règle Firestore `formations` requise.**
+  **Le créateur propose mais ne se positionne pas** (participants vides à la création, libellé « Vous avez proposé
+  cette formation », garde-fou dans `toggleFormation`). Affichage : marqueur 📚 calendrier + cartes dans
+  détail/régie du jour/semaine **+ filtre 📚 Formations dans l'agenda** (#7). Le bouton **🔄 Rafraîchir recharge
+  aussi les formations** (`loadFormations` dans `refreshData`). Cron `notifyFormations` prévient les autres
+  (lien `#f-<date>`) — **ne marque `notified:true` que si au moins 1 push est parti** (sinon réessai au run suivant),
+  cron toutes les 5 min. **Règle Firestore `formations` requise.**
 
 ## 🚧 À surveiller / limites connues
 
@@ -219,8 +223,9 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   Si la mise en forme change côté Drive, re-vérifier `parseCellStyles`.
 - **Heures supp** : limité à ~**30 lignes/onglet** (plage de la formule E3:E32 du modèle).
 - **Reconnexion** : jeton Google ~1h (limite sans backend). Pas de « connexion infinie ».
-- **Notifications push** : OK (Firebase) mais l'envoi passe par le **cron GitHub Actions** (toutes les 2h),
-  donc pas instantané (ex. notif de formation dans les ~2h). iOS : app installée requise.
+- **Notifications push** : OK (Firebase) mais l'envoi passe par le **cron GitHub Actions** (toutes les **5 min**
+  depuis 2026-06-07), donc quasi instantané (notif de formation/STOP ≤ ~5 min ; GitHub peut retarder un cron
+  en période de charge). Pas de vrai temps réel sans backend (Spark = pas de Cloud Functions). iOS : app installée requise.
 - **Fichiers Drive** doivent être des **.xlsx** pour l'écriture (heures supp, plan tech xlsx).
 - **Colonnes du plan tech en dur** : un changement de structure du fichier casserait le parsing.
 
