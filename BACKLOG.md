@@ -174,6 +174,16 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   bannière + écritures bloquées. `sw.js` v2 pré-cache l'app + libs CDN.
 - La page **Couverture du calcul d'heures** (Intermittence) est **conservée** (suivi base).
 
+### Bilan soirée (WhatsApp) & Formations
+- **Bilan soirée** : bouton sous la régie du jour (après 21h) + menu Plus → messages courts
+  (`soireeMessages`, sans emoji) selon les spectacles du jour → ouvre WhatsApp (`wa.me`). Push ~22h (`remindSoiree`, lien `#soiree`).
+- **Choix des notifications** (Paramètres) : cases par type (régie/stop/soirée/info/formation),
+  stockées en localStorage + doc Firestore du jeton (`prefs`) ; le cron filtre via `tokensFor`.
+- **Formations** : collection Firestore `formations` (date, heure, sujet, by, participants).
+  Création (modale, menu Plus + détail d'un jour), positionnement (`toggleFormation`), suppression par le créateur.
+  Affichage : marqueur 📚 calendrier + cartes dans détail/régie du jour/semaine. Cron `notifyFormations` prévient
+  les autres (lien `#f-<date>`). **Règle Firestore `formations` requise.**
+
 ## 🚧 À surveiller / limites connues
 
 - **Détection couleur/barré** dépend du format exact du `.xlsx` (validée sur les fichiers actuels).
