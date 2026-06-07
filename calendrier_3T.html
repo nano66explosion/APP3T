@@ -486,6 +486,10 @@ select:focus{outline:none;border-color:var(--muted2)}
   box-shadow:0 12px 40px rgba(0,0,0,.55);text-align:left;cursor:default}
 .stat-card.htech:hover .htech-pop,.stat-card.htech.open .htech-pop{display:block}
 .hp-title{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:.6rem}
+.htech-pop .hp-title:first-child{padding-right:22px}
+.hp-close{position:absolute;top:5px;right:7px;background:none;border:none;color:var(--muted2);font-size:17px;line-height:1;cursor:pointer;padding:5px 7px;font-family:inherit;border-radius:8px;display:none}
+.hp-close:hover{color:var(--text);background:var(--surface3)}
+.stat-card.htech.open .hp-close{display:block}
 .hp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:.45rem}
 .hp-l{font-size:12px;color:var(--text)}
 .hp-v{font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:var(--muted2);white-space:nowrap}
@@ -1856,7 +1860,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b14 (refresh recharge les formations)';
+const APP_VERSION = '2026-06-07 · b15 (croix pour fermer le détail des heures)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -4255,6 +4259,7 @@ function heuresPopHTML(h){
   const warn = h.unmatched.length
     ? `<div class="hp-warn">⚠️ Non trouvés dans la base : ${h.unmatched.join(', ')}</div>` : '';
   return `<div class="htech-pop" onclick="event.stopPropagation()">
+    <button class="hp-close" onclick="closeHeuresPop(event)" aria-label="Fermer" title="Fermer">✕</button>
     <div class="hp-title">Détail des heures · ${h.total}h</div>
     ${rows}
     <div class="hp-sep"></div>
@@ -4269,6 +4274,11 @@ function heuresPopHTML(h){
   </div>`;
 }
 
+// Croix de fermeture du panneau (mobile)
+function closeHeuresPop(e){
+  e.stopPropagation();
+  document.querySelectorAll('.stat-card.htech.open').forEach(c=>c.classList.remove('open'));
+}
 function toggleHeuresPop(e){
   // Sur PC, le survol suffit → le clic ne fige rien (évite de rester bloqué ouvert).
   if (isDesktop()) return;
