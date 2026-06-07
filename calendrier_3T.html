@@ -2864,16 +2864,10 @@ function openIntermittence(){
     ? `<div style="background:#fb923c12;border:1px solid #fb923c33;border-radius:8px;padding:.6rem .7rem;margin-bottom:1rem;font-size:12px;color:var(--c3tc)">⚠️ Base heures non chargée — les heures affichées sont à 0. Charge le fichier base dans ⚙️ Paramètres.</div>`
     : `<div style="font-size:11px;color:var(--muted);margin-bottom:1rem">⚠️ Estimation approximative — partie encore en développement.</div>`;
 
-  // Lignes par mois (total = heures spectacles + heures supp). On rend TOUS les mois ;
-  // ceux sans activité spectacle sont cachés au départ, puis affichés s'ils ont des heures supp.
-  const monthRows = s.months.map(m=>{
-    const act = m.hours>0 || m.regies>0 || m.tournees>0;
-    const regTxt = m.regies>0 ? ` · ${m.regies} régie${m.regies>1?'s':''}` : '';
-    return `<div class="intermi-row" id="im-m-${m.k}" data-spec="${m.hours}" data-reg="${m.regies}"${act?'':' style="display:none"'}>
-      <span class="intermi-label" style="text-transform:capitalize">${m.label}</span>
-      <span class="intermi-val"><span class="im-m-total">${m.hours}h</span> <span style="color:var(--muted);font-weight:400"><span class="im-m-reg">${regTxt}</span><span class="im-m-supp"></span></span></span>
-    </div>`;
-  }).join('') || '<div style="color:var(--muted);font-size:13px">Aucune donnée cette saison</div>';
+  // Lignes par mois (total = heures spectacles + heures supp). Rendu initial = mois du plan ;
+  // après lecture des heures supp, la liste est reconstruite (fusion plan + mois avec supp).
+  _intermiMonths = s.months;
+  const monthRows = monthRowsHTML(s.months, {});
 
   // Lignes par spectacle (top)
   const specRows = Object.entries(s.specs).sort((a,b)=>b[1].hours-a[1].hours).map(([n,d])=>{
@@ -2930,7 +2924,7 @@ function openIntermittence(){
     </div>
 
     <!-- Détail par mois -->
-    <div class="intermi-block"><div style="font-size:12px;color:var(--muted);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.6px">Par mois · heures spectacles + supp</div>${monthRows}</div>
+    <div class="intermi-block"><div style="font-size:12px;color:var(--muted);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.6px">Par mois · heures spectacles + supp</div><div id="intermi-months">${monthRows}</div></div>
 
     <!-- Heures supplémentaires (lues depuis le dossier Drive) -->
     <div class="intermi-block">
@@ -2958,20 +2952,32 @@ function openIntermittence(){
 }
 
 // Met à jour les lignes « Par mois » : total = heures spectacles + heures supp du mois
-function updateIntermiMonths(byMonth){
-  document.querySelectorAll('.intermi-row[id^="im-m-"]').forEach(row => {
-    const k = row.id.slice(5);                          // "im-m-YYYY-MM" → "YYYY-MM"
-    const spec = parseFloat(row.dataset.spec) || 0;
-    const reg = parseInt(row.dataset.reg) || 0;
-    const supp = byMonth[k] || 0;
-    const total = Math.round((spec + supp) * 100) / 100;
-    // Mois sans aucune activité (ni spectacle ni supp) → reste caché
-    if(spec<=0 && reg<=0 && supp<=0){ row.style.display = 'none'; return; }
-    row.style.display = '';                              // mois avec heures supp seules → on l'affiche
-    const totEl = row.querySelector('.im-m-total'); if(totEl) totEl.textContent = `${total}h`;
-    const suppEl = row.querySelector('.im-m-supp');
-    if(suppEl) suppEl.textContent = supp > 0 ? ` · +${Math.round(supp*100)/100}h supp` : '';
+let _intermiMonths = [];
+const _MOIS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+// Construit les lignes « Par mois » en fusionnant les mois du plan et les mois ayant des heures supp.
+function monthRowsHTML(months, byMonth){
+  const map = {};
+  (months||[]).forEach(m => { map[m.k] = { k:m.k, label:m.label, spec:m.hours, reg:m.regies }; });
+  Object.keys(byMonth||{}).forEach(k => {
+    if(!map[k]){ const [y,mm] = k.split('-'); map[k] = { k, label:`${_MOIS_FR[(+mm)-1]} ${y}`, spec:0, reg:0 }; }
   });
+  const rows = Object.values(map)
+    .filter(m => m.spec>0 || m.reg>0 || (byMonth[m.k]||0)>0)
+    .sort((a,b) => a.k.localeCompare(b.k))
+    .map(m => {
+      const supp = byMonth[m.k] || 0;
+      const total = Math.round((m.spec + supp) * 100) / 100;
+      const regTxt = m.reg>0 ? ` · ${m.reg} régie${m.reg>1?'s':''}` : '';
+      const suppTxt = supp>0 ? ` · +${Math.round(supp*100)/100}h supp` : '';
+      return `<div class="intermi-row"><span class="intermi-label" style="text-transform:capitalize">${m.label}</span>`
+        + `<span class="intermi-val">${total}h <span style="color:var(--muted);font-weight:400">${regTxt}${suppTxt}</span></span></div>`;
+    }).join('');
+  return rows || '<div style="color:var(--muted);font-size:13px">Aucune donnée cette saison</div>';
+}
+// Reconstruit « Par mois » une fois les heures supp lues
+function updateIntermiMonths(byMonth){
+  const cont = document.getElementById('intermi-months');
+  if(cont) cont.innerHTML = monthRowsHTML(_intermiMonths, byMonth || {});
 }
 
 // Met à jour la jauge 507h avec le total combiné (heures spectacles + heures supp)
