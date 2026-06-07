@@ -1765,7 +1765,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b4 (année feuille robuste)';
+const APP_VERSION = '2026-06-07 · b5 (par mois détaillé)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2984,16 +2984,22 @@ function monthRowsHTML(months, byMonth){
   Object.keys(byMonth||{}).forEach(k => {
     if(!map[k]){ const [y,mm] = k.split('-'); map[k] = { k, label:`${_MOIS_FR[(+mm)-1]} ${y}`, spec:0, reg:0 }; }
   });
+  const r2 = x => Math.round(x*100)/100;
   const rows = Object.values(map)
     .filter(m => m.spec>0 || m.reg>0 || (byMonth[m.k]||0)>0)
     .sort((a,b) => a.k.localeCompare(b.k))
     .map(m => {
-      const supp = byMonth[m.k] || 0;
-      const total = Math.round((m.spec + supp) * 100) / 100;
-      const regTxt = m.reg>0 ? ` · ${m.reg} régie${m.reg>1?'s':''}` : '';
-      const suppTxt = supp>0 ? ` · +${Math.round(supp*100)/100}h supp` : '';
-      return `<div class="intermi-row"><span class="intermi-label" style="text-transform:capitalize">${m.label}</span>`
-        + `<span class="intermi-val">${total}h <span style="color:var(--muted);font-weight:400">${regTxt}${suppTxt}</span></span></div>`;
+      const spec = r2(m.spec), supp = r2(byMonth[m.k] || 0), total = r2(spec + supp);
+      const parts = [];
+      if(m.reg>0 || spec>0) parts.push(`régie ${spec}h (${m.reg})`);
+      if(supp>0) parts.push(`supp ${supp}h`);
+      return `<div class="intermi-row" style="flex-direction:column;align-items:stretch;gap:2px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline">
+          <span class="intermi-label" style="text-transform:capitalize">${m.label}</span>
+          <span class="intermi-val">${total}h</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);font-weight:400">${parts.join(' · ')}</div>
+      </div>`;
     }).join('');
   return rows || '<div style="color:var(--muted);font-size:13px">Aucune donnée cette saison</div>';
 }
