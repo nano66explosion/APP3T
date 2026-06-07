@@ -34,7 +34,10 @@ self.addEventListener('notificationclick', (event) => {
     for (const c of all) {
       if (c.url.includes('calendrier_3T.html')) {
         try { await c.focus(); } catch (e) {}
-        if (hash) { try { c.postMessage({ type: 'notif-nav', hash }); } catch (e) {} }
+        if (hash) {
+          try { await c.navigate(url); }                                   // si possible (page contrôlée)
+          catch (e) { try { c.postMessage({ type: 'notif-nav', hash }); } catch (e2) {} }   // sinon message à la page
+        }
         return;
       }
     }

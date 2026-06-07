@@ -1,5 +1,5 @@
 // Service worker — Calendrier 3T (PWA)
-const CACHE = '3t-cache-v2';
+const CACHE = '3t-cache-v3';
 const ASSETS = [
   'calendrier_3T.html',
   'manifest.webmanifest',
@@ -52,13 +52,34 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
-// Clic sur une notification → ouvrir / focus l'app
+// Clic sur une notification → focus la fenêtre + VA À LA BONNE PAGE (#f-<date>, #today, #soiree).
+// sw.js contrôle la page (scope racine) → navigate() marche directement ici.
+function _notifUrl(n){
+  const d = (n && n.data) || {};
+  const m = d.FCM_MSG || {};
+  return d.url || d.link
+    || (m.data && (m.data.url || m.data.link))
+    || (m.notification && m.notification.click_action)
+    || (m.webpush && m.webpush.fcmOptions && m.webpush.fcmOptions.link)
+    || (m.fcmOptions && m.fcmOptions.link)
+    || 'calendrier_3T.html';
+}
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  e.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
-      for (const c of list) { if ('focus' in c) return c.focus(); }
-      if (self.clients.openWindow) return self.clients.openWindow('calendrier_3T.html');
-    })
-  );
+  const url = _notifUrl(e.notification);
+  const hash = url.includes('#') ? url.slice(url.indexOf('#')) : '';
+  e.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of list) {
+      if (c.url.includes('calendrier_3T.html')) {
+        try { await c.focus(); } catch (err) {}
+        if (hash) {
+          try { await c.navigate(url); }                                   // recharge/hashchange → handleNotifNav
+          catch (err) { try { c.postMessage({ type: 'notif-nav', hash }); } catch (e2) {} }
+        }
+        return;
+      }
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(url);
+  })());
 });
