@@ -137,6 +137,28 @@ async function remindSoiree(tokensByReg) {
   await sentRef.set({ at: new Date().toISOString(), count: total });
 }
 
+// ─── 1ter) Nouvelles formations proposées → notifie les autres régisseurs ────
+async function notifyFormations(tokensByReg) {
+  const today = isoInParis(0);
+  let snap;
+  try { snap = await db.collection('formations').where('notified', '==', false).get(); }
+  catch (e) { console.log('Formations : rien à notifier'); return; }
+  for (const doc of snap.docs) {
+    const f = doc.data();
+    if (!f.date || f.date < today) { await doc.ref.update({ notified: true }).catch(() => {}); continue; }
+    // destinataires = tous les jetons (sauf le créateur) qui acceptent les formations
+    const tokens = [];
+    for (const [reg, map] of Object.entries(tokensByReg)) {
+      if (reg === f.by) continue;
+      for (const [tok, prefs] of Object.entries(map)) { if (prefs.formation !== false) tokens.push(tok); }
+    }
+    const body = `${f.subject} le ${f.date}${f.time ? ' à ' + f.time : ''} (proposé par ${f.by || '—'})`;
+    const n = await sendTo([...new Set(tokens)], '📚 Nouvelle formation', body, APP_URL + '#f-' + f.date, 'formation-' + doc.id);
+    await doc.ref.update({ notified: true }).catch(() => {});
+    console.log(`Formation "${f.subject}" → ${n} envoyé(s)`);
+  }
+}
+
 // ─── 2) Clôture heures supp (STOP) ───────────────────────────────────────────
 async function checkStops(tokensByReg) {
   const auth = new google.auth.GoogleAuth({ credentials: sa, scopes: ['https://www.googleapis.com/auth/drive.readonly'] });
@@ -191,6 +213,8 @@ async function checkStops(tokensByReg) {
   catch (e) { console.error('Erreur rappels régie demain :', e.message); }
   try { await remindSoiree(tokensByReg); }
   catch (e) { console.error('Erreur rappel bilan soirée :', e.message); }
+  try { await notifyFormations(tokensByReg); }
+  catch (e) { console.error('Erreur notif formations :', e.message); }
   try { await checkStops(tokensByReg); }
   catch (e) { console.error('Erreur détection STOP (Drive partagé avec le compte de service ?) :', e.message); }
 })().catch(e => { console.error(e); process.exit(1); });

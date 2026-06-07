@@ -307,6 +307,21 @@ select:focus{outline:none;border-color:var(--muted2)}
 #offline-banner button{background:var(--c3tc);color:#1a1a1a;border:none;border-radius:8px;
   padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0}
 
+/* ── FORMATIONS ── */
+.cal-formation{font-size:10px;margin-left:3px;vertical-align:middle}
+.fm-card{background:#a78bfa14;border:1px solid #a78bfa44;border-radius:12px;padding:.7rem .85rem;margin:.5rem 0}
+.fm-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.fm-title{font-size:14px;font-weight:600;color:var(--text)}
+.fm-time{font-size:12px;color:#a78bfa;font-weight:600;flex-shrink:0}
+.fm-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.fm-parts{font-size:12px;color:var(--text);margin-top:.35rem}
+.fm-actions{display:flex;gap:8px;margin-top:.6rem}
+.fm-join{flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;font-weight:600}
+.fm-join.in{background:#a78bfa22;border-color:#a78bfa66;color:#a78bfa}
+.fm-del{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
+.fm-propose{width:100%;margin-top:.5rem;background:#a78bfa18;border:1px dashed #a78bfa66;color:var(--text);border-radius:10px;padding:9px;font-size:12px;cursor:pointer;font-family:inherit}
+@media (min-width:768px){ .cal-formation{font-size:14px;margin-left:4px} }
+
 /* ── BOUTON BILAN SOIRÉE (sous la régie du jour) ── */
 #btn-soiree-card{margin:.25rem 1rem .75rem;width:calc(100% - 2rem);background:#25D36618;border:1px solid #25D36655;color:var(--text);border-radius:12px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
 #btn-soiree-card:hover{background:#25D36628}
@@ -782,6 +797,7 @@ select:focus{outline:none;border-color:var(--muted2)}
         <button onclick="closeMoreMenu();switchView('resume')"><span class="mg-ico">📊</span>Résumé</button>
         <button onclick="closeMoreMenu();openIntermittence()"><span class="mg-ico">📈</span>Intermittence</button>
         <button onclick="closeMoreMenu();openSoiree()"><span class="mg-ico">💬</span>Bilan soirée</button>
+        <button onclick="closeMoreMenu();openFormationModal()"><span class="mg-ico">📚</span>Formation</button>
         <button onclick="closeMoreMenu();openSearch()"><span class="mg-ico">🔍</span>Recherche</button>
         <button onclick="closeMoreMenu();openHelp()"><span class="mg-ico">💡</span>Aide</button>
         <button onclick="closeMoreMenu();openSettingsModal()"><span class="mg-ico">⚙️</span>Paramètres</button>
@@ -799,6 +815,25 @@ select:focus{outline:none;border-color:var(--muted2)}
       </div>
       <div class="modal-sub">Choisis un message : il s'ouvrira dans WhatsApp, tu n'as plus qu'à choisir le groupe et envoyer.</div>
       <div id="soiree-body"></div>
+    </div>
+  </div>
+
+  <!-- Proposer une formation -->
+  <div id="formation-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeFormationModal()">
+    <div class="modal-card" style="text-align:left;max-width:400px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <div class="modal-title">📚 Proposer une formation</div>
+        <button onclick="closeFormationModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div class="modal-sub">Les autres régisseurs seront prévenus et pourront se positionner.</div>
+      <label class="file-label">Date</label>
+      <input type="date" id="fm-date" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.7rem">
+      <label class="file-label">Horaire</label>
+      <input type="time" id="fm-time" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.7rem">
+      <label class="file-label">Sujet</label>
+      <input type="text" id="fm-subject" placeholder="Ex. Formation lumière, console son…" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.5rem">
+      <div id="fm-error" style="font-size:12px;color:#f87171;min-height:16px;margin-bottom:.3rem"></div>
+      <button class="go-btn" onclick="submitFormation()" style="padding:11px;font-size:14px">Proposer la formation</button>
     </div>
   </div>
 
@@ -1811,7 +1846,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b8 (choix notifications)';
+const APP_VERSION = '2026-06-07 · b9 (formations)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2749,6 +2784,8 @@ function launchApp() {
   refreshPushRegistration();
   // #16 — publie le planning à venir pour le cron d'envoi
   publishSchedule();
+  // #4 — charge les formations partagées (Firestore)
+  loadFormations();
   // #19 — met en cache le planning pour la consultation hors-ligne
   saveOfflineCache();
   // #16 — si on arrive via le clic d'une notif (#today), aller à la régie du jour
@@ -2821,10 +2858,12 @@ window.addEventListener('online', () => {
 // Clic sur la notif « régie demain » (lien #today) → accueil, aujourd'hui, régie du jour
 function handleNotifNav(){
   const hash = location.hash;
-  if(hash !== '#today' && hash !== '#soiree') return;
+  const fmMatch = hash.match(/^#f-(\d{4}-\d{2}-\d{2})$/);
+  if(hash !== '#today' && hash !== '#soiree' && !fmMatch) return;
   // nettoie le hash pour ne pas re-déclencher au prochain rafraîchissement
   try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
   if(!appIsOpen()) return;
+  if(fmMatch){ gotoDate(fmMatch[1]); return; }
   if(hash === '#soiree'){ openSoiree(); return; }
   if(typeof switchView === 'function') switchView('grid');
   goToday();   // mois courant + jour = aujourd'hui + rendu
@@ -2883,6 +2922,118 @@ function openSoiree(){
   document.getElementById('soiree-modal').style.display = 'flex';
 }
 function closeSoiree(){ document.getElementById('soiree-modal').style.display = 'none'; }
+
+// ─── #4 FORMATIONS (proposées par les régisseurs, partagées via Firestore) ───
+let _formations = {};   // iso "YYYY-MM-DD" -> [ {id, date, time, subject, by, participants:[]} ]
+function isoOf(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function isoToday(){ const d=new Date(); d.setHours(0,0,0,0); return isoOf(d); }
+
+async function loadFormations(){
+  if(!pushConfigured()) return;
+  initFirebase();
+  if(!_fbDb) return;
+  try{
+    const snap = await _fbDb.collection('formations').get();
+    _formations = {};
+    snap.forEach(doc => {
+      const d = doc.data(); if(!d.date) return;
+      (_formations[d.date] = _formations[d.date] || []).push({ id:doc.id, date:d.date, time:d.time||'', subject:d.subject||'', by:d.by||'', participants:d.participants||[] });
+    });
+    if(appIsOpen()) renderCalendar();
+  }catch(e){ console.warn('loadFormations:', e); }
+}
+
+async function submitFormation(){
+  if(blockIfOffline()) return;
+  const date = document.getElementById('fm-date').value;
+  const time = document.getElementById('fm-time').value;
+  const subject = document.getElementById('fm-subject').value.trim();
+  const err = document.getElementById('fm-error');
+  if(!date || !subject){ if(err) err.textContent = 'Date et sujet obligatoires.'; return; }
+  if(!pushConfigured()){ if(err) err.textContent = 'Configuration manquante.'; return; }
+  initFirebase();
+  if(!_fbDb){ if(err) err.textContent = 'Connexion requise.'; return; }
+  const me = myRegName() || getMyReg() || '';
+  try{
+    showBusy(true);
+    await _fbDb.collection('formations').add({
+      date, time, subject, by: me, participants: me ? [me] : [],
+      createdAt: new Date().toISOString(), notified: false
+    });
+    await loadFormations();
+    closeFormationModal();
+    toast('📚 Formation proposée', 'ok');
+  }catch(e){ if(err) err.textContent = e.message; }
+  finally{ showBusy(false); }
+}
+
+async function toggleFormation(id){
+  if(blockIfOffline()) return;
+  const me = myRegName() || getMyReg() || '';
+  if(!me){ openProfileModal(); return; }
+  initFirebase();
+  if(!_fbDb) return;
+  try{
+    showBusy(true);
+    const ref = _fbDb.collection('formations').doc(id);
+    const doc = await ref.get(); if(!doc.exists) return;
+    const parts = doc.data().participants || [];
+    const FV = firebase.firestore.FieldValue;
+    await ref.update({ participants: parts.includes(me) ? FV.arrayRemove(me) : FV.arrayUnion(me) });
+    await loadFormations();
+  }catch(e){ toast('❌ ' + e.message, 'err'); }
+  finally{ showBusy(false); }
+}
+
+async function deleteFormation(id){
+  if(blockIfOffline()) return;
+  if(!confirm('Supprimer cette formation ?')) return;
+  initFirebase(); if(!_fbDb) return;
+  try{ showBusy(true); await _fbDb.collection('formations').doc(id).delete(); await loadFormations(); toast('🗑️ Formation supprimée','ok'); }
+  catch(e){ toast('❌ '+e.message,'err'); } finally{ showBusy(false); }
+}
+
+// HTML des formations d'un jour (carte + participants + bouton participer)
+function formationCardsHTML(iso){
+  const list = _formations[iso] || [];
+  if(!list.length) return '';
+  const me = myRegName() || getMyReg() || '';
+  return list.map(f => {
+    const parts = f.participants || [];
+    const iIn = parts.includes(me);
+    const btn = `<button class="fm-join${iIn?' in':''}" onclick="toggleFormation('${f.id}')">${iIn?'✓ J\'y vais':'+ Je participe'}</button>`;
+    const del = (f.by && f.by===me) ? `<button class="fm-del" onclick="deleteFormation('${f.id}')" title="Supprimer">🗑️</button>` : '';
+    const who = parts.length ? parts.join(', ') : 'Personne pour l\'instant';
+    return `<div class="fm-card">
+      <div class="fm-top"><span class="fm-title">📚 ${f.subject}</span>${f.time?`<span class="fm-time">${f.time}</span>`:''}</div>
+      <div class="fm-sub">Proposé par ${f.by||'—'} · ${parts.length} participant${parts.length>1?'s':''}</div>
+      <div class="fm-parts">${who}</div>
+      <div class="fm-actions">${btn}${del}</div>
+    </div>`;
+  }).join('');
+}
+
+function openFormationModal(iso){
+  const d = iso || (selectedDay ? `${document.getElementById('mois-select').value}-${String(selectedDay).padStart(2,'0')}` : isoToday());
+  document.getElementById('fm-date').value = d;
+  document.getElementById('fm-time').value = '';
+  document.getElementById('fm-subject').value = '';
+  document.getElementById('fm-error').textContent = '';
+  document.getElementById('formation-modal').style.display = 'flex';
+}
+function closeFormationModal(){ document.getElementById('formation-modal').style.display = 'none'; }
+
+// Ouvre une date précise (ex. via notif de formation) dans la grille
+function gotoDate(iso){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return;
+  const mk = iso.slice(0,7);
+  const sel = document.getElementById('mois-select');
+  if([...sel.options].some(o=>o.value===mk)){ sel.value = mk; }
+  if(typeof switchView==='function') switchView('grid');
+  selectedDay = parseInt(iso.slice(8,10),10);
+  renderCalendar();
+  setTimeout(()=>{ const el=document.getElementById('detail-panel'); if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); }, 200);
+}
 
 // ─── PROFIL LOCAL (régisseur + avatar emoji) ─────────────────────────────────
 const EMOJI_CHOICES = ['😎','🎭','🎬','🎤','🎸','🥁','🎧','🔦','⚡','🛠️','🚀','🦊','🐺','🐱','🦁','🐻','🦉','🐧','🌟','🔥','💡','🎯','🍀','👑'];
@@ -4166,9 +4317,10 @@ function renderCalendar() {
     // Particularités du jour (privatisation, coop, semi privé…) → pastilles
     const specials = [...new Set((warnMap[d] || []).filter(e => e.special && !e.cancelled).map(e => e.special))];
     const specialMark = specials.length ? `<div class="cal-special">${specials.map(s=>`<span title="${s}">${s}</span>`).join('')}</div>` : '';
+    const fmMark = (_formations[isoKey] && _formations[isoKey].length) ? '<span class="cal-formation" title="Formation">📚</span>' : '';
 
     cells += `<div class="cal-cell${hasEvents?' has-events':''}${isToday?' is-today':''}${isSelected?' selected':''}" onclick="selectDay(${d})">
-      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}${conflictMark}</div>
+      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}${conflictMark}${fmMark}</div>
       ${dots ? `<div class="dot-row">${dots}</div>` : ''}
       ${specialMark}
     </div>`;
@@ -4267,9 +4419,13 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
     });
   }
 
+  const iso = `${y}-${String(m).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
+  const fmHTML = formationCardsHTML(iso);
   panel.innerHTML = `<div class="detail-panel">
     <div class="detail-date">${dateLabel}</div>
     ${cardsHTML}
+    ${fmHTML}
+    <button class="fm-propose" onclick="openFormationModal('${iso}')">📚 Proposer une formation ce jour</button>
   </div>`;
 }
 
@@ -4288,6 +4444,8 @@ function renderTodayCard(reg, dayMap) {
   const timeStr = now.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
   const dateStr = `${jourNom} ${todayD} ${moisStr[todayM-1]} ${todayY}`;
   const teamMode = isTeamMode();
+  const todayIso = `${todayY}-${String(todayM).padStart(2,'0')}-${String(todayD).padStart(2,'0')}`;
+  const todayFm = formationCardsHTML(todayIso);
 
   // Always look at TODAY's data regardless of displayed month
   const todayDayMap = teamMode ? buildTeamDayMap(todayY, todayM) : buildDayMap(reg, todayY, todayM);
@@ -4301,7 +4459,7 @@ function renderTodayCard(reg, dayMap) {
       </div>
       <div style="font-size:11px;color:var(--muted2);margin-bottom:4px">${dateStr}</div>
       <div class="today-name">Pas de régie aujourd'hui</div>
-    </div>`;
+    </div>${todayFm}`;
     return;
   }
 
@@ -4343,7 +4501,7 @@ function renderTodayCard(reg, dayMap) {
     </div>`;
   });
 
-  wrap.innerHTML = cardsHTML;
+  wrap.innerHTML = cardsHTML + todayFm;
 }
 
 function buildTeamDayMap(y, m) {
@@ -4783,8 +4941,9 @@ function renderWeek(reg){
     const isToday = d.getTime() === today.getTime();
     const entries = weekEntries(reg, iso, teamMode);
     const posCtx = { y:d.getFullYear(), m:d.getMonth()+1, dateLabel:`${jourStr[d.getDay()]} ${d.getDate()}` };
-    const cards = entries.length
-      ? `<div class="list-day-events">${entries.map(e => eventCardHTML(e, reg, teamMode, posCtx)).join('')}</div>`
+    const fmHTML = formationCardsHTML(iso);
+    const cards = (entries.length || fmHTML)
+      ? `<div class="list-day-events">${entries.map(e => eventCardHTML(e, reg, teamMode, posCtx)).join('')}</div>${fmHTML}`
       : `<div class="week-empty">Rien de prévu</div>`;
     html += `<div class="list-day${isToday?' is-today':''}">
       <div class="list-day-header"><span class="list-day-num">${d.getDate()}</span><span class="list-day-label">${jourStr[d.getDay()]}${isToday?' · aujourd\'hui':''}</span></div>
