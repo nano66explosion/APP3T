@@ -307,6 +307,10 @@ select:focus{outline:none;border-color:var(--muted2)}
 #offline-banner button{background:var(--c3tc);color:#1a1a1a;border:none;border-radius:8px;
   padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0}
 
+/* ── BOUTON BILAN SOIRÉE (sous la régie du jour) ── */
+#btn-soiree-card{margin:.25rem 1rem .75rem;width:calc(100% - 2rem);background:#25D36618;border:1px solid #25D36655;color:var(--text);border-radius:12px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+#btn-soiree-card:hover{background:#25D36628}
+
 /* ── PRÉFÉRENCES DE NOTIFICATIONS ── */
 .notif-pref{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);padding:.3rem 0;cursor:pointer}
 .notif-pref input{width:16px;height:16px;accent-color:var(--c3t)}
@@ -683,6 +687,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 
   <div class="stats-row" id="stats"></div>
   <div id="today-card-wrap"></div>
+  <button id="btn-soiree-card" onclick="openSoiree()" style="display:none">💬 Faire le bilan de la soirée</button>
 
   </div><!-- /app-col-left -->
 
@@ -2849,10 +2854,10 @@ function todaySpectacles(){
 // Variantes de messages courts pour un spectacle
 function soireeMessages(spec){
   return [
-    `Bonne soirée pour ${spec} ! 🎭`,
-    `Belle représentation de ${spec} ce soir ✨`,
-    `${spec} ce soir, on assure ! 💪`,
-    `Super soirée pour ${spec}, salle au top 👏`,
+    `Bonne soirée pour ${spec} !`,
+    `Belle représentation de ${spec} ce soir`,
+    `${spec} ce soir, tout s'est bien passé`,
+    `Super soirée pour ${spec}, salle au top`,
   ];
 }
 function waOpen(msg){
@@ -2864,7 +2869,7 @@ function openSoiree(){
   let html = '';
   if(!specs.length){
     html = `<div class="soiree-spec">Pas de spectacle identifié ce soir</div>`
-      + ['Bonne soirée à toute l\'équipe ! 🎭', 'Belle soirée à tous ✨'].map(m =>
+      + ['Bonne soirée à toute l\'équipe !', 'Belle soirée à tous'].map(m =>
         `<button class="soiree-msg" onclick="waOpen('${m.replace(/'/g,"\\'")}')">${m} <span class="wa">› WhatsApp</span></button>`).join('');
   } else {
     specs.forEach(spec => {
@@ -4270,6 +4275,9 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
 function renderTodayCard(reg, dayMap) {
   const wrap = document.getElementById('today-card-wrap');
   const now = new Date();
+  // Bouton « Bilan de soirée » : visible après 21h s'il y a un spectacle aujourd'hui
+  const soireeBtn = document.getElementById('btn-soiree-card');
+  if(soireeBtn) soireeBtn.style.display = (now.getHours() >= 21 && todaySpectacles().length) ? 'block' : 'none';
   const todayD = now.getDate();
   const todayY = now.getFullYear();
   const todayM = now.getMonth() + 1;
