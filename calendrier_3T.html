@@ -1861,7 +1861,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b18 (clic notif → date : les 2 SW naviguent)';
+const APP_VERSION = '2026-06-07 · b19 (notif formation instantanée via Worker Cloudflare)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1877,6 +1877,9 @@ const FIREBASE_CONFIG = {
 };
 // Clé VAPID publique (console Firebase → Cloud Messaging → Web Push certificates).
 const FCM_VAPID_KEY = "BNC0bgTU3xlkLZIh39qyZSdqAkKximdg1bJlsxDlIOU6prDwNaWfPZvoBH8YygRBxwtmUaHtsQyNEXrIdfHQkJs";
+// Worker Cloudflare pour la notif INSTANTANÉE de formation (cf. cloudflare/worker.js).
+// Laisser vide tant que le Worker n'est pas déployé → on retombe sur le cron de secours.
+const FORMATION_WORKER_URL = "";
 // Le push est-il configuré ?
 function pushConfigured(){ return !!(FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.apiKey && FCM_VAPID_KEY); }
 function getClientId() { return localStorage.getItem('3t_client_id') || DEFAULT_CLIENT_ID; }
@@ -2996,15 +2999,27 @@ async function submitFormation(){
   const me = myRegName() || getMyReg() || '';
   try{
     showBusy(true);
-    await _fbDb.collection('formations').add({
+    const ref = await _fbDb.collection('formations').add({
       date, time, subject, by: me, participants: [],   // le créateur ne se positionne pas (il propose)
       createdAt: new Date().toISOString(), notified: false
     });
+    notifyFormationNow(ref.id);   // push instantané via le Worker (cron = filet de secours)
     await loadFormations();
     closeFormationModal();
     toast('📚 Formation proposée', 'ok');
   }catch(e){ if(err) err.textContent = e.message; }
   finally{ showBusy(false); }
+}
+
+// Déclenche la notif instantanée (Worker Cloudflare). Best-effort, ne bloque pas l'UI.
+function notifyFormationNow(id){
+  if(!FORMATION_WORKER_URL || !id) return;
+  try{
+    fetch(FORMATION_WORKER_URL, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id })
+    }).catch(()=>{});   // en cas d'échec, le cron GitHub enverra plus tard
+  }catch(e){}
 }
 
 async function toggleFormation(id){

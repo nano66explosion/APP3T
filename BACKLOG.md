@@ -28,6 +28,13 @@
   match /schedule/{d}   { allow read, write: if true; }
   match /formations/{d} { allow read, write: if true; }
   ```
+- **Notif formation INSTANTANÉE (Cloudflare Worker)** : le cron GitHub `schedule` étant non fiable (runs `*/5`
+  ignorés, retards jusqu'à 1h+), la notif de formation part désormais d'un **Worker Cloudflare gratuit**
+  (`cloudflare/worker.js`, voir `cloudflare/README.md`). L'app `POST { id }` au Worker à la création
+  (`notifyFormationNow` → `FORMATION_WORKER_URL`, constante ~ligne 1882, **à renseigner après déploiement**).
+  Le Worker (secret `FIREBASE_SERVICE_ACCOUNT`) lit la formation + `pushTokens` via Firestore REST, signe un
+  JWT RS256 → access_token, envoie FCM HTTP v1, met `notified:true`. **Le cron reste un filet de secours**
+  (n'envoie que les formations `notified:false`). Tant que `FORMATION_WORKER_URL` est vide → tout passe par le cron.
 - **GitHub Actions** (dans le repo, ajoutés via l'UI web car le token local n'a pas le scope `workflow`) :
   `.github/workflows/push-reminders.yml` (cron `*/5 * * * *` = toutes les 5 min → `scripts/send-reminders.js`) et
   `.github/workflows/broadcast.yml` (manuel → `scripts/broadcast.js`). **Secret** `FIREBASE_SERVICE_ACCOUNT`
