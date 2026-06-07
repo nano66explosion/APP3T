@@ -15,6 +15,17 @@
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
+## 🔔 Architecture des notifications (résumé)
+
+- **Formations → INSTANTANÉ** via **Worker Cloudflare** (`https://formation-notif.nano66explosion.workers.dev/`,
+  code `cloudflare/worker.js`, secret `FIREBASE_SERVICE_ACCOUNT`). L'app appelle `notifyFormationNow(id)` à la
+  création (`FORMATION_WORKER_URL` en dur ~ligne 1882). Le Worker envoie le push en quelques secondes + `notified:true`.
+- **Cron GitHub `*/15` = FILET DE SECOURS** (toutes les 15 min, best-effort). Gère le **STOP heures supp**, « régie
+  demain », « bilan soirée », et **rattrape** une formation seulement si le Worker a échoué (`notified` encore `false`).
+  ⚠️ Les crons rapprochés (`*/5`) sont **ignorés par GitHub** → ne jamais redescendre sous ~15 min.
+- **Clic sur une notif** → les deux service workers (`sw.js` + `firebase-messaging-sw.js`) focus la fenêtre et
+  naviguent vers `#f-<date>`/`#today`/`#soiree` (URL passée dans `data.url`).
+
 ## ☁️ Backend Firebase (push, planning partagé, formations)
 
 - **Projet Firebase** : `tapp-2c0a8` (plan **gratuit Spark**). Config + clé VAPID **en dur** dans
@@ -36,7 +47,7 @@
   JWT RS256 → access_token, envoie FCM HTTP v1, met `notified:true`. **Le cron reste un filet de secours**
   (n'envoie que les formations `notified:false`). Tant que `FORMATION_WORKER_URL` est vide → tout passe par le cron.
 - **GitHub Actions** (dans le repo, ajoutés via l'UI web car le token local n'a pas le scope `workflow`) :
-  `.github/workflows/push-reminders.yml` (cron `*/5 * * * *` = toutes les 5 min → `scripts/send-reminders.js`) et
+  `.github/workflows/push-reminders.yml` (cron `*/15 * * * *` = toutes les 15 min → `scripts/send-reminders.js`) et
   `.github/workflows/broadcast.yml` (manuel → `scripts/broadcast.js`). **Secret** `FIREBASE_SERVICE_ACCOUNT`
   (clé compte de service Firebase, JSON complet). Le compte de service doit avoir **l'API Drive activée +
   le dossier heures supp partagé** (lecture) pour la détection STOP.
