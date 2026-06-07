@@ -300,6 +300,10 @@ select:focus{outline:none;border-color:var(--muted2)}
 .more-grid button:active{background:var(--surface2)}
 .more-grid button .mg-ico{font-size:23px;line-height:1}
 
+/* ── VUE « MA SEMAINE » ── */
+.week-title{font-size:13px;font-weight:600;color:var(--text);padding:.8rem 1rem .25rem}
+.week-empty{font-size:13px;color:var(--muted);padding:.2rem 0 .4rem}
+
 /* ── VIEW TOGGLE ── */
 .view-tabs{display:flex;gap:4px;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg)}
 .vtab{flex:1;padding:6px 4px;font-size:12px;font-weight:500;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;text-align:center}
@@ -690,7 +694,8 @@ select:focus{outline:none;border-color:var(--muted2)}
   </div>
 
   <div class="view-tabs">
-    <button class="vtab active" id="tab-grid" onclick="switchView('grid')">📅 Grille</button>
+    <button class="vtab active" id="tab-week" onclick="switchView('week')">📆 Semaine</button>
+    <button class="vtab" id="tab-grid" onclick="switchView('grid')">📅 Mois</button>
     <button class="vtab" id="tab-list" onclick="switchView('list')">📋 Agenda</button>
     <button class="vtab" id="tab-resume" onclick="switchView('resume')">📊 Résumé</button>
   </div>
@@ -724,6 +729,7 @@ select:focus{outline:none;border-color:var(--muted2)}
       </div>
     </div>
     <!-- List view -->
+    <div id="view-week" style="display:none"></div>
     <div id="view-list" style="display:none"></div>
     <!-- Résumé view -->
     <div id="view-resume" style="display:none"></div>
@@ -733,7 +739,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 
   <!-- Barre d'onglets bas (mobile) -->
   <nav class="bottom-nav" id="bottom-nav">
-    <button class="bnav-btn active" id="bnav-grid" onclick="switchView('grid')"><span class="bnav-ico">📅</span>Calendrier</button>
+    <button class="bnav-btn active" id="bnav-week" onclick="switchView('week')"><span class="bnav-ico">📆</span>Semaine</button>
+    <button class="bnav-btn" id="bnav-grid" onclick="switchView('grid')"><span class="bnav-ico">📅</span>Mois</button>
     <button class="bnav-btn" id="bnav-list" onclick="switchView('list')"><span class="bnav-ico">📋</span>Agenda</button>
     <button class="bnav-btn" id="bnav-hsupp" onclick="openHsupp()"><span class="bnav-ico">⏱️</span>Heures</button>
     <button class="bnav-btn" id="bnav-more" onclick="openMoreMenu()"><span class="bnav-ico">⋯</span>Plus</button>
@@ -2598,7 +2605,7 @@ function launchApp() {
   document.getElementById('upload-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'flex';
   populateSelects();
-  renderCalendar();
+  switchView(currentView);   // vue par défaut = « Ma semaine »
   requestAnimationFrame(updateStickyOffsets);
   // Première utilisation : pas encore de régisseur associé → on demande
   if (!getMyReg() && allRegs.length) openProfileModal();
@@ -3821,6 +3828,7 @@ function renderCalendar() {
   renderStats(reg, y, m, teamMode);
 
   // If another view is active, delegate
+  if (currentView === 'week') { renderWeek(reg); return; }
   if (currentView === 'list') { renderList(reg, y, m); return; }
   if (currentView === 'resume') { renderResume(reg, y, m); return; }
 
@@ -4074,7 +4082,7 @@ function onTeamToggle() {
   if (isSearchActive()) searchByDate();
 }
 
-let currentView = 'grid';
+let currentView = 'week';
 
 function switchView(v) {
   currentView = v;
@@ -4083,24 +4091,19 @@ function switchView(v) {
   document.getElementById('grid-body').style.display = '';
   document.getElementById('search-date').value = '';
   document.getElementById('search-clear').style.display = 'none';
-  ['grid','list','resume'].forEach(name => {
-    document.getElementById('view-'+name).style.display = name===v ? '' : 'none';
-    document.getElementById('tab-'+name).classList.toggle('active', name===v);
+  ['week','grid','list','resume'].forEach(name => {
+    const vc = document.getElementById('view-'+name); if(vc) vc.style.display = name===v ? '' : 'none';
+    const tb = document.getElementById('tab-'+name); if(tb) tb.classList.toggle('active', name===v);
   });
-  const reg = getCurrentReg();
-  const mk = document.getElementById('mois-select').value;
-  const [y, m] = mk.split('-').map(Number);
-  if (v === 'list') renderList(reg, y, m);
-  if (v === 'resume') renderResume(reg, y, m);
-  if (v === 'grid') renderCalendar();
+  renderCalendar();   // dispatche selon currentView (stats + bonne vue)
   updateBottomNav();
 }
 
 // ── Barre d'onglets bas (mobile) ──
 function updateBottomNav(){
-  const g = document.getElementById('bnav-grid'), l = document.getElementById('bnav-list');
-  if(g) g.classList.toggle('active', currentView === 'grid');
-  if(l) l.classList.toggle('active', currentView === 'list');
+  [['bnav-week','week'],['bnav-grid','grid'],['bnav-list','list']].forEach(([id,v])=>{
+    const el = document.getElementById(id); if(el) el.classList.toggle('active', currentView === v);
+  });
 }
 function openMoreMenu(){ const m = document.getElementById('more-modal'); if(m) m.style.display = 'flex'; }
 function closeMoreMenu(){ const m = document.getElementById('more-modal'); if(m) m.style.display = 'none'; }
@@ -4455,6 +4458,50 @@ function agendaPass(e){
     case '3T': case '3TC': case 'GT': case 'Tournée': return e.salle===agendaFilter;
     default:           return true;
   }
+}
+
+// ── VUE « MA SEMAINE » ───────────────────────────────────────────────────────
+// Entrées d'un jour (par ISO) avec le même filtrage que buildDayMap/buildTeamDayMap
+function weekEntries(reg, iso, teamMode){
+  const dayData = allDays.find(x => x.date.toISOString().slice(0,10) === iso);
+  if(!dayData) return [];
+  if(teamMode){
+    return dayData.entries.filter(e => e.regies.length > 0 || e.unassigned)
+      .map(e => ({...e, myRole:'titulaire', isFormateur:false}));
+  }
+  return dayData.entries.filter(e => e.regies.some(r => r.reg === reg) || e.unassigned)
+    .map(e => ({...e,
+      myRole: e.regies.find(r => r.reg === reg)?.role,
+      isFormateur: e.regies.find(r => r.reg === reg)?.isFormateur || false }));
+}
+
+function renderWeek(reg){
+  const teamMode = isTeamMode();
+  const jourStr = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const moisStr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dow = (today.getDay() + 6) % 7;                 // 0 = lundi
+  const monday = new Date(today); monday.setDate(today.getDate() - dow);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  dayActions = [];
+  const title = `Semaine du ${monday.getDate()} ${moisStr[monday.getMonth()]} au ${sunday.getDate()} ${moisStr[sunday.getMonth()]}`;
+  let html = `<div class="week-title">📆 ${title}</div><div class="list-view">`;
+  for(let i=0; i<7; i++){
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const isToday = d.getTime() === today.getTime();
+    const entries = weekEntries(reg, iso, teamMode);
+    const posCtx = { y:d.getFullYear(), m:d.getMonth()+1, dateLabel:`${jourStr[d.getDay()]} ${d.getDate()}` };
+    const cards = entries.length
+      ? `<div class="list-day-events">${entries.map(e => eventCardHTML(e, reg, teamMode, posCtx)).join('')}</div>`
+      : `<div class="week-empty">Rien de prévu</div>`;
+    html += `<div class="list-day${isToday?' is-today':''}">
+      <div class="list-day-header"><span class="list-day-num">${d.getDate()}</span><span class="list-day-label">${jourStr[d.getDay()]}${isToday?' · aujourd\'hui':''}</span></div>
+      ${cards}
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('view-week').innerHTML = html;
 }
 
 function renderList(reg, y, m) {
