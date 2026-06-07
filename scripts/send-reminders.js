@@ -142,9 +142,12 @@ async function notifyFormations(tokensByReg) {
   const today = isoInParis(0);
   let snap;
   try { snap = await db.collection('formations').where('notified', '==', false).get(); }
-  catch (e) { console.log('Formations : rien à notifier'); return; }
+  catch (e) { console.error('Formations : échec lecture Firestore —', e.message); return; }
+  if (snap.empty) { console.log('Formations : aucune nouvelle à notifier.'); return; }
+  console.log(`Formations : ${snap.size} non notifiée(s).`);
   for (const doc of snap.docs) {
     const f = doc.data();
+    // Formation passée → on classe sans notifier.
     if (!f.date || f.date < today) { await doc.ref.update({ notified: true }).catch(() => {}); continue; }
     // destinataires = tous les jetons (sauf le créateur) qui acceptent les formations
     const tokens = [];
@@ -152,10 +155,14 @@ async function notifyFormations(tokensByReg) {
       if (reg === f.by) continue;
       for (const [tok, prefs] of Object.entries(map)) { if (prefs.formation !== false) tokens.push(tok); }
     }
+    const uniq = [...new Set(tokens)];
+    // Aucun destinataire pour l'instant : on NE marque PAS notified → réessai au prochain run
+    // (sinon la formation serait perdue si personne d'autre n'avait encore son app/jeton).
+    if (!uniq.length) { console.log(`Formation "${f.subject}" (par ${f.by||'—'}) : 0 destinataire dispo, réessai au prochain run.`); continue; }
     const body = `${f.subject} le ${f.date}${f.time ? ' à ' + f.time : ''} (proposé par ${f.by || '—'})`;
-    const n = await sendTo([...new Set(tokens)], '📚 Nouvelle formation', body, APP_URL + '#f-' + f.date, 'formation-' + doc.id);
-    await doc.ref.update({ notified: true }).catch(() => {});
-    console.log(`Formation "${f.subject}" → ${n} envoyé(s)`);
+    const n = await sendTo(uniq, '📚 Nouvelle formation', body, APP_URL + '#f-' + f.date, 'formation-' + doc.id);
+    if (n > 0) await doc.ref.update({ notified: true }).catch(() => {});   // ne consomme que si vraiment envoyé
+    console.log(`Formation "${f.subject}" → ${n}/${uniq.length} envoyé(s)${n ? '' : ' (non marquée, réessai)'}`);
   }
 }
 
