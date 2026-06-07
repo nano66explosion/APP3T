@@ -45,16 +45,19 @@ function isoInParis(offsetDays) {
   return `${y}-${m}-${d}`;
 }
 
-// Jetons d'appareils groupés par régisseur
+// Jetons d'appareils groupés par régisseur, avec leurs préférences de notif.
 async function getTokensByReg() {
-  const sets = {};
+  const map = {};                       // reg -> { token: prefs }
   (await db.collection('pushTokens').get()).forEach(doc => {
     const d = doc.data();
-    if (d.reg && d.token) (sets[d.reg] = sets[d.reg] || new Set()).add(d.token);
+    if (d.reg && d.token) { (map[d.reg] = map[d.reg] || {})[d.token] = d.prefs || {}; }
   });
-  const map = {};
-  for (const [reg, s] of Object.entries(sets)) map[reg] = [...s];   // dédoublonnage
-  return map;
+  return map;                           // dédoublonnage par clé token
+}
+// Jetons d'un régisseur qui acceptent le type `type` (activé par défaut).
+function tokensFor(tokensByReg, reg, type) {
+  const m = tokensByReg[reg] || {};
+  return Object.keys(m).filter(tok => m[tok][type] !== false);
 }
 
 // Envoi multicast + nettoyage des jetons invalides.
@@ -104,9 +107,32 @@ async function remindTomorrow(tokensByReg) {
   let total = 0;
   for (const [reg, list] of Object.entries(perReg)) {
     const body = list.map(e => `${e.spec} · ${salleLbl(e.salle)}${e.h ? ' ' + e.h : ''}`).join('\n');
-    const n = await sendTo(tokensByReg[reg] || [], '🎭 Régie demain', body, APP_URL + '#today', 'regie-' + tomorrow);
+    const n = await sendTo(tokensFor(tokensByReg, reg, 'regie'), '🎭 Régie demain', body, APP_URL + '#today', 'regie-' + tomorrow);
     total += n;
     console.log(`  ${reg}: ${n} envoyé(s)`);
+  }
+  await sentRef.set({ at: new Date().toISOString(), count: total });
+}
+
+// ─── 1bis) Rappel « bilan soirée » (~22h30 Paris) ────────────────────────────
+async function remindSoiree(tokensByReg) {
+  const parisNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+  if (parisNow.getHours() < 22) { return; }   // seulement en fin de soirée
+  const today = isoInParis(0);
+  const snap = await db.collection('schedule').doc('v1').get();
+  if (!snap.exists) return;
+  const entries = ((snap.data() || {}).days || {})[today] || [];
+  if (!entries.length) { console.log('Bilan soirée — aucune régie aujourd\'hui.'); return; }
+  const sentRef = db.collection('sentLog').doc('soiree-' + today);
+  if ((await sentRef.get()).exists) { console.log('Bilan soirée — déjà envoyé.'); return; }
+  const perReg = {};
+  entries.forEach(e => (e.regs || []).forEach(reg => { (perReg[reg] = perReg[reg] || []).push(e.spec); }));
+  let total = 0;
+  for (const [reg, specs] of Object.entries(perReg)) {
+    const body = `N'oublie pas de donner le bilan sur WhatsApp 🎭 (${[...new Set(specs)].join(', ')})`;
+    const n = await sendTo(tokensFor(tokensByReg, reg, 'soiree'), '💬 Bilan de soirée', body, APP_URL + '#soiree', 'soiree-' + today);
+    total += n;
+    console.log(`Bilan soirée ${reg}: ${n} envoyé(s)`);
   }
   await sentRef.set({ at: new Date().toISOString(), count: total });
 }
@@ -152,7 +178,7 @@ async function checkStops(tokensByReg) {
       const prev = await ref.get();
       if (prev.exists && prev.data().stopText === stopText) continue;  // déjà notifié
 
-      const n = await sendTo(tokensByReg[reg] || [], '🔒 Heures supp clôturées', `${f.name} — ${stopText}`, APP_URL, 'stop-' + reg + '-' + f.id);
+      const n = await sendTo(tokensFor(tokensByReg, reg, 'stop'), '🔒 Heures supp clôturées', `${f.name} — ${stopText}`, APP_URL, 'stop-' + reg + '-' + f.id);
       await ref.set({ reg, file: f.name, stopText, at: new Date().toISOString() });
       console.log(`  STOP ${reg} (${f.name}) → ${n} envoyé(s)`);
     }
@@ -163,6 +189,8 @@ async function checkStops(tokensByReg) {
   const tokensByReg = await getTokensByReg();
   try { await remindTomorrow(tokensByReg); }
   catch (e) { console.error('Erreur rappels régie demain :', e.message); }
+  try { await remindSoiree(tokensByReg); }
+  catch (e) { console.error('Erreur rappel bilan soirée :', e.message); }
   try { await checkStops(tokensByReg); }
   catch (e) { console.error('Erreur détection STOP (Drive partagé avec le compte de service ?) :', e.message); }
 })().catch(e => { console.error(e); process.exit(1); });

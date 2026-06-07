@@ -307,6 +307,10 @@ select:focus{outline:none;border-color:var(--muted2)}
 #offline-banner button{background:var(--c3tc);color:#1a1a1a;border:none;border-radius:8px;
   padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0}
 
+/* ── PRÉFÉRENCES DE NOTIFICATIONS ── */
+.notif-pref{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);padding:.3rem 0;cursor:pointer}
+.notif-pref input{width:16px;height:16px;accent-color:var(--c3t)}
+
 /* ── BILAN SOIRÉE (WhatsApp) ── */
 .soiree-spec{font-size:13px;font-weight:600;margin:.9rem 0 .4rem}
 .soiree-msg{display:block;width:100%;text-align:left;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;margin-bottom:.4rem;line-height:1.4}
@@ -868,6 +872,15 @@ select:focus{outline:none;border-color:var(--muted2)}
       <div class="file-name" id="lbl-notif" style="color:var(--text)"></div>
       <button class="file-btn" id="btn-notif" onclick="toggleNotifications()" style="margin-top:.4rem">Activer les rappels</button>
       <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Rappel de ta régie du jour / du lendemain à l'ouverture de l'app, <b>et</b> — quand le push est activé — la veille d'une régie même app fermée.</div>
+      <!-- Choix des notifications reçues -->
+      <div id="notif-prefs" style="margin-top:.8rem;display:none">
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.4rem">Notifications reçues</div>
+        <label class="notif-pref"><input type="checkbox" id="np-regie" onchange="setNotifPref('regie',this.checked)"> 🎭 Régie demain</label>
+        <label class="notif-pref"><input type="checkbox" id="np-stop" onchange="setNotifPref('stop',this.checked)"> 🔒 Clôture heures supp (STOP)</label>
+        <label class="notif-pref"><input type="checkbox" id="np-soiree" onchange="setNotifPref('soiree',this.checked)"> 💬 Rappel bilan soirée (22h30)</label>
+        <label class="notif-pref"><input type="checkbox" id="np-info" onchange="setNotifPref('info',this.checked)"> 📣 Infos équipe</label>
+        <label class="notif-pref"><input type="checkbox" id="np-formation" onchange="setNotifPref('formation',this.checked)"> 📚 Formations</label>
+      </div>
     </div>
 
     <!-- Client ID (avancé) -->
@@ -1793,7 +1806,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b7 (résumé non-id + bilan soirée)';
+const APP_VERSION = '2026-06-07 · b8 (choix notifications)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2162,6 +2175,7 @@ async function savePushToken(token){
       token,
       reg: getMyReg() || '',
       platform: navigator.userAgent,
+      prefs: getNotifPrefs(),     // #3 : types de notifs activés (le cron les respecte)
       updatedAt: new Date().toISOString()
     }, { merge:true });
   }catch(e){ console.warn('savePushToken:', e); }
@@ -2189,6 +2203,25 @@ function updateNotifLabel(){
   else { txt = isPushDisabled() ? '🔕 Désactivées' : 'Désactivées'; btnTxt = 'Activer les rappels'; }
   el.textContent = txt;
   if(btn) btn.textContent = btnTxt;
+  renderNotifPrefs();
+}
+
+// ─── #3 Préférences de notifications (par type) ──────────────────────────────
+const NOTIF_TYPES = ['regie','stop','soiree','info','formation'];
+function getNotifPrefs(){
+  try{ return JSON.parse(localStorage.getItem('3t_notif_prefs') || '{}'); }catch(e){ return {}; }
+}
+function getNotifPref(type){ const p = getNotifPrefs(); return p[type] !== false; }   // activé par défaut
+function setNotifPref(type, val){
+  const p = getNotifPrefs(); p[type] = !!val; localStorage.setItem('3t_notif_prefs', JSON.stringify(p));
+  const tk = localStorage.getItem('3t_push_token');
+  if(tk && pushConfigured()){ initFirebase(); savePushToken(tk); }   // propage au serveur (cron)
+}
+function renderNotifPrefs(){
+  const box = document.getElementById('notif-prefs');
+  if(!box) return;
+  box.style.display = notifActive() ? 'block' : 'none';
+  NOTIF_TYPES.forEach(t => { const c = document.getElementById('np-'+t); if(c) c.checked = getNotifPref(t); });
 }
 // Bouton unique : active ou désactive selon l'état
 function toggleNotifications(){

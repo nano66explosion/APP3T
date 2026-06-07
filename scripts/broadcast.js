@@ -17,7 +17,10 @@ const body = (process.env.BODY || '').trim();
   if (!body) { console.error('Message vide.'); process.exit(1); }
 
   const set = new Set();
-  (await db.collection('pushTokens').get()).forEach(d => { const t = d.data().token; if (t) set.add(t); });
+  (await db.collection('pushTokens').get()).forEach(doc => {
+    const d = doc.data();
+    if (d.token && (!d.prefs || d.prefs.info !== false)) set.add(d.token);   // respecte la pref "Infos équipe"
+  });
   const tokens = [...set];   // dédoublonnage des jetons identiques
   if (!tokens.length) { console.log('Aucun appareil enregistré.'); return; }
   console.log('Jetons uniques :', tokens.length);
