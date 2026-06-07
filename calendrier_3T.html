@@ -320,6 +320,9 @@ select:focus{outline:none;border-color:var(--muted2)}
 .fm-join.in{background:#a78bfa22;border-color:#a78bfa66;color:#a78bfa}
 .fm-del{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
 .fm-propose{width:100%;margin-top:.5rem;background:#a78bfa18;border:1px dashed #a78bfa66;color:var(--text);border-radius:10px;padding:9px;font-size:12px;cursor:pointer;font-family:inherit}
+.fm-input{width:100%;max-width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit}
+#formation-modal .modal-card{box-sizing:border-box;overflow-x:hidden}
+#formation-modal *{box-sizing:border-box}
 @media (min-width:768px){ .cal-formation{font-size:14px;margin-left:4px} }
 
 /* ── BOUTON BILAN SOIRÉE (sous la régie du jour) ── */
@@ -827,11 +830,14 @@ select:focus{outline:none;border-color:var(--muted2)}
       </div>
       <div class="modal-sub">Les autres régisseurs seront prévenus et pourront se positionner.</div>
       <label class="file-label">Date</label>
-      <input type="date" id="fm-date" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.7rem">
+      <input type="date" id="fm-date" class="fm-input" style="margin-bottom:.7rem">
       <label class="file-label">Horaire</label>
-      <input type="time" id="fm-time" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.7rem">
+      <div style="display:flex;gap:8px;margin-bottom:.7rem">
+        <select id="fm-h" class="fm-input" style="flex:1"></select>
+        <select id="fm-m" class="fm-input" style="flex:1"></select>
+      </div>
       <label class="file-label">Sujet</label>
-      <input type="text" id="fm-subject" placeholder="Ex. Formation lumière, console son…" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.5rem">
+      <input type="text" id="fm-subject" class="fm-input" placeholder="Ex. Formation lumière, console son…" style="margin-bottom:.5rem">
       <div id="fm-error" style="font-size:12px;color:#f87171;min-height:16px;margin-bottom:.3rem"></div>
       <button class="go-btn" onclick="submitFormation()" style="padding:11px;font-size:14px">Proposer la formation</button>
     </div>
@@ -1846,7 +1852,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b9 (formations)';
+const APP_VERSION = '2026-06-07 · b10 (formation quart d\'heure)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2946,7 +2952,8 @@ async function loadFormations(){
 async function submitFormation(){
   if(blockIfOffline()) return;
   const date = document.getElementById('fm-date').value;
-  const time = document.getElementById('fm-time').value;
+  const h = document.getElementById('fm-h').value, mn = document.getElementById('fm-m').value;
+  const time = (h && mn) ? `${h}:${mn}` : (h ? `${h}:00` : '');
   const subject = document.getElementById('fm-subject').value.trim();
   const err = document.getElementById('fm-error');
   if(!date || !subject){ if(err) err.textContent = 'Date et sujet obligatoires.'; return; }
@@ -3016,7 +3023,11 @@ function formationCardsHTML(iso){
 function openFormationModal(iso){
   const d = iso || (selectedDay ? `${document.getElementById('mois-select').value}-${String(selectedDay).padStart(2,'0')}` : isoToday());
   document.getElementById('fm-date').value = d;
-  document.getElementById('fm-time').value = '';
+  // Heure (00–23) + quart d'heure (00/15/30/45)
+  const hSel = document.getElementById('fm-h'), mSel = document.getElementById('fm-m');
+  let hOpts = '<option value="">-- h --</option>'; for(let h=0;h<24;h++){ const v=String(h).padStart(2,'0'); hOpts += `<option value="${v}">${v}h</option>`; }
+  hSel.innerHTML = hOpts;
+  mSel.innerHTML = '<option value="">-- min --</option>' + ['00','15','30','45'].map(m=>`<option value="${m}">${m}</option>`).join('');
   document.getElementById('fm-subject').value = '';
   document.getElementById('fm-error').textContent = '';
   document.getElementById('formation-modal').style.display = 'flex';
