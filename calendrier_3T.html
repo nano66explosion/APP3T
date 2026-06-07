@@ -319,6 +319,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 .fm-join{flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;font-weight:600}
 .fm-join.in{background:#a78bfa22;border-color:#a78bfa66;color:#a78bfa}
 .fm-del{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
+.fm-owner{flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);font-style:italic;padding:7px 10px}
 .fm-propose{width:100%;margin-top:.5rem;background:#a78bfa18;border:1px dashed #a78bfa66;color:var(--text);border-radius:10px;padding:9px;font-size:12px;cursor:pointer;font-family:inherit}
 .fm-input{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;-webkit-appearance:none;appearance:none;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit}
 .fm-input::-webkit-date-and-time-value{text-align:left}
@@ -1860,7 +1861,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b15 (croix pour fermer le détail des heures)';
+const APP_VERSION = '2026-06-07 · b16 (le créateur d\'une formation ne se positionne pas)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2986,7 +2987,7 @@ async function submitFormation(){
   try{
     showBusy(true);
     await _fbDb.collection('formations').add({
-      date, time, subject, by: me, participants: me ? [me] : [],
+      date, time, subject, by: me, participants: [],   // le créateur ne se positionne pas (il propose)
       createdAt: new Date().toISOString(), notified: false
     });
     await loadFormations();
@@ -3006,6 +3007,7 @@ async function toggleFormation(id){
     showBusy(true);
     const ref = _fbDb.collection('formations').doc(id);
     const doc = await ref.get(); if(!doc.exists) return;
+    if(doc.data().by === me){ toast('Vous proposez cette formation', 'err'); return; }  // le créateur ne se positionne pas
     const parts = doc.data().participants || [];
     const FV = firebase.firestore.FieldValue;
     await ref.update({ participants: parts.includes(me) ? FV.arrayRemove(me) : FV.arrayUnion(me) });
@@ -3030,8 +3032,12 @@ function formationCardsHTML(iso){
   return list.map(f => {
     const parts = f.participants || [];
     const iIn = parts.includes(me);
-    const btn = `<button class="fm-join${iIn?' in':''}" onclick="toggleFormation('${f.id}')">${iIn?'✓ J\'y vais':'+ Je participe'}</button>`;
-    const del = (f.by && f.by===me) ? `<button class="fm-del" onclick="deleteFormation('${f.id}')" title="Supprimer">🗑️</button>` : '';
+    const isOwner = f.by && f.by===me;
+    // Le créateur propose la formation : il ne se positionne pas dessus.
+    const btn = isOwner
+      ? `<span class="fm-owner">Vous avez proposé cette formation</span>`
+      : `<button class="fm-join${iIn?' in':''}" onclick="toggleFormation('${f.id}')">${iIn?'✓ J\'y vais':'+ Je participe'}</button>`;
+    const del = isOwner ? `<button class="fm-del" onclick="deleteFormation('${f.id}')" title="Supprimer">🗑️</button>` : '';
     const who = parts.length ? parts.join(', ') : 'Personne pour l\'instant';
     return `<div class="fm-card">
       <div class="fm-top"><span class="fm-title">📚 ${f.subject}</span>${f.time?`<span class="fm-time">${f.time}</span>`:''}</div>
