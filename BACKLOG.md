@@ -9,10 +9,39 @@
 
 ## 🏷️ Versions
 
-- **V1** = état stable de référence (tag git **`v1`**). Notifications push complètes,
-  calcul d'heures tolérant aux coquilles, particularités, intermittence = spectacles + heures supp.
-  ➡️ Pour revenir à cet état : `git checkout v1` (ou `git reset --hard v1`).
-- **En cours** : refonte de l'interface de la page principale (look « appli » avec menus).
+- **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
+- **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 1855),
+  visible **en bas de ⚙️ Paramètres**. Bumper à chaque évolution notable. Actuelle : **`b12`**.
+- **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
+  (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
+
+## ☁️ Backend Firebase (push, planning partagé, formations)
+
+- **Projet Firebase** : `tapp-2c0a8` (plan **gratuit Spark**). Config + clé VAPID **en dur** dans
+  `calendrier_3T.html` (`FIREBASE_CONFIG`, `FCM_VAPID_KEY`) ET dans `firebase-messaging-sw.js` (même config).
+- **Firestore — collections** : `pushTokens` (1 doc/appareil = `3t_device_id`, champs token/reg/prefs/platform),
+  `schedule/v1` (planning à venir publié par l'app pour le cron), `formations` (date/heure/sujet/by/participants/notified),
+  `sentLog` (anti-doublon envois), `stops` (STOP heures supp déjà notifiés).
+- **Règles Firestore à publier** (sinon push/formations KO) :
+  ```
+  match /pushTokens/{t} { allow read, write: if true; }
+  match /schedule/{d}   { allow read, write: if true; }
+  match /formations/{d} { allow read, write: if true; }
+  ```
+- **GitHub Actions** (dans le repo, ajoutés via l'UI web car le token local n'a pas le scope `workflow`) :
+  `.github/workflows/push-reminders.yml` (cron `0 6-21/2 * * *` → `scripts/send-reminders.js`) et
+  `.github/workflows/broadcast.yml` (manuel → `scripts/broadcast.js`). **Secret** `FIREBASE_SERVICE_ACCOUNT`
+  (clé compte de service Firebase, JSON complet). Le compte de service doit avoir **l'API Drive activée +
+  le dossier heures supp partagé** (lecture) pour la détection STOP.
+- **scripts/** : `send-reminders.js` (régie demain, bilan soirée ~22h, notif formations, STOP — respecte les
+  `prefs` par jeton via `tokensFor`), `broadcast.js` (respecte pref `info`), `package.json` (firebase-admin, googleapis, xlsx).
+
+## 🔐 Divers
+
+- **Identité git** : RIZZO / nano66explosion@gmail.com. **Régisseur de l'app = Rizzo** (onglet « Théo Rizzo »).
+- **Vérif syntaxe avant push** : extraire le dernier `<script>` → `osascript -l JavaScript` + `new Function(src)`.
+- **iOS** : les notifications n'apparaissent que si l'app est **installée sur l'écran d'accueil** (iOS ≥ 16.4).
+  Le « from 3T TECH » sous le titre est ajouté par iOS (non supprimable).
 
 ---
 
@@ -190,7 +219,8 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   Si la mise en forme change côté Drive, re-vérifier `parseCellStyles`.
 - **Heures supp** : limité à ~**30 lignes/onglet** (plage de la formule E3:E32 du modèle).
 - **Reconnexion** : jeton Google ~1h (limite sans backend). Pas de « connexion infinie ».
-- **Notifications** : locales seulement (pas de push serveur).
+- **Notifications push** : OK (Firebase) mais l'envoi passe par le **cron GitHub Actions** (toutes les 2h),
+  donc pas instantané (ex. notif de formation dans les ~2h). iOS : app installée requise.
 - **Fichiers Drive** doivent être des **.xlsx** pour l'écriture (heures supp, plan tech xlsx).
 - **Colonnes du plan tech en dur** : un changement de structure du fichier casserait le parsing.
 
@@ -219,13 +249,44 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **18. Message clair quand la limite ~30 heures supp/mois est atteinte.** ✅ FAIT
 - [x] **19. Mode hors-ligne** — ✅ FAIT. Le planning parsé (plan + base + barrés/invités) est mis en cache localStorage (`3t_offline_cache`) à chaque chargement/refresh (`saveOfflineCache`). Au démarrage **sans réseau** (ou si le chargement Drive échoue), l'app s'ouvre **en lecture seule** depuis le cache (`loadOfflineCache`/`enterOfflineMode`) avec une **bannière** « 📴 Mode hors-ligne ». Écritures bloquées (`blockIfOffline` sur positionnement, heures supp, refresh). Bascule online/offline en direct. `sw.js` **v2** pré-cache aussi les libs CDN + cache réseau-d'abord. `gapi.load` protégé (libs CDN possiblement absentes hors-ligne).
 - [ ] **20. Découper le fichier** — externaliser JS/CSS/images (le HTML fait ~1 Mo, logos base64) → chargement + maintenance + coût de lecture améliorés.
-- [~] **21. Refonte interface page principale** — **EN COURS** (post-V1). 1ʳᵉ version : **barre d'onglets en bas** sur mobile (`bottom-nav` : 📅 Calendrier · 📋 Agenda · ⏱️ Heures · ⋯ Plus) + **menu « Plus »** en bottom-sheet (`more-modal` : Résumé, Intermittence, Recherche, Aide, Paramètres, Déconnexion). En-tête mobile allégé (🔄 + ⚙️) ; **PC inchangé** (onglets + boutons en haut, barre du bas masquée). `updateBottomNav`/`openMoreMenu`.
+- [x] **21. Refonte interface page principale** — ✅ FAIT (1ʳᵉ version). Mobile : **barre d'onglets en bas**
+  (`bottom-nav` : 📆 Semaine · 📅 Mois · 📋 Agenda · ⏱️ Heures · ⋯ Plus) + **menu « Plus »** bottom-sheet
+  (`more-modal` : Résumé, Intermittence, Bilan soirée, Formation, Recherche, Aide, Paramètres, Déconnexion).
+  En-tête mobile allégé avec **régisseur visible** (chip avatar+nom, clic = récap) + 🔄 + ⚙️. **Vue « Ma semaine »
+  par défaut** (`renderWeek`). PC inchangé. `updateBottomNav`/`openMoreMenu`.
+- [x] **22. Bilan de soirée → WhatsApp** — ✅ FAIT. Bouton sous la régie du jour (après 21h) + menu Plus →
+  modale avec **sélecteur de spectacle** (celui du jour préselectionné) + **5 messages** (`soireeMessages`,
+  sans emoji) → ouvre `wa.me` pré-rempli. Push de rappel ~22h (`remindSoiree`, lien `#soiree`).
+- [x] **23. Choix des notifications** — ✅ FAIT. Cases par type dans Paramètres (régie/stop/soirée/info/formation),
+  `localStorage 3t_notif_prefs` + champ `prefs` du doc Firestore ; le cron filtre (`tokensFor`).
+- [x] **24. Formations** — ✅ FAIT (voir section Firebase). Proposer/positionner/supprimer, affichage calendrier
+  (📚) + détail/régie du jour/semaine, notif aux autres via cron. Horaire au quart d'heure. Champs `.fm-input`.
 
 ---
 
+## 🔧 EN COURS / à finir (calibrage heures intermittence)
+
+> Mis de côté à la demande de l'utilisateur — à reprendre. Objectif : que les heures de la page
+> Intermittence collent à la **fiche de paye** de **Rizzo** (intermittent, payé à l'heure).
+> Constats : Sept app 39.5h vs paye 35 ; Oct 66.25 vs 72. Total par mois = heures spectacle (formule
+> base : montage+durée+démontage+1h service par représentation) + heures supp déclarées.
+> Causes identifiées : (a) **« Blind Test 80's » absent de la base** → 0h en octobre (~5h manquantes) ;
+> (b) « Aéro » = vraie pièce (« Aero Malgré Lui ») — corrigé via `applyGuestBaseOverride` (orange + dans la
+> base = comptée) ; (c) reste à **vérifier la lecture des heures supp** mois par mois.
+> **À faire côté données** : compléter la base heures (Blind Test, Faux British, Vacances Rêve…) ;
+> côté app : confirmer les valeurs réelles montage/durée/démontage si la formule diffère de la paye.
+
 ## 🧭 Pour reprendre après un /clear
 
-1. Le code est sur GitHub `main` (à jour). Travailler sur `calendrier_3T.html`.
-2. Pousser : `cd "APP 3T" && git add -A && git commit -m "…" && git push origin main`.
-3. Vérifier la syntaxe JS avant push (extraire `<script>` → `new Function`).
-4. Ce backlog = état de référence. Le mettre à jour à chaque évolution notable.
+1. Code sur GitHub `main` (à jour). Fichier principal : `calendrier_3T.html` (~1 Mo, mono-fichier).
+   Autres : `sw.js`, `firebase-messaging-sw.js`, `scripts/*.js`, `.github/workflows/*.yml`.
+2. **Lire ce BACKLOG en entier** (architecture, Firebase, versions, limites) avant de coder.
+3. Modifs ciblées (grep/offset), ne pas relire tout le fichier d'un coup.
+4. **Avant push** : vérifier la syntaxe JS (extraire le dernier `<script>` → `osascript -l JavaScript` + `new Function`).
+5. **Bumper `APP_VERSION`** (≈ ligne 1855) à chaque évolution notable (visible dans Paramètres).
+6. Pousser : `cd "APP 3T" && git add -A && git commit -m "…  \n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" && git push origin main`.
+   ⚠️ Le token local n'a **pas** le scope `workflow` → ne pas créer/modifier `.github/workflows/*` par push
+   (l'utilisateur le fait via l'UI web GitHub).
+7. Tenir ce backlog à jour à chaque évolution.
+8. **Restant à faire** : #10 (accessibilité), #12 (export PDF), #15 (stats avancées / projection 507h),
+   #17 (détection auto colonnes plan tech), #20 (découper le fichier), + le calibrage heures ci-dessus.
