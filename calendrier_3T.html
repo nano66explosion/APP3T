@@ -320,9 +320,10 @@ select:focus{outline:none;border-color:var(--muted2)}
 .fm-join.in{background:#a78bfa22;border-color:#a78bfa66;color:#a78bfa}
 .fm-del{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
 .fm-propose{width:100%;margin-top:.5rem;background:#a78bfa18;border:1px dashed #a78bfa66;color:var(--text);border-radius:10px;padding:9px;font-size:12px;cursor:pointer;font-family:inherit}
-.fm-input{width:100%;max-width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit}
-#formation-modal .modal-card{box-sizing:border-box;overflow-x:hidden}
-#formation-modal *{box-sizing:border-box}
+.fm-input{display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;-webkit-appearance:none;appearance:none;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit}
+.fm-input::-webkit-date-and-time-value{text-align:left}
+#formation-modal .modal-card{box-sizing:border-box;overflow-x:hidden;width:100%}
+#formation-modal *{box-sizing:border-box;max-width:100%}
 @media (min-width:768px){ .cal-formation{font-size:14px;margin-left:4px} }
 
 /* ── BOUTON BILAN SOIRÉE (sous la régie du jour) ── */
