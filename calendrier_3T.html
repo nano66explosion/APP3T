@@ -307,6 +307,12 @@ select:focus{outline:none;border-color:var(--muted2)}
 #offline-banner button{background:var(--c3tc);color:#1a1a1a;border:none;border-radius:8px;
   padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0}
 
+/* ── BILAN SOIRÉE (WhatsApp) ── */
+.soiree-spec{font-size:13px;font-weight:600;margin:.9rem 0 .4rem}
+.soiree-msg{display:block;width:100%;text-align:left;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;margin-bottom:.4rem;line-height:1.4}
+.soiree-msg:hover{border-color:#25D366}
+.soiree-msg .wa{color:#25D366;font-weight:600;font-size:11px}
+
 /* ── VUE « MA SEMAINE » ── */
 .week-title{font-size:13px;font-weight:600;color:var(--text);padding:.8rem 1rem .25rem}
 .week-empty{font-size:13px;color:var(--muted);padding:.2rem 0 .4rem}
@@ -766,11 +772,24 @@ select:focus{outline:none;border-color:var(--muted2)}
       <div class="more-grid">
         <button onclick="closeMoreMenu();switchView('resume')"><span class="mg-ico">📊</span>Résumé</button>
         <button onclick="closeMoreMenu();openIntermittence()"><span class="mg-ico">📈</span>Intermittence</button>
+        <button onclick="closeMoreMenu();openSoiree()"><span class="mg-ico">💬</span>Bilan soirée</button>
         <button onclick="closeMoreMenu();openSearch()"><span class="mg-ico">🔍</span>Recherche</button>
         <button onclick="closeMoreMenu();openHelp()"><span class="mg-ico">💡</span>Aide</button>
         <button onclick="closeMoreMenu();openSettingsModal()"><span class="mg-ico">⚙️</span>Paramètres</button>
         <button onclick="closeMoreMenu();resetApp()"><span class="mg-ico">🚪</span>Déconnexion</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Bilan de soirée → message WhatsApp -->
+  <div id="soiree-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeSoiree()">
+    <div class="modal-card" style="text-align:left;max-width:440px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <div class="modal-title">💬 Bilan de soirée</div>
+        <button onclick="closeSoiree()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div class="modal-sub">Choisis un message : il s'ouvrira dans WhatsApp, tu n'as plus qu'à choisir le groupe et envoyer.</div>
+      <div id="soiree-body"></div>
     </div>
   </div>
 
@@ -1774,7 +1793,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b6 (orange+base = régie)';
+const APP_VERSION = '2026-06-07 · b7 (résumé non-id + bilan soirée)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2763,10 +2782,12 @@ window.addEventListener('online', () => {
 
 // Clic sur la notif « régie demain » (lien #today) → accueil, aujourd'hui, régie du jour
 function handleNotifNav(){
-  if(location.hash !== '#today') return;
+  const hash = location.hash;
+  if(hash !== '#today' && hash !== '#soiree') return;
   // nettoie le hash pour ne pas re-déclencher au prochain rafraîchissement
   try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
   if(!appIsOpen()) return;
+  if(hash === '#soiree'){ openSoiree(); return; }
   if(typeof switchView === 'function') switchView('grid');
   goToday();   // mois courant + jour = aujourd'hui + rendu
   setTimeout(() => {
@@ -2774,8 +2795,55 @@ function handleNotifNav(){
     if(el) el.scrollIntoView({ behavior:'smooth', block:'start' });
   }, 250);
 }
-// App déjà ouverte et menée vers #today par le clic de notif
+// App déjà ouverte et menée vers #today/#soiree par le clic de notif
 window.addEventListener('hashchange', handleNotifNav);
+
+// ─── #2 BILAN DE SOIRÉE → message WhatsApp ───────────────────────────────────
+// Spectacles (non tournée, non annulés) programmés aujourd'hui, toute l'équipe.
+function todaySpectacles(){
+  const t = new Date(); t.setHours(0,0,0,0);
+  const iso = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  const day = allDays.find(x => x.date.toISOString().slice(0,10) === iso);
+  if(!day) return [];
+  const seen = new Set(), out = [];
+  (day.entries||[]).forEach(e => {
+    if(e.salle === 'Tournée' || e.cancelled) return;
+    const n = e.spec || '';
+    if(n && !seen.has(n)){ seen.add(n); out.push(n); }
+  });
+  return out;
+}
+// Variantes de messages courts pour un spectacle
+function soireeMessages(spec){
+  return [
+    `Bonne soirée pour ${spec} ! 🎭`,
+    `Belle représentation de ${spec} ce soir ✨`,
+    `${spec} ce soir, on assure ! 💪`,
+    `Super soirée pour ${spec}, salle au top 👏`,
+  ];
+}
+function waOpen(msg){
+  window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+}
+function openSoiree(){
+  const specs = todaySpectacles();
+  const body = document.getElementById('soiree-body');
+  let html = '';
+  if(!specs.length){
+    html = `<div class="soiree-spec">Pas de spectacle identifié ce soir</div>`
+      + ['Bonne soirée à toute l\'équipe ! 🎭', 'Belle soirée à tous ✨'].map(m =>
+        `<button class="soiree-msg" onclick="waOpen('${m.replace(/'/g,"\\'")}')">${m} <span class="wa">› WhatsApp</span></button>`).join('');
+  } else {
+    specs.forEach(spec => {
+      html += `<div class="soiree-spec">🎭 ${spec}</div>`;
+      html += soireeMessages(spec).map(m =>
+        `<button class="soiree-msg" onclick="waOpen('${m.replace(/'/g,"\\'")}')">${m} <span class="wa">› WhatsApp</span></button>`).join('');
+    });
+  }
+  body.innerHTML = html;
+  document.getElementById('soiree-modal').style.display = 'flex';
+}
+function closeSoiree(){ document.getElementById('soiree-modal').style.display = 'none'; }
 
 // ─── PROFIL LOCAL (régisseur + avatar emoji) ─────────────────────────────────
 const EMOJI_CHOICES = ['😎','🎭','🎬','🎤','🎸','🥁','🎧','🔦','⚡','🛠️','🚀','🦊','🐺','🐱','🦁','🐻','🦉','🐧','🌟','🔥','💡','🎯','🍀','👑'];
@@ -4825,6 +4893,11 @@ function renderResume(reg, y, m) {
         + heures.guests.map(g=>`<div class="intermi-row"><span class="intermi-label">${g}</span><span class="intermi-val" style="color:var(--cguest)">invité</span></div>`).join('')
         + `</div>`
       : '';
+    const nonid = heures.unmatched.length
+      ? `<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border)"><div style="font-size:11px;color:var(--c3tc);margin-bottom:.5rem">❓ Spectacles non identifiés (absents de la base)</div>`
+        + heures.unmatched.map(g=>`<div class="intermi-row"><span class="intermi-label">${g}</span><span class="intermi-val" style="color:var(--c3tc)">non compté</span></div>`).join('')
+        + `<div style="font-size:11px;color:var(--muted);margin-top:.5rem;line-height:1.45">⚠️ Ces spectacles ne sont pas dans la base heures : leurs heures ne sont <b>pas comptées</b> par l'app. Ce sont sûrement des heures à déclarer en <b>heures supp</b>.</div></div>`
+      : '';
     heuresBody = `${heuresDisclaimer}${rows}
       <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)">
         <div class="intermi-row"><span class="intermi-label">Montages</span><span class="intermi-val">${heures.montage}h</span></div>
@@ -4834,7 +4907,7 @@ function renderResume(reg, y, m) {
         <div class="intermi-row"><span class="intermi-label">Total spectacles</span><span class="intermi-val">${heures.total}h</span></div>
         <div class="intermi-row"><span class="intermi-label">+ Heures supp du mois</span><span class="intermi-val" id="resume-hs">⏳</span></div>
         <div class="intermi-row" style="margin-bottom:0;padding-top:.4rem;border-top:1px solid var(--border)"><span class="intermi-label" style="font-weight:600;color:var(--text)">Total avec heures supp</span><span class="intermi-val" id="resume-hs-total" style="font-weight:600;color:var(--c3t)">⏳</span></div>
-      </div>${unm}${changeBaseBtn}`;
+      </div>${unm}${nonid}${changeBaseBtn}`;
   }
   resumeHTML += acc('heures', `Heures calculées · ${baseHeuresLoaded?heures.total+'h':'—'}`, heuresBody, true);
 
