@@ -2,7 +2,7 @@ name: Rappels push (régie demain)
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # toutes les 5 min -> formations/STOP quasi instantanés
+     - cron: '*/15 * * * *'   # toutes les 15 min (filet de secours ; les formations partent en instantané via le Worker Cloudflare)
   workflow_dispatch: {}
   
 jobs:
