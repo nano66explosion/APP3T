@@ -2,7 +2,7 @@ name: Rappels push (régie demain)
 
 on:
   schedule:
-    - cron: '0 6-21/2 * * *'   # toutes les 2h de 8h à 23h (Paris) -> STOP détecté vite
+    - cron: '*/5 * * * *'   # toutes les 5 min -> formations/STOP quasi instantanés
   workflow_dispatch: {}
   
 jobs:
