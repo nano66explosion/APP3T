@@ -1861,7 +1861,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b19 (notif formation instantanée via Worker Cloudflare)';
+const APP_VERSION = '2026-06-07 · b20 (Worker formation branché → notif instantanée)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1879,7 +1879,7 @@ const FIREBASE_CONFIG = {
 const FCM_VAPID_KEY = "BNC0bgTU3xlkLZIh39qyZSdqAkKximdg1bJlsxDlIOU6prDwNaWfPZvoBH8YygRBxwtmUaHtsQyNEXrIdfHQkJs";
 // Worker Cloudflare pour la notif INSTANTANÉE de formation (cf. cloudflare/worker.js).
 // Laisser vide tant que le Worker n'est pas déployé → on retombe sur le cron de secours.
-const FORMATION_WORKER_URL = "";
+const FORMATION_WORKER_URL = "https://formation-notif.nano66explosion.workers.dev/";
 // Le push est-il configuré ?
 function pushConfigured(){ return !!(FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.apiKey && FCM_VAPID_KEY); }
 function getClientId() { return localStorage.getItem('3t_client_id') || DEFAULT_CLIENT_ID; }
