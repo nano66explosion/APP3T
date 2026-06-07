@@ -65,6 +65,10 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - **Notifications locales** (à l'ouverture) : rappel régie du jour / lendemain (bouton dans Paramètres).
   ⚠️ Pas de vrai push serveur (GitHub Pages statique).
 - Bouton **🔄 Rafraîchir** : recharge plan + base depuis Drive.
+- **Mise à jour auto** : l'app se recharge quand un nouveau service worker prend la main
+  (`controllerchange` → `location.reload`). **Numéro de version** (`APP_VERSION`) affiché en bas des Paramètres.
+- **Détection de l'année d'une feuille robuste** (`parsePlanTech`) : A2 (date), sinon 1ʳᵉ date trouvée,
+  sinon année dans le nom de la feuille (« Sept 25 » → 2025) — évite qu'un mois entier soit ignoré.
 - **Page d'aide 💡** (modale `help-modal`) : mode d'emploi complet avec **sommaire cliquable**
   (16 rubriques, scroll interne via `helpJump`/`helpTop`). Bouton 💡 dans l'en-tête ET sur l'écran de connexion.
   Rubrique 15 « En détail » : explique concrètement ce que l'app **lit et écrit** dans le plan tech et le fichier heures supp.
@@ -126,7 +130,10 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 
 ### Page Intermittence
 - Jauge vers **507h** = **heures spectacles + heures supp** (recalculée après lecture des fichiers).
-- Totaux saison, détail par mois, par spectacle.
+- Totaux saison, **détail par mois** (total du mois + sous-ligne « régie Xh (n régies) · supp Yh »),
+  reconstruit après lecture des heures supp (`monthRowsHTML`/`updateIntermiMonths`) — inclut les mois
+  qui n'ont **que** des heures supp.
+- **Couverture du calcul d'heures** (bloc dépliable, tout le théâtre) : ✅ calculables / ❌ non trouvés / 🎤 invités.
 - **Total régies / tournées** + **« Total heures supp (année) »** (cumul tous les fichiers du dossier).
 
 ### Édition du planning (écriture Drive)
