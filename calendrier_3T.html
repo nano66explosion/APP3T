@@ -945,7 +945,7 @@ select:focus{outline:none;border-color:var(--muted2)}
     <div class="help-toc">
       <div class="help-toc-title">Sommaire</div>
       <a onclick="helpJump('h-connexion')">1. Connexion &amp; fichiers Google Drive</a>
-      <a onclick="helpJump('h-vues')">2. Les vues : Grille · Agenda · Résumé</a>
+      <a onclick="helpJump('h-vues')">2. Navigation &amp; vues (Semaine · Mois · Agenda)</a>
       <a onclick="helpJump('h-nav')">3. Naviguer dans les mois</a>
       <a onclick="helpJump('h-recherche')">4. Recherche (date / spectacle)</a>
       <a onclick="helpJump('h-equipe')">5. Voir toute l'équipe</a>
@@ -959,7 +959,8 @@ select:focus{outline:none;border-color:var(--muted2)}
       <a onclick="helpJump('h-theme')">13. Thème clair / sombre</a>
       <a onclick="helpJump('h-pwa')">14. Installer l'app (PWA)</a>
       <a onclick="helpJump('h-detail')">15. En détail : plan tech &amp; heures supp</a>
-      <a onclick="helpJump('h-limites')">16. Bon à savoir / limites</a>
+      <a onclick="helpJump('h-offline')">16. Mode hors-ligne</a>
+      <a onclick="helpJump('h-limites')">17. Bon à savoir / limites</a>
     </div>
 
     <div class="help-section" id="h-connexion">
@@ -975,11 +976,14 @@ select:focus{outline:none;border-color:var(--muted2)}
     </div>
 
     <div class="help-section" id="h-vues">
-      <h3>2. Les vues : Grille · Agenda · Résumé</h3>
+      <h3>2. Navigation &amp; vues</h3>
+      <p>Sur téléphone, une <b>barre en bas</b> permet de naviguer (comme une appli) ; sur ordinateur, ce sont des onglets en haut. Ton <b>régisseur</b> est affiché en haut (tape dessus pour ton récap).</p>
       <ul>
-        <li><b>Grille</b> : calendrier du mois. Le jour J est illuminé (contour vert). Une pastille de couleur indique la salle, 🎤 signale un artiste invité, ❌ un spectacle annulé.</li>
-        <li><b>Agenda</b> : la liste des activités jour par jour (cartes sur mobile, tableau sur PC).</li>
-        <li><b>Résumé</b> : accordéons (spectacles du mois, heures calculées, tournées, top régisseurs).</li>
+        <li><b>📆 Semaine</b> : ta semaine en cours (lundi → dimanche), aujourd'hui mis en avant. <span class="muted">C'est la vue d'accueil.</span></li>
+        <li><b>📅 Mois</b> : le calendrier du mois. Le jour J est illuminé ; une pastille de couleur indique la salle, 🎤 un invité, ❌ un annulé, ⚠️ une régie sans personne, 💥 un conflit d'horaire.</li>
+        <li><b>📋 Agenda</b> : la liste jour par jour (cartes sur mobile, tableau sur PC), avec des <b>filtres</b> (mes régies / non attribuées / par salle).</li>
+        <li><b>⏱️ Heures</b> : déclarer une heure supplémentaire.</li>
+        <li><b>⋯ Plus</b> : Résumé, Intermittence, Recherche, Aide, Paramètres, Déconnexion.</li>
       </ul>
       <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
     </div>
@@ -1116,8 +1120,20 @@ select:focus{outline:none;border-color:var(--muted2)}
       <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
     </div>
 
+    <div class="help-section" id="h-offline">
+      <h3>16. Mode hors-ligne</h3>
+      <p>Pratique en coulisses ou en sous-sol quand le réseau passe mal : l'appli garde en mémoire ton planning et te le montre <b>même sans connexion</b>.</p>
+      <ul>
+        <li>À chaque ouverture avec réseau, le planning (et la base heures) est <b>mis en cache</b> sur l'appareil.</li>
+        <li>Sans réseau, l'appli s'ouvre quand même : tu peux <b>consulter</b> Semaine / Mois / Agenda / Résumé et tes heures spectacles. Un bandeau <b>« 📴 Mode hors-ligne »</b> s'affiche en haut.</li>
+        <li>Les <b>modifications sont bloquées</b> hors-ligne (se positionner, heures supp) — il faut être connecté pour écrire. Le bouton <b>« Réessayer »</b> recharge l'app quand le réseau revient.</li>
+      </ul>
+      <p class="muted">⚠️ Il faut avoir ouvert l'appli <b>au moins une fois avec réseau</b> (et l'avoir installée sur l'écran d'accueil) pour que le cache existe.</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
     <div class="help-section" id="h-limites" style="margin-bottom:.3rem">
-      <h3>16. Bon à savoir / limites</h3>
+      <h3>17. Bon à savoir / limites</h3>
       <ul>
         <li>L'écriture (positionnement, heures supp) nécessite une <b>connexion internet</b>.</li>
         <li>La connexion Google dure ~1 h puis se renouvelle ; il n'y a pas de session infinie.</li>
