@@ -235,7 +235,7 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **4. Bouton « Aujourd'hui »** (« Auj. ») dans la nav du mois → revient au mois courant. ✅ FAIT
 - [x] **5. Élargir la colonne en paysage** téléphone (760px). ✅ FAIT
 - [x] **6. Recherche accessible partout** — bouton loupe 🔍 dans l'en-tête (`openSearch`) : bascule sur la Grille et place le focus dans le champ de recherche spectacle, depuis n'importe quelle vue. ✅ FAIT
-- [x] **7. Filtres dans l'agenda** — puces (`agenda-filters`) : Toutes / Mes régies / Non attribuées / par salle (3T, 3T Côté, GT, Tournée). Marche en agenda perso, équipe mobile ET tableau équipe PC. ✅ FAIT
+- [x] **7. Filtres dans l'agenda** — puces (`agenda-filters`) : Toutes / Mes régies / Non attribuées / par salle (3T, 3T Côté, GT, Tournée) **+ 📚 Formations**. Marche en agenda perso, équipe mobile ET tableau équipe PC. **Filtre Formations** (`agendaFilter==='formation'`) : affiche uniquement les jours avec formation (cartes `formationCardsHTML`), bypasse le tableau équipe PC ; les formations apparaissent aussi dans « Toutes ». ✅ FAIT
 - [x] **8. Pastilles colorées pour les rôles** — point couleur par rôle (titulaire vert / doublon bleu / observateur anneau gris / formateur ambre) au lieu des tags texte `(obs.)`/`(form.)`. Helper `roleDot()`, légende mise à jour. ✅ FAIT
 - [x] **9. Thème clair** — variables CSS claires (`:root[data-theme="light"]`), bouton bascule **dès la page de connexion** ET dans ⚙️ Paramètres, mémorisé en localStorage (`3t_theme`), `theme-color` synchronisé. Boutons inversés corrigés (`color:var(--bg)` au lieu de `#0f0f0f`). ✅ FAIT
 - [ ] **10. Accessibilité** — meilleurs contrastes des gris, taille de police ajustable.

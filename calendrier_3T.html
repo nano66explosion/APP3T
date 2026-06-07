@@ -1856,7 +1856,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-07 · b12 (détail heures mobile)';
+const APP_VERSION = '2026-06-07 · b13 (filtre Formations dans l\'agenda)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -4915,11 +4915,12 @@ const AGENDA_FILTERS = [
   { id:'3TC',        label:'3T Côté',       color:'var(--c3tc)' },
   { id:'GT',         label:'Grand Théâtre', color:'var(--cgt)' },
   { id:'Tournée',    label:'Tournée',       color:'var(--ctour)' },
+  { id:'formation',  label:'Formations',    icon:'📚' },
 ];
 function agendaFilterBar(){
   return '<div class="agenda-filters">' + AGENDA_FILTERS.map(f =>
     `<button class="afilter${agendaFilter===f.id?' active':''}" onclick="setAgendaFilter('${f.id}')">`
-    + (f.color?`<span class="adot" style="background:${f.color}"></span>`:'') + f.label + '</button>'
+    + (f.icon?f.icon+' ':'') + (f.color?`<span class="adot" style="background:${f.color}"></span>`:'') + f.label + '</button>'
   ).join('') + '</div>';
 }
 function setAgendaFilter(id){
@@ -4985,8 +4986,8 @@ function renderWeek(reg){
 
 function renderList(reg, y, m) {
   const teamMode = isTeamMode();
-  // PC + équipe → tableau dédié, beaucoup plus lisible
-  if (teamMode && isDesktop()) {
+  // PC + équipe → tableau dédié, beaucoup plus lisible (sauf filtre Formations : on garde la liste)
+  if (teamMode && isDesktop() && agendaFilter !== 'formation') {
     document.getElementById('view-list').innerHTML = agendaFilterBar() + renderTeamTable(y, m);
     return;
   }
@@ -4997,11 +4998,15 @@ function renderList(reg, y, m) {
   let hasSomething = false;
   const nbDays = new Date(y, m, 0).getDate();
   dayActions = [];   // actions "Me positionner / Me retirer" de l'agenda
+  // Les formations s'affichent en "Toutes" et dans le filtre dédié "Formations".
+  const onlyForm = agendaFilter === 'formation';
+  const showForm = onlyForm || agendaFilter === 'all';
   for (let d = 1; d <= nbDays; d++) {
-    const entries = (dayMap[d] || []).filter(agendaPass);
-    if (!entries || entries.length === 0) continue;
-    hasSomething = true;
     const isoKey = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const entries = onlyForm ? [] : (dayMap[d] || []).filter(agendaPass);
+    const fmHTML = showForm ? formationCardsHTML(isoKey) : '';
+    if ((!entries || entries.length === 0) && !fmHTML) continue;
+    hasSomething = true;
     const isToday = isoKey === todayKey;
     const dow = new Date(y, m-1, d).getDay();
     const jourNom = jourStr[dow];
@@ -5012,10 +5017,11 @@ function renderList(reg, y, m) {
         <span class="list-day-num">${d}</span>
         <span class="list-day-label">${jourNom}</span>
       </div>
-      <div class="list-day-events">${entries.map(e => eventCardHTML(e, reg, teamMode, posCtx)).join('')}</div>
+      ${entries.length ? `<div class="list-day-events">${entries.map(e => eventCardHTML(e, reg, teamMode, posCtx)).join('')}</div>` : ''}
+      ${fmHTML}
     </div>`;
   }
-  if (!hasSomething) html += `<div style="padding:2rem;text-align:center;color:var(--muted);font-size:14px">${agendaFilter==='all'?'Aucune régie ce mois':'Aucun résultat pour ce filtre'}</div>`;
+  if (!hasSomething) html += `<div style="padding:2rem;text-align:center;color:var(--muted);font-size:14px">${onlyForm?'Aucune formation ce mois':(agendaFilter==='all'?'Aucune régie ce mois':'Aucun résultat pour ce filtre')}</div>`;
   html += '</div>';
   document.getElementById('view-list').innerHTML = html;
 }
