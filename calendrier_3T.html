@@ -300,6 +300,13 @@ select:focus{outline:none;border-color:var(--muted2)}
 .more-grid button:active{background:var(--surface2)}
 .more-grid button .mg-ico{font-size:23px;line-height:1}
 
+/* ── BANNIÈRE HORS-LIGNE (#19) ── */
+#offline-banner{display:none;align-items:center;justify-content:space-between;gap:10px;
+  background:#fb923c1f;border-bottom:1px solid #fb923c50;color:var(--c3tc);
+  font-size:12px;font-weight:600;padding:calc(.5rem + env(safe-area-inset-top)) 1rem .5rem}
+#offline-banner button{background:var(--c3tc);color:#1a1a1a;border:none;border-radius:8px;
+  padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0}
+
 /* ── VUE « MA SEMAINE » ── */
 .week-title{font-size:13px;font-weight:600;color:var(--text);padding:.8rem 1rem .25rem}
 .week-empty{font-size:13px;color:var(--muted);padding:.2rem 0 .4rem}
@@ -625,6 +632,12 @@ select:focus{outline:none;border-color:var(--muted2)}
 
   <!-- COLONNE GAUCHE (PC) : logo → régie du jour -->
   <div class="app-col app-col-left">
+
+  <!-- Bannière mode hors-ligne (#19) -->
+  <div id="offline-banner" style="display:none">
+    <span>📴 Mode hors-ligne — consultation seulement</span>
+    <button onclick="location.reload()">Réessayer</button>
+  </div>
 
   <div class="app-header">
     <div class="header-row1">
@@ -2162,7 +2175,14 @@ function checkReminders(){
 
 window.addEventListener('load', () => {
   // Always have a default key — no config screen on startup
-  gapi.load('picker', () => {});
+  // 0) #19 — Hors-ligne au démarrage : si un cache existe, on ouvre en lecture seule
+  // (avant tout appel réseau : les libs CDN comme gapi peuvent ne pas être chargées).
+  if (!navigator.onLine && offlineCacheInfo() && loadOfflineCache()) {
+    enterOfflineMode();
+    return;
+  }
+
+  if (typeof gapi !== 'undefined') gapi.load('picker', () => {});
   refreshSavedFileLabel();
   refreshBaseLabel();
 
@@ -2474,6 +2494,7 @@ async function loadRecapHsupp(reg, containerId, totalElId){
   const el = document.getElementById(containerId);
   const totEl = totalElId ? document.getElementById(totalElId) : null;
   if(!el) return;
+  if(offlineMode){ el.innerHTML = '<div style="color:var(--muted);font-size:13px">📴 Heures supp indisponibles hors-ligne.</div>'; if(totEl) totEl.textContent='—'; return null; }
   try{
     const seenMonths = new Set();
     const files = (await listHsuppFiles())
@@ -2559,8 +2580,14 @@ async function loadPlanTechById(fileId, fileName, mimeType) {
     afterPlanLoaded();
   } catch(err) {
     setStep('plan','error');
-    setStatus('❌ Erreur de chargement — ' + err.message);
     console.error(err);
+    // #19 — chargement Drive impossible mais un cache existe → mode hors-ligne
+    if(!appIsOpen() && offlineCacheInfo() && loadOfflineCache()){
+      loginStepsShow(false);
+      enterOfflineMode();
+      return;
+    }
+    setStatus('❌ Erreur de chargement — ' + err.message);
   }
 }
 
@@ -2615,9 +2642,74 @@ function launchApp() {
   refreshPushRegistration();
   // #16 — publie le planning à venir pour le cron d'envoi
   publishSchedule();
+  // #19 — met en cache le planning pour la consultation hors-ligne
+  saveOfflineCache();
   // #16 — si on arrive via le clic d'une notif (#today), aller à la régie du jour
   handleNotifNav();
 }
+
+// ─── #19 MODE HORS-LIGNE (consultation sans réseau) ──────────────────────────
+let offlineMode = false;
+// Sauvegarde le planning parsé (plan + base) pour pouvoir consulter sans réseau.
+function saveOfflineCache(){
+  if(offlineMode || !planLoaded || !allDays.length) return;
+  try{
+    localStorage.setItem('3t_offline_cache', JSON.stringify({
+      t: Date.now(),
+      allMois, allRegs, baseHeures, baseHeuresLoaded,
+      struck: [...struckCells], guest: [...guestCells],
+      days: allDays.map(d => ({ date: d.date.toISOString(), jour: d.jour, entries: d.entries }))
+    }));
+  }catch(e){ console.warn('saveOfflineCache:', e); }
+}
+function offlineCacheInfo(){
+  try{ const d = JSON.parse(localStorage.getItem('3t_offline_cache')||'null'); return d ? new Date(d.t) : null; }
+  catch(e){ return null; }
+}
+// Restaure les données depuis le cache → renvoie true si OK
+function loadOfflineCache(){
+  try{
+    const data = JSON.parse(localStorage.getItem('3t_offline_cache')||'null');
+    if(!data || !data.days) return false;
+    allMois = data.allMois || [];
+    allRegs = data.allRegs || [];
+    baseHeures = data.baseHeures || {};
+    baseHeuresLoaded = !!data.baseHeuresLoaded;
+    struckCells = new Set(data.struck || []);
+    guestCells = new Set(data.guest || []);
+    allDays = (data.days || []).map(d => ({ date: new Date(d.date), jour: d.jour, entries: d.entries }));
+    planLoaded = true;
+    return true;
+  }catch(e){ console.warn('loadOfflineCache:', e); return false; }
+}
+// Ouvre l'app en lecture seule depuis le cache
+function enterOfflineMode(){
+  offlineMode = true;
+  document.getElementById('upload-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'flex';
+  showOfflineBanner(true);
+  populateSelects();
+  switchView(currentView);
+  requestAnimationFrame(updateStickyOffsets);
+  if (!getMyReg() && allRegs.length) openProfileModal();
+}
+function showOfflineBanner(on){
+  const b = document.getElementById('offline-banner');
+  if(b) b.style.display = on ? 'flex' : 'none';
+  document.body.classList.toggle('is-offline', !!on);
+}
+// Bloque une action d'écriture quand on est hors-ligne
+function blockIfOffline(){
+  if(offlineMode){ toast('📴 Hors-ligne — reconnecte-toi pour modifier', 'err'); return true; }
+  return false;
+}
+// Bascule en cours de session
+window.addEventListener('offline', () => { if(appIsOpen()){ offlineMode = true; showOfflineBanner(true); } });
+window.addEventListener('online', () => {
+  if(!appIsOpen()) return;
+  if(accessToken){ offlineMode = false; showOfflineBanner(false); }   // la session reprend
+  else { const s = document.querySelector('#offline-banner span'); if(s) s.textContent = '🌐 Connexion revenue — recharge pour modifier'; }
+});
 
 // Clic sur la notif « régie demain » (lien #today) → accueil, aujourd'hui, régie du jour
 function handleNotifNav(){
@@ -3069,6 +3161,7 @@ function hsGetTime(prefix){
 }
 
 async function openHsupp(){
+  if(blockIfOffline()) return;
   if(!accessToken){ alert("Reconnecte-toi à Google."); return; }
   const sel = document.getElementById('hs-reg');
   sel.innerHTML = REGS.map(r=>`<option value="${r.nom}">${r.nom}</option>`).join('');
@@ -3543,10 +3636,12 @@ async function reloadPlanSilent(){
   const p = parsePlanTech(wb);
   allDays = p.days; allMois = p.mois; allRegs = p.regs;
   renderCalendar();
+  saveOfflineCache();   // #19
 }
 
 // Bouton 🔄 : recharge le plan tech ET la base heures depuis Drive
 async function refreshData(){
+  if(blockIfOffline()) return;
   const btn = document.getElementById('btn-refresh');
   if(!accessToken){ alert("Reconnecte-toi à Google d'abord."); return; }
   if(btn){ btn.disabled = true; btn.textContent = '⏳'; }
@@ -3584,6 +3679,7 @@ function myRegName(){ return getMyReg() || getCurrentReg() || ''; }
 let dayActions = [];
 
 async function doPosition(i){
+  if(blockIfOffline()) return;
   const a = dayActions[i];
   if(!a) return;
   const me = a.me;

@@ -162,6 +162,11 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 
 ---
 
+### Mode hors-ligne (#19)
+- Cache localStorage `3t_offline_cache` (planning parsé + base). Lecture seule sans réseau,
+  bannière + écritures bloquées. `sw.js` v2 pré-cache l'app + libs CDN.
+- La page **Couverture du calcul d'heures** (Intermittence) est **conservée** (suivi base).
+
 ## 🚧 À surveiller / limites connues
 
 - **Détection couleur/barré** dépend du format exact du `.xlsx` (validée sur les fichiers actuels).
@@ -195,7 +200,7 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **16. Vrai push (Firebase)** — ✅ FAIT (app fermée). Projet Firebase `tapp-2c0a8` (FCM + Firestore, plan gratuit). Client : SDK compat, `firebase-messaging-sw.js` (scope dédié), enregistrement des jetons dans Firestore (`pushTokens`), `publishSchedule()` publie le planning à venir (`schedule/v1`). Envoi via **GitHub Actions cron** (`scripts/send-reminders.js`, workflow `push-reminders.yml`) = « 🎭 Régie demain ». **Broadcast manuel** à toute l'équipe (`scripts/broadcast.js`, workflow `broadcast.yml`). Secret `FIREBASE_SERVICE_ACCOUNT`. iOS : nécessite l'app installée sur l'écran d'accueil (le « from 3T TECH » est ajouté par iOS, non supprimable). **Déclencheur clôture STOP** (`checkStops` dans `send-reminders.js`) : lit les fichiers heures supp sur Drive via le compte de service (lecture seule), notifie « 🔒 Heures supp clôturées », anti-doublon (collection `stops`). Setup : API Drive activée + dossier partagé avec l'email du compte de service. **Bouton activer/désactiver** dans Paramètres (`3t_push_disabled`). **Anti-doublon** : 1 doc par appareil (`3t_device_id`), dédoublonnage des jetons à l'envoi, `tag` sur les notifs, `skipWaiting` sur le SW. **Clic notif régie → `#today`** (accueil + régie du jour). Cron `0 6-21/2 * * *` (« régie demain » envoyé seulement 17h-22h Paris ; STOP à chaque run). **Broadcast manuel** : `scripts/broadcast.js` + workflow `broadcast.yml`.
 - [ ] **17. Détection auto des colonnes du plan tech** (par en-têtes) au lieu des colonnes en dur.
 - [x] **18. Message clair quand la limite ~30 heures supp/mois est atteinte.** ✅ FAIT
-- [ ] **19. Mode hors-ligne** — cache des données du mois (consultation sans réseau ; écriture toujours en ligne).
+- [x] **19. Mode hors-ligne** — ✅ FAIT. Le planning parsé (plan + base + barrés/invités) est mis en cache localStorage (`3t_offline_cache`) à chaque chargement/refresh (`saveOfflineCache`). Au démarrage **sans réseau** (ou si le chargement Drive échoue), l'app s'ouvre **en lecture seule** depuis le cache (`loadOfflineCache`/`enterOfflineMode`) avec une **bannière** « 📴 Mode hors-ligne ». Écritures bloquées (`blockIfOffline` sur positionnement, heures supp, refresh). Bascule online/offline en direct. `sw.js` **v2** pré-cache aussi les libs CDN + cache réseau-d'abord. `gapi.load` protégé (libs CDN possiblement absentes hors-ligne).
 - [ ] **20. Découper le fichier** — externaliser JS/CSS/images (le HTML fait ~1 Mo, logos base64) → chargement + maintenance + coût de lecture améliorés.
 - [~] **21. Refonte interface page principale** — **EN COURS** (post-V1). 1ʳᵉ version : **barre d'onglets en bas** sur mobile (`bottom-nav` : 📅 Calendrier · 📋 Agenda · ⏱️ Heures · ⋯ Plus) + **menu « Plus »** en bottom-sheet (`more-modal` : Résumé, Intermittence, Recherche, Aide, Paramètres, Déconnexion). En-tête mobile allégé (🔄 + ⚙️) ; **PC inchangé** (onglets + boutons en haut, barre du bas masquée). `updateBottomNav`/`openMoreMenu`.
 
