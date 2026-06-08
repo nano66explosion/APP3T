@@ -1646,10 +1646,14 @@ const SLOTS_SAM = [
   {salle:'GT',  cS:14, cR:15, h:'21h'},
 ];
 
-// Weekdays: only the "21h" columns are used (Laurent's choice), horaire = 20h
+// Semaine : la colonne 21h est affichée « 20h ». On lit AUSSI le 18h45 quand il est
+// rempli (séances en double pendant les fêtes) — les cases vides sont ignorées au parsing.
 const SLOTS_SEM = [
+  {salle:'3T',  cS:2,  cR:3,  h:'18h45'},
   {salle:'3T',  cS:4,  cR:5,  h:'20h'},
+  {salle:'3TC', cS:7,  cR:8,  h:'18h45'},
   {salle:'3TC', cS:9,  cR:10, h:'20h'},
+  {salle:'GT',  cS:12, cR:13, h:'18h45'},
   {salle:'GT',  cS:14, cR:15, h:'20h'},
 ];
 
@@ -1816,11 +1820,10 @@ function detectPlanColumns(rows){
       }
     }
     if(!detected.length) return null;
-    // Samedi : tous les créneaux. Semaine : le créneau « 21h » par salle, affiché « 20h ».
+    // Samedi : tous les créneaux. Semaine : tous aussi (le « 21h » affiché « 20h »,
+    // le 18h45 lu quand rempli — séances en double pendant les fêtes).
     const slotsSam = detected.map(d=>({salle:d.salle, cS:d.cS, cR:d.cR, h:d.h}));
-    const bySalle = {};
-    detected.forEach(d=>{ if(!bySalle[d.salle] || /21/.test(d.h)) bySalle[d.salle]=d; });
-    const slotsSem = Object.values(bySalle).map(d=>({salle:d.salle, cS:d.cS, cR:d.cR, h:'20h'}));
+    const slotsSem = detected.map(d=>({salle:d.salle, cS:d.cS, cR:d.cR, h:/21/.test(d.h)?'20h':d.h}));
     return { slotsSam, slotsSem, tourCol: tourCol>=0?tourCol:null };
   }catch(e){ console.warn('detectPlanColumns:', e); return null; }
 }
@@ -1975,7 +1978,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b25 (prochaine régie, rappel heures supp, colonnes auto)';
+const APP_VERSION = '2026-06-08 · b26 (lit les séances 18h45 en semaine — fêtes)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →

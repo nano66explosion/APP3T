@@ -325,6 +325,12 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 > base = comptée) ; (c) reste à **vérifier la lecture des heures supp** mois par mois.
 > **À faire côté données** : compléter la base heures (Blind Test, Faux British, Vacances Rêve…) ;
 > côté app : confirmer les valeurs réelles montage/durée/démontage si la formule diffère de la paye.
+> **2026-06-08 — CORRECTIF MAJEUR** : l'app ne lisait QUE le créneau 21h en semaine → elle **ratait les
+> séances 18h45 en semaine** (fréquentes pendant les fêtes). Désormais `SLOTS_SEM` (et `detectPlanColumns`)
+> lisent **les deux créneaux** en semaine (18h45 + 20h), cases vides ignorées. Ex. déc. : +2 régies pour Rizzo
+> (Meilleur Homme 26/12, Crime 29/12). Devrait beaucoup réduire l'écart de décembre. **Décisions du 2026-06-08** :
+> préfixes « 33/37 » = ignorés (codes internes) ; parenthèses `X(Y)` → Y = observateur (exclu) ; tournées sans
+> régisseur = ignorées (à compléter dans le fichier : déc 11/12 « SEMI PRIVE BOUYGUES », mars 13-14-28/03 « Monde Merveilleux »).
 
 ## 🧭 Pour reprendre après un /clear
 
