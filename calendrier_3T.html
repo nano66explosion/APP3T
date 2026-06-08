@@ -394,14 +394,14 @@ select:focus{outline:none;border-color:var(--muted2)}
 
 /* Animations de transition entre vues : carrousel (glissement horizontal) */
 #view-container{overflow-x:hidden;position:relative}
-/* Pull-to-refresh : pastille avec le logo 3T qui se forme, tout en haut de l'écran */
-#ptr-spin{position:fixed;top:env(safe-area-inset-top,0px);left:50%;transform:translate(-50%,-54px) scale(.5);z-index:200;
-  width:48px;height:48px;display:flex;align-items:center;justify-content:center;opacity:0;
-  background:var(--surface);border:1px solid var(--border);border-radius:50%;box-shadow:0 6px 20px rgba(0,0,0,.4);pointer-events:none}
-#ptr-spin .ptr-logo{width:32px;height:32px;object-fit:contain;border-radius:8px;display:block}
-#ptr-spin.ready{box-shadow:0 6px 24px rgba(244,114,182,.45)}
-#ptr-spin.spinning .ptr-logo{animation:ptrPulse 1s ease-in-out infinite}
-@keyframes ptrPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.18);opacity:.75}}
+/* Pull-to-refresh : anneau qui apparaît en haut quand on tire (la page descend en natif) */
+#ptr-spin{position:fixed;top:env(safe-area-inset-top,0px);left:50%;transform:translate(-50%,-46px);z-index:200;
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;opacity:0;
+  background:var(--surface);border:1px solid var(--border);border-radius:50%;box-shadow:0 5px 18px rgba(0,0,0,.4);pointer-events:none}
+#ptr-spin .ptr-ring{width:19px;height:19px;border:2.5px solid var(--surface3);border-top-color:var(--c3t);border-radius:50%}
+#ptr-spin.ready .ptr-ring{box-shadow:0 0 6px var(--c3t)}
+#ptr-spin.spinning .ptr-ring{animation:ptrSpin .8s linear infinite;transform:none}
+@keyframes ptrSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .cal-anim-fwd{animation:calSlideFwd .32s cubic-bezier(.22,.61,.36,1)}
 .cal-anim-back{animation:calSlideBack .32s cubic-bezier(.22,.61,.36,1)}
 @keyframes calSlideFwd{from{transform:translateX(100%);opacity:.6}to{transform:translateX(0);opacity:1}}
@@ -2087,7 +2087,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b43 (pull-to-refresh haut de page + logo 3T + haptique)';
+const APP_VERSION = '2026-06-08 · b44 (pull-to-refresh : page descend en natif + anneau)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5266,7 +5266,7 @@ function updateBottomNav(){
   vc.addEventListener('touchcancel', endGesture, {passive:true});
 })();
 
-// ── Pull-to-refresh : tirer vers le bas TOUT EN HAUT de la page (logo 3T) ──
+// ── Pull-to-refresh : en haut de page, la page descend (overscroll natif) + anneau en haut ──
 (function initPullToRefresh(){
   let sy=0, sx=0, active=false, pulling=false, armed=false, refreshing=false, ptr=null;
   const scroller = () => document.scrollingElement || document.documentElement;
@@ -5275,11 +5275,11 @@ function updateBottomNav(){
   function ensurePtr(){
     if(ptr) return ptr;
     ptr=document.createElement('div'); ptr.id='ptr-spin';
-    ptr.innerHTML='<img class="ptr-logo" src="icon-192.png" alt="">';
+    ptr.innerHTML='<div class="ptr-ring"></div>';
     document.body.appendChild(ptr);
     return ptr;
   }
-  function hide(p){ p.style.transition='transform .26s cubic-bezier(.22,.61,.36,1),opacity .26s'; p.style.opacity='0'; p.style.transform='translate(-50%,-54px) scale(.5)'; p.classList.remove('ready','spinning'); }
+  function hide(p){ p.style.transition='transform .26s cubic-bezier(.22,.61,.36,1),opacity .26s'; p.style.opacity='0'; p.style.transform='translate(-50%,-46px)'; p.classList.remove('ready','spinning'); }
 
   document.addEventListener('touchstart', e=>{
     active=false; pulling=false; armed=false;
@@ -5288,27 +5288,27 @@ function updateBottomNav(){
     active=true; sy=e.touches[0].clientY; sx=e.touches[0].clientX;
   }, {passive:true});
 
+  // passif : on NE bloque PAS le geste → la page descend naturellement (overscroll), on superpose l'anneau
   document.addEventListener('touchmove', e=>{
     if(!active) return;
     const dy=e.touches[0].clientY-sy, dx=e.touches[0].clientX-sx;
     if(!pulling){
-      if(Math.abs(dx) > Math.abs(dy) || dy < 6){ if(dy < -2) active=false; return; }  // pas un pull vertical net
+      if(Math.abs(dx) > Math.abs(dy) || dy < 6){ if(dy < -2) active=false; return; }
       if(!atTop()){ active=false; return; }
       pulling=true;
     }
-    if(dy<=0 || !atTop()){ active=false; if(ptr) hide(ptr); return; }
-    e.preventDefault();                                   // bloque l'overscroll pendant le pull
+    if(dy<=0 || !atTop()){ if(ptr && !refreshing) hide(ptr); active=false; return; }
     const p=ensurePtr();
-    const pull=Math.min(80, dy*0.5);
-    const sc=(0.45+Math.min(0.55, pull/110)).toFixed(3);  // le logo « se forme » (grandit) en tirant
+    const pull=Math.min(110, dy);
     p.style.transition='none';
-    p.style.opacity=Math.min(1, pull/28).toFixed(3);
-    p.style.transform='translate(-50%,'+(pull-50)+'px) scale('+sc+')';
-    const nowArmed = pull>=52;
+    p.style.opacity=Math.min(1, pull/45).toFixed(3);
+    p.style.transform='translate(-50%,'+Math.min(70, pull*0.55)+'px)';   // l'anneau descend dans l'espace révélé
+    const ring=p.querySelector('.ptr-ring'); if(ring && !p.classList.contains('spinning')) ring.style.transform='rotate('+(pull*3)+'deg)';
+    const nowArmed = pull>=66;
     if(nowArmed && !armed){ armed=true; haptic(14); }     // tic haptique au passage du seuil (Android)
     if(!nowArmed) armed=false;
     p.classList.toggle('ready', nowArmed);
-  }, {passive:false});
+  }, {passive:true});
 
   function end(){
     if(!pulling){ active=false; return; }
@@ -5316,11 +5316,12 @@ function updateBottomNav(){
     const p=ptr; if(!p) return;
     if(p.classList.contains('ready')){
       refreshing=true; haptic(18);
+      const ring=p.querySelector('.ptr-ring'); if(ring) ring.style.transform='';
       p.style.transition='transform .25s cubic-bezier(.22,.61,.36,1),opacity .2s';
-      p.style.opacity='1'; p.style.transform='translate(-50%,18px) scale(1)';
+      p.style.opacity='1'; p.style.transform='translate(-50%,22px)';
       p.classList.add('spinning'); p.classList.remove('ready');
       Promise.resolve(typeof refreshData==='function' ? refreshData() : null)
-        .catch(()=>{}).finally(()=>{ setTimeout(()=>{ hide(p); refreshing=false; }, 350); });
+        .catch(()=>{}).finally(()=>{ setTimeout(()=>{ hide(p); refreshing=false; }, 400); });
     } else { hide(p); }
   }
   document.addEventListener('touchend', end, {passive:true});
