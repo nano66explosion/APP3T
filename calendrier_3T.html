@@ -394,10 +394,13 @@ select:focus{outline:none;border-color:var(--muted2)}
 
 /* Animations de transition entre vues : carrousel (glissement horizontal) */
 #view-container{overflow-x:hidden;position:relative}
-/* Pull-to-refresh (tirer vers le bas en haut de page) */
-#ptr-spin{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
-#ptr-spin .ptr-ring{width:22px;height:22px;border:2.5px solid var(--surface3);border-top-color:var(--c3t);border-radius:50%}
-#ptr-spin.ready .ptr-ring{border-top-color:var(--c3t);box-shadow:0 0 6px var(--c3t)}
+/* Pull-to-refresh : pastille flottante tout en haut de l'écran */
+#ptr-spin{position:fixed;top:env(safe-area-inset-top,0px);left:50%;transform:translate(-50%,-48px);z-index:200;
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;opacity:0;
+  background:var(--surface);border:1px solid var(--border);border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,.35);pointer-events:none}
+#ptr-spin .ptr-ring{width:19px;height:19px;border:2.5px solid var(--surface3);border-top-color:var(--c3t);border-radius:50%}
+#ptr-spin.ready{box-shadow:0 4px 16px rgba(0,0,0,.4)}
+#ptr-spin.ready .ptr-ring{box-shadow:0 0 6px var(--c3t)}
 #ptr-spin.spinning .ptr-ring{animation:ptrSpin .8s linear infinite;transform:none}
 @keyframes ptrSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .cal-anim-fwd{animation:calSlideFwd .32s cubic-bezier(.22,.61,.36,1)}
@@ -2085,7 +2088,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b41 (spinner pull-to-refresh : rotation fluide)';
+const APP_VERSION = '2026-06-08 · b42 (pull-to-refresh : pastille en haut de l\'écran)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5210,7 +5213,7 @@ function updateBottomNav(){
   function ensurePtr(){
     if(ptr) return ptr;
     ptr=document.createElement('div'); ptr.id='ptr-spin'; ptr.innerHTML='<div class="ptr-ring"></div>';
-    vc.insertBefore(ptr, vc.firstChild);
+    document.body.appendChild(ptr);                       // tout en haut de l'écran (position:fixed)
     return ptr;
   }
 
@@ -5252,13 +5255,15 @@ function updateBottomNav(){
       if(curEl) curEl.style.transform='translateX('+move+'px)';
       if(nbEl) nbEl.style.transform='translateX(calc('+(dir*100)+'% + '+move+'px))';
     } else if(mode==='ptr'){
-      if(dy<=0){ const p=ensurePtr(); p.style.height='0px'; p.classList.remove('ready'); return; }
-      e.preventDefault();
-      const pull=Math.min(80, dy*0.5);
       const p=ensurePtr();
-      p.style.transition='none'; p.style.height=pull+'px';
-      p.classList.toggle('ready', pull>=58);
-      const ring=p.querySelector('.ptr-ring'); if(ring) ring.style.transform='rotate('+(pull*4)+'deg)';
+      if(dy<=0){ p.style.transition=''; p.style.opacity='0'; p.style.transform='translate(-50%,-48px)'; p.classList.remove('ready'); return; }
+      e.preventDefault();
+      const pull=Math.min(72, dy*0.5);
+      p.style.transition='none';
+      p.style.opacity=Math.min(1, pull/36).toFixed(3);
+      p.style.transform='translate(-50%,'+(pull-44)+'px)';   // descend depuis le haut de l'écran
+      p.classList.toggle('ready', pull>=50);
+      const ring=p.querySelector('.ptr-ring'); if(ring && !p.classList.contains('spinning')) ring.style.transform='rotate('+(pull*5)+'deg)';
     }
   }, {passive:false});
 
@@ -5280,13 +5285,14 @@ function updateBottomNav(){
       }
     } else if(mode==='ptr' && ptr){
       const ready = ptr.classList.contains('ready');
-      ptr.style.transition='height .2s';
+      ptr.style.transition='transform .25s cubic-bezier(.22,.61,.36,1),opacity .25s ease';
       if(ready){
         const ring=ptr.querySelector('.ptr-ring'); if(ring) ring.style.transform='';   // repart de 0 → tour fluide
-        ptr.style.height='44px'; ptr.classList.add('spinning'); ptr.classList.remove('ready');
+        ptr.style.opacity='1'; ptr.style.transform='translate(-50%,16px)';
+        ptr.classList.add('spinning'); ptr.classList.remove('ready');
         Promise.resolve(typeof refreshData==='function' ? refreshData() : null)
-          .catch(()=>{}).finally(()=>{ ptr.style.height='0px'; ptr.classList.remove('spinning'); });
-      } else { ptr.style.height='0px'; }
+          .catch(()=>{}).finally(()=>{ ptr.style.opacity='0'; ptr.style.transform='translate(-50%,-48px)'; ptr.classList.remove('spinning'); });
+      } else { ptr.style.opacity='0'; ptr.style.transform='translate(-50%,-48px)'; }
     }
     decided=false; mode=null;
   }
