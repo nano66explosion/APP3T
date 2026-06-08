@@ -39,6 +39,7 @@
   match /schedule/{d}   { allow read, write: if true; }
   match /formations/{d} { allow read, write: if true; }
   match /meetingSlots/{d} { allow read, write: if true; }
+  match /notes/{d} { allow read, write: if true; }
   ```
 - **Notif formation INSTANTANÉE (Cloudflare Worker)** : le cron GitHub `schedule` étant non fiable (runs `*/5`
   ignorés, retards jusqu'à 1h+), la notif de formation part désormais d'un **Worker Cloudflare gratuit**
@@ -258,6 +259,16 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - **Rappel heures supp fin de mois** (`hsuppReminderHTML`/`dismissHsuppReminder`) : bandeau ambre sur l'accueil
   les 3 derniers jours du mois (bouton « Déclarer » → `openHsupp`, ✕ masque pour le mois, clé `3t_hsupp_rem_<mois>`).
   + **notif locale** 1×/mois à l'ouverture (`checkReminders`, clé `3t_hsupp_notif_<mois>`).
+
+### Notes partagées
+- Section **📝 Notes** (en-tête PC + menu Plus mobile) : chaque régisseur écrit une note, **tout le monde la voit**.
+  Collection Firestore **`notes`** (`text`, `by`, `createdAt`). **Règle Firestore `notes` requise.** Modale `notes-modal`,
+  fonctions `openNotes`/`loadNotes`/`submitNote`/`deleteNote`/`renderNotes`. Suppression par l'auteur. Tri plus récent en haut.
+
+### Résumé → Heures calculées : bloc « 💼 comptés en heures supp »
+- Affiche `heures.hsupp` (Blind Test, Faux British…) avec la mention « heures supp » au lieu d'une valeur.
+  **Limite** : Faux British est saisi dans les colonnes « Matin/Après-midi » (non lues) → n'apparaît que s'il est
+  dans les colonnes 18h45/21h. Blind Test (colonnes lues) remonte bien.
 
 ## 🚧 À surveiller / limites connues
 

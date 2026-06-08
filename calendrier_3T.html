@@ -365,6 +365,14 @@ select:focus{outline:none;border-color:var(--muted2)}
 .mt-join.in{background:#4ade8022;border-color:#4ade8066;color:var(--c3t)}
 .mt-del{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
 
+/* ── NOTES PARTAGÉES ── */
+.note-card{background:var(--surface3);border:1px solid var(--border);border-radius:12px;padding:.65rem .8rem;margin-bottom:.5rem}
+.note-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:.3rem}
+.note-who{font-size:12px;font-weight:600;color:var(--c3t)}
+.note-date{font-size:11px;color:var(--muted)}
+.note-body{font-size:13px;color:var(--text);line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.note-del{background:none;border:1px solid var(--border);border-radius:7px;padding:3px 7px;cursor:pointer;font-size:12px;color:var(--muted2)}
+
 /* ── VUE « MA SEMAINE » ── */
 .week-title{font-size:13px;font-weight:600;color:var(--text);padding:.8rem 1rem .25rem}
 .week-empty{font-size:13px;color:var(--muted);padding:.2rem 0 .4rem}
@@ -720,6 +728,7 @@ select:focus{outline:none;border-color:var(--muted2)}
         <button class="back-btn" onclick="openHsupp()">⏱️ Heure supp</button>
         <button class="back-btn" onclick="openFormationModal()">📚 Formation</button>
         <button class="back-btn" onclick="openMeeting()">🗓️ Réunion</button>
+        <button class="back-btn" onclick="openNotes()">📝 Notes</button>
         <button class="back-btn" onclick="openIntermittence()">📊 Intermittence</button>
         <button class="back-btn" onclick="openHelp()">💡 Aide</button>
         <button class="back-btn" onclick="openSettingsModal()">⚙️ Paramètres</button>
@@ -838,6 +847,7 @@ select:focus{outline:none;border-color:var(--muted2)}
         <button onclick="closeMoreMenu();openSoiree()"><span class="mg-ico">💬</span>Bilan soirée</button>
         <button onclick="closeMoreMenu();openFormationModal()"><span class="mg-ico">📚</span>Formation</button>
         <button onclick="closeMoreMenu();openMeeting()"><span class="mg-ico">🗓️</span>Réunion</button>
+        <button onclick="closeMoreMenu();openNotes()"><span class="mg-ico">📝</span>Notes</button>
         <button onclick="closeMoreMenu();openSearch()"><span class="mg-ico">🔍</span>Recherche</button>
         <button onclick="closeMoreMenu();openHelp()"><span class="mg-ico">💡</span>Aide</button>
         <button onclick="closeMoreMenu();openSettingsModal()"><span class="mg-ico">⚙️</span>Paramètres</button>
@@ -898,6 +908,22 @@ select:focus{outline:none;border-color:var(--muted2)}
       <button class="go-btn" onclick="submitMeetingSlot()" style="padding:10px;font-size:13px">+ Ajouter ce créneau</button>
       <div class="mt-sep"></div>
       <div id="meeting-list"></div>
+    </div>
+  </div>
+
+  <!-- Notes partagées (chaque régisseur écrit, tout le monde voit) -->
+  <div id="notes-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeNotes()">
+    <div class="modal-card" style="text-align:left;max-width:460px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <div class="modal-title">📝 Notes partagées</div>
+        <button onclick="closeNotes()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div class="modal-sub">Un petit mot pour toute l'équipe (infos, oublis, matériel…). Tout le monde le voit.</div>
+      <textarea id="note-text" class="fm-input" rows="3" placeholder="Écris ta note ici…" style="resize:vertical;margin-bottom:.5rem"></textarea>
+      <div id="note-error" style="font-size:12px;color:#f87171;min-height:16px;margin-bottom:.3rem"></div>
+      <button class="go-btn" onclick="submitNote()" style="padding:10px;font-size:13px">+ Publier la note</button>
+      <div class="mt-sep"></div>
+      <div id="notes-list"></div>
     </div>
   </div>
 
@@ -2014,7 +2040,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b30 (pastille privé = seulement ma régie en perso)';
+const APP_VERSION = '2026-06-08 · b31 (notes partagées + heures supp dans le résumé)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3395,6 +3421,80 @@ function renderMeetingSlots(){
         <button class="mt-join${iIn?' in':''}" onclick="toggleMeetingAvail('${s.id}')">${iIn?'✓ Je suis dispo':'+ Je suis dispo'}</button>
         ${del}
       </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── NOTES PARTAGÉES (chaque régisseur écrit, tout le monde voit · Firestore) ───
+let _notes = [];
+async function loadNotes(){
+  if(!pushConfigured()) return;
+  initFirebase();
+  if(!_fbDb) return;
+  try{
+    const snap = await _fbDb.collection('notes').get();
+    _notes = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      _notes.push({ id:doc.id, text:d.text||'', by:d.by||'', createdAt:d.createdAt||'' });
+    });
+    _notes.sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));   // plus récente en haut
+    renderNotes();
+  }catch(e){ console.warn('loadNotes:', e); }
+}
+function openNotes(){
+  document.getElementById('note-text').value = '';
+  document.getElementById('note-error').textContent = '';
+  document.getElementById('notes-list').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1rem">Chargement…</div>';
+  document.getElementById('notes-modal').style.display = 'flex';
+  loadNotes();
+}
+function closeNotes(){ document.getElementById('notes-modal').style.display = 'none'; }
+
+async function submitNote(){
+  if(blockIfOffline()) return;
+  const text = document.getElementById('note-text').value.trim();
+  const err = document.getElementById('note-error');
+  if(!text){ if(err) err.textContent = 'Écris quelque chose d\'abord.'; return; }
+  if(!pushConfigured()){ if(err) err.textContent = 'Configuration manquante.'; return; }
+  initFirebase();
+  if(!_fbDb){ if(err) err.textContent = 'Connexion requise.'; return; }
+  const me = myRegName() || getMyReg() || '';
+  try{
+    showBusy(true);
+    await _fbDb.collection('notes').add({ text, by: me, createdAt: new Date().toISOString() });
+    document.getElementById('note-text').value = '';
+    if(err) err.textContent = '';
+    await loadNotes();
+    toast('📝 Note publiée', 'ok');
+  }catch(e){ if(err) err.textContent = e.message; }
+  finally{ showBusy(false); }
+}
+
+async function deleteNote(id){
+  if(blockIfOffline()) return;
+  if(!confirm('Supprimer cette note ?')) return;
+  initFirebase(); if(!_fbDb) return;
+  try{ showBusy(true); await _fbDb.collection('notes').doc(id).delete(); await loadNotes(); toast('🗑️ Note supprimée','ok'); }
+  catch(e){ toast('❌ '+e.message,'err'); } finally{ showBusy(false); }
+}
+
+function renderNotes(){
+  const box = document.getElementById('notes-list');
+  if(!box) return;
+  if(!_notes.length){
+    box.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1.2rem">Aucune note pour l\'instant.<br>Écris la première 👆</div>';
+    return;
+  }
+  const me = myRegName() || getMyReg() || '';
+  box.innerHTML = _notes.map(n => {
+    let when = '';
+    if(n.createdAt){ const d = new Date(n.createdAt); if(!isNaN(d)) when = d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}) + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
+    const del = (n.by && n.by===me) ? `<button class="note-del" onclick="deleteNote('${n.id}')" title="Supprimer">🗑️</button>` : '';
+    const esc = String(n.text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<div class="note-card">
+      <div class="note-head"><span class="note-who">${n.by||'—'}</span><span style="display:flex;align-items:center;gap:6px"><span class="note-date">${when}</span>${del}</span></div>
+      <div class="note-body">${esc}</div>
     </div>`;
   }).join('');
 }
@@ -5546,6 +5646,11 @@ function renderResume(reg, y, m) {
         + heures.unmatched.map(g=>`<div class="intermi-row"><span class="intermi-label">${g}</span><span class="intermi-val" style="color:var(--c3tc)">non compté</span></div>`).join('')
         + `<div style="font-size:11px;color:var(--muted);margin-top:.5rem;line-height:1.45">⚠️ Ces spectacles ne sont pas dans la base heures : leurs heures ne sont <b>pas comptées</b> par l'app. Ce sont sûrement des heures à déclarer en <b>heures supp</b>.</div></div>`
       : '';
+    const hsuppBlock = (heures.hsupp && heures.hsupp.length)
+      ? `<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border)"><div style="font-size:11px;color:#a78bfa;margin-bottom:.5rem">💼 Comptés en heures supp</div>`
+        + heures.hsupp.map(g=>`<div class="intermi-row"><span class="intermi-label">${g}</span><span class="intermi-val" style="color:#a78bfa">heures supp</span></div>`).join('')
+        + `<div style="font-size:11px;color:var(--muted);margin-top:.5rem;line-height:1.45">Ces spectacles (ex. Blind Test, Faux British) ne sont <b>pas dans la base</b> : leurs heures viennent de tes <b>heures supp déclarées</b>.</div></div>`
+      : '';
     heuresBody = `${heuresDisclaimer}${rows}
       <div style="margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border)">
         <div class="intermi-row"><span class="intermi-label">Montages</span><span class="intermi-val">${heures.montage}h</span></div>
@@ -5555,7 +5660,7 @@ function renderResume(reg, y, m) {
         <div class="intermi-row"><span class="intermi-label">Total spectacles</span><span class="intermi-val">${heures.total}h</span></div>
         <div class="intermi-row"><span class="intermi-label">+ Heures supp du mois</span><span class="intermi-val" id="resume-hs">⏳</span></div>
         <div class="intermi-row" style="margin-bottom:0;padding-top:.4rem;border-top:1px solid var(--border)"><span class="intermi-label" style="font-weight:600;color:var(--text)">Total avec heures supp</span><span class="intermi-val" id="resume-hs-total" style="font-weight:600;color:var(--c3t)">⏳</span></div>
-      </div>${unm}${nonid}${changeBaseBtn}`;
+      </div>${hsuppBlock}${unm}${nonid}${changeBaseBtn}`;
   }
   resumeHTML += acc('heures', `Heures calculées · ${baseHeuresLoaded?heures.total+'h':'—'}`, heuresBody, true);
 
