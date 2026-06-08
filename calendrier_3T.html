@@ -888,7 +888,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 
   <!-- Menu "Plus" (bottom sheet, mobile) -->
   <div id="more-modal" class="modal-overlay" style="display:none;align-items:flex-end;padding:0;z-index:55" onclick="if(event.target===this)closeMoreMenu()">
-    <div class="more-sheet">
+    <div class="more-sheet" id="more-sheet">
       <div class="more-handle"></div>
       <div class="more-grid">
         <button onclick="closeMoreMenu();switchView('resume')"><span class="mg-ico">📊</span>Résumé</button>
@@ -5297,11 +5297,31 @@ function updateBottomNav(){
 })();
 
 // ── Pull-to-refresh : en haut de page, la page descend (overscroll natif) + anneau en haut ──
+// Retour haptique : Vibration API (Android) + astuce iOS (<input switch> qui déclenche
+// un léger haptique sur iOS 17.4+/18, y compris en PWA). Best-effort, dégrade en silence.
+let _hapticSwitch=null;
+function hapticTick(ms){
+  try{ if(navigator.vibrate) navigator.vibrate(ms||12); }catch(_){}
+  try{
+    if(!_hapticSwitch){
+      const label=document.createElement('label');
+      label.setAttribute('aria-hidden','true');
+      label.style.cssText='position:fixed;top:-50px;left:-50px;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
+      const inp=document.createElement('input');
+      inp.type='checkbox'; inp.setAttribute('switch',''); inp.tabIndex=-1;
+      label.appendChild(inp); document.body.appendChild(label);
+      _hapticSwitch={label,inp};
+    }
+    _hapticSwitch.inp.checked=!_hapticSwitch.inp.checked;
+    _hapticSwitch.label.click();   // le clic du label déclenche le haptique iOS
+  }catch(_){}
+}
+
 (function initPullToRefresh(){
   let sy=0, sx=0, active=false, pulling=false, armed=false, refreshing=false, ptr=null;
   const scroller = () => document.scrollingElement || document.documentElement;
   const atTop = () => (window.pageYOffset || scroller().scrollTop || 0) <= 0;
-  function haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms||12); }catch(_){} }
+  const haptic = (ms)=>hapticTick(ms);
   function ensurePtr(){
     if(ptr) return ptr;
     ptr=document.createElement('div'); ptr.id='ptr-spin';
@@ -5359,6 +5379,30 @@ function updateBottomNav(){
 })();
 function openMoreMenu(){ const m = document.getElementById('more-modal'); if(m) m.style.display = 'flex'; }
 function closeMoreMenu(){ const m = document.getElementById('more-modal'); if(m) m.style.display = 'none'; }
+
+// Fermer le volet « Plus » en balayant vers le bas
+(function initMoreSheetSwipe(){
+  const sheet=document.getElementById('more-sheet'); if(!sheet) return;
+  let y0=0, dragging=false;
+  sheet.addEventListener('touchstart', e=>{
+    if(e.touches.length!==1){ dragging=false; return; }
+    y0=e.touches[0].clientY; dragging=true; sheet.style.transition='none';
+  }, {passive:true});
+  sheet.addEventListener('touchmove', e=>{
+    if(!dragging) return;
+    const dy=e.touches[0].clientY-y0;
+    if(dy>0){ e.preventDefault(); sheet.style.transform='translateY('+dy+'px)'; }
+  }, {passive:false});
+  function end(e){
+    if(!dragging) return; dragging=false;
+    const dy=(e.changedTouches?e.changedTouches[0].clientY:y0)-y0;
+    sheet.style.transition='transform .22s ease';
+    if(dy>90){ sheet.style.transform='translateY(100%)'; setTimeout(()=>{ closeMoreMenu(); sheet.style.transition=''; sheet.style.transform=''; }, 200); }
+    else { sheet.style.transform='translateY(0)'; setTimeout(()=>{ sheet.style.transition=''; sheet.style.transform=''; }, 230); }
+  }
+  sheet.addEventListener('touchend', end, {passive:true});
+  sheet.addEventListener('touchcancel', end, {passive:true});
+})();
 
 // #6 — Recherche accessible depuis n'importe quelle vue (loupe de l'en-tête)
 function openSearch() {
