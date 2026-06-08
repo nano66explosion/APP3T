@@ -379,6 +379,34 @@ select:focus{outline:none;border-color:var(--muted2)}
 
 /* ── VIEW TOGGLE ── */
 .view-tabs{display:flex;gap:4px;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg)}
+
+/* Sélecteur d'échelle Semaine/Mois/Année (segmented control façon iOS) */
+.cal-scale{display:flex;gap:0;background:var(--surface3);border:1px solid var(--border);border-radius:11px;padding:3px;margin:.55rem 1rem .15rem}
+.cal-scale button{flex:1;border:none;background:none;color:var(--muted2);font-size:13px;font-weight:600;padding:7px 0;border-radius:8px;cursor:pointer;font-family:inherit;transition:color .18s,background .18s,box-shadow .18s}
+.cal-scale button.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.22)}
+.cal-scale button:active{transform:scale(.97)}
+
+/* Animations de transition entre échelles (zoom Apple) */
+.cal-anim-in{animation:calZoomIn .3s cubic-bezier(.22,.61,.36,1)}
+.cal-anim-out{animation:calZoomOut .3s cubic-bezier(.22,.61,.36,1)}
+@keyframes calZoomIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+@keyframes calZoomOut{from{opacity:0;transform:scale(1.05)}to{opacity:1;transform:scale(1)}}
+
+/* Vue Année : mini-mois de la saison */
+.year-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.55rem;padding:.55rem 1rem 1rem}
+.year-month{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:.5rem .5rem .55rem;cursor:pointer;font-family:inherit;text-align:left;transition:transform .12s,border-color .12s}
+.year-month:hover{border-color:var(--muted)}
+.year-month:active{transform:scale(.97)}
+.ym-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:.35rem;text-transform:capitalize}
+.ym-title .ym-y{color:var(--muted);font-weight:400;font-size:11px}
+.ym-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+.ym-dows{margin-bottom:2px}
+.ym-dows span{font-size:8px;color:var(--muted);text-align:center}
+.yd{font-size:9px;text-align:center;color:var(--muted2);aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:50%;line-height:1}
+.yd.empty{visibility:hidden}
+.yd.has{background:var(--c3t);color:#08210f;font-weight:700}
+.yd.today{outline:1.5px solid var(--c3tc);outline-offset:-1px}
+@media(min-width:768px){.year-grid{grid-template-columns:repeat(3,1fr);gap:.7rem}}
 .vtab{flex:1;padding:6px 4px;font-size:12px;font-weight:500;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;text-align:center}
 .vtab.active{background:var(--text);color:var(--bg);border-color:var(--text)}
 .vtab:not(.active):hover{border-color:var(--muted);color:var(--muted2)}
@@ -785,14 +813,19 @@ select:focus{outline:none;border-color:var(--muted2)}
   </div>
 
   <div class="view-tabs">
-    <button class="vtab active" id="tab-week" onclick="switchView('week')">📆 Semaine</button>
-    <button class="vtab" id="tab-grid" onclick="switchView('grid')">📅 Mois</button>
+    <button class="vtab active" id="tab-cal" onclick="openCal()">📅 Calendrier</button>
     <button class="vtab" id="tab-list" onclick="switchView('list')">📋 Agenda</button>
     <button class="vtab" id="tab-resume" onclick="switchView('resume')">📊 Résumé</button>
   </div>
   </div><!-- /app-controls -->
 
   <div id="view-container" style="overflow-y:auto;flex:1">
+    <!-- Sélecteur d'échelle (Semaine / Mois / Année) — visible sur les vues calendrier -->
+    <div class="cal-scale" id="cal-scale-switch">
+      <button data-scale="week" onclick="switchView('week')">Semaine</button>
+      <button data-scale="grid" onclick="switchView('grid')">Mois</button>
+      <button data-scale="year" onclick="switchView('year')">Année</button>
+    </div>
     <!-- Grid view -->
     <div id="view-grid">
       <div class="search-row">
@@ -819,10 +852,10 @@ select:focus{outline:none;border-color:var(--muted2)}
         <div id="detail-panel"></div>
       </div>
     </div>
-    <!-- List view -->
+    <!-- Week / Year / List / Résumé views -->
     <div id="view-week" style="display:none"></div>
+    <div id="view-year" style="display:none"></div>
     <div id="view-list" style="display:none"></div>
-    <!-- Résumé view -->
     <div id="view-resume" style="display:none"></div>
   </div>
 
@@ -830,8 +863,7 @@ select:focus{outline:none;border-color:var(--muted2)}
 
   <!-- Barre d'onglets bas (mobile) -->
   <nav class="bottom-nav" id="bottom-nav">
-    <button class="bnav-btn active" id="bnav-week" onclick="switchView('week')"><span class="bnav-ico">📆</span>Semaine</button>
-    <button class="bnav-btn" id="bnav-grid" onclick="switchView('grid')"><span class="bnav-ico">📅</span>Mois</button>
+    <button class="bnav-btn active" id="bnav-cal" onclick="openCal()"><span class="bnav-ico">📅</span>Calendrier</button>
     <button class="bnav-btn" id="bnav-list" onclick="switchView('list')"><span class="bnav-ico">📋</span>Agenda</button>
     <button class="bnav-btn" id="bnav-hsupp" onclick="openHsupp()"><span class="bnav-ico">⏱️</span>Heures</button>
     <button class="bnav-btn" id="bnav-more" onclick="openMoreMenu()"><span class="bnav-ico">⋯</span>Plus</button>
@@ -2040,7 +2072,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b32 (clic notif formation → recharge + va à la date)';
+const APP_VERSION = '2026-06-08 · b33 (onglet Calendrier unifié : Semaine/Mois/Année + animations)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -4765,6 +4797,7 @@ function renderCalendar() {
 
   // If another view is active, delegate
   if (currentView === 'week') { renderWeek(reg); return; }
+  if (currentView === 'year') { renderYear(reg); return; }
   if (currentView === 'list') { renderList(reg, y, m); return; }
   if (currentView === 'resume') { renderResume(reg, y, m); return; }
 
@@ -5081,27 +5114,57 @@ function onTeamToggle() {
 }
 
 let currentView = 'week';
+// Échelles « calendrier » regroupées dans un seul onglet (Semaine / Mois / Année)
+const CAL_SCALES = ['week','grid','year'];
+const SCALE_ORDER = { week:0, grid:1, year:2 };   // pour le sens du zoom
+let calLastScale = 'week';
+
+// Ouvre l'onglet Calendrier sur la dernière échelle utilisée
+function openCal(){ switchView(calLastScale || 'grid'); }
 
 function switchView(v) {
+  const prev = currentView;
   currentView = v;
+  if(CAL_SCALES.includes(v)) calLastScale = v;
   // Always reset search state when changing tab
   document.getElementById('view-search').style.display = 'none';
   document.getElementById('grid-body').style.display = '';
   document.getElementById('search-date').value = '';
   document.getElementById('search-clear').style.display = 'none';
-  ['week','grid','list','resume'].forEach(name => {
+  ['week','grid','year','list','resume'].forEach(name => {
     const vc = document.getElementById('view-'+name); if(vc) vc.style.display = name===v ? '' : 'none';
-    const tb = document.getElementById('tab-'+name); if(tb) tb.classList.toggle('active', name===v);
   });
+  // Onglets PC : « Calendrier » actif pour toutes les échelles
+  const tcal = document.getElementById('tab-cal'); if(tcal) tcal.classList.toggle('active', CAL_SCALES.includes(v));
+  ['list','resume'].forEach(name => { const tb=document.getElementById('tab-'+name); if(tb) tb.classList.toggle('active', name===v); });
+  // Sélecteur d'échelle : visible seulement sur les vues calendrier
+  const seg = document.getElementById('cal-scale-switch');
+  if(seg){
+    seg.style.display = CAL_SCALES.includes(v) ? '' : 'none';
+    seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.scale===v));
+  }
   renderCalendar();   // dispatche selon currentView (stats + bonne vue)
   updateBottomNav();
+  animateView(prev, v);
+}
+
+// Animation de transition (zoom façon Calendrier Apple) sur la vue qui apparaît
+function animateView(prev, v){
+  const el = document.getElementById('view-'+v);
+  if(!el) return;
+  const delta = (SCALE_ORDER[v] ?? 1) - (SCALE_ORDER[prev] ?? 1);
+  el.classList.remove('cal-anim-in','cal-anim-out');
+  void el.offsetWidth;                       // force un reflow pour rejouer l'animation
+  el.classList.add(delta > 0 ? 'cal-anim-out' : 'cal-anim-in');  // dézoom si on va vers + large
+  setTimeout(()=>el.classList.remove('cal-anim-in','cal-anim-out'), 340);
 }
 
 // ── Barre d'onglets bas (mobile) ──
 function updateBottomNav(){
-  [['bnav-week','week'],['bnav-grid','grid'],['bnav-list','list']].forEach(([id,v])=>{
-    const el = document.getElementById(id); if(el) el.classList.toggle('active', currentView === v);
-  });
+  const isCal = CAL_SCALES.includes(currentView);
+  const set = (id,on)=>{ const el=document.getElementById(id); if(el) el.classList.toggle('active', on); };
+  set('bnav-cal', isCal);
+  set('bnav-list', currentView === 'list');
 }
 function openMoreMenu(){ const m = document.getElementById('more-modal'); if(m) m.style.display = 'flex'; }
 function closeMoreMenu(){ const m = document.getElementById('more-modal'); if(m) m.style.display = 'none'; }
@@ -5502,6 +5565,43 @@ function renderWeek(reg){
   }
   html += '</div>';
   document.getElementById('view-week').innerHTML = html;
+}
+
+// ── VUE « ANNÉE » : mini-mois de la saison (clic = zoom sur le mois) ───────────
+function renderYear(reg){
+  const teamMode = isTeamMode();
+  const moisStr = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  const now = new Date();
+  const tY = now.getFullYear(), tM = now.getMonth()+1, tD = now.getDate();
+  let html = '<div class="year-grid">';
+  (allMois||[]).forEach(mo => {
+    const [y, m] = mo.k.split('-').map(Number);
+    const dayMap = teamMode ? buildTeamDayMap(y, m) : buildDayMap(reg, y, m);
+    const nbDays = new Date(y, m, 0).getDate();
+    const firstDow = new Date(y, m-1, 1).getDay();
+    const offset = firstDow === 0 ? 6 : firstDow - 1;   // lundi = 0
+    let cells = '';
+    for(let i=0;i<offset;i++) cells += '<span class="yd empty"></span>';
+    for(let d=1; d<=nbDays; d++){
+      const has = (dayMap[d]||[]).some(e => !e.unassigned);
+      const isToday = (y===tY && m===tM && d===tD);
+      cells += `<span class="yd${has?' has':''}${isToday?' today':''}">${d}</span>`;
+    }
+    html += `<button class="year-month" onclick="gotoMonth('${mo.k}')">
+      <div class="ym-title">${moisStr[m-1]} <span class="ym-y">${String(y).slice(2)}</span></div>
+      <div class="ym-grid ym-dows"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+      <div class="ym-grid">${cells}</div>
+    </button>`;
+  });
+  html += '</div>';
+  document.getElementById('view-year').innerHTML = html;
+}
+// Clic sur un mini-mois → zoom sur la vue Mois de ce mois
+function gotoMonth(mk){
+  const sel = document.getElementById('mois-select');
+  if([...sel.options].some(o => o.value===mk)) sel.value = mk;
+  selectedDay = null;
+  switchView('grid');
 }
 
 function renderList(reg, y, m) {

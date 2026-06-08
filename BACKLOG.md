@@ -270,6 +270,15 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   **Limite** : Faux British est saisi dans les colonnes « Matin/Après-midi » (non lues) → n'apparaît que s'il est
   dans les colonnes 18h45/21h. Blind Test (colonnes lues) remonte bien.
 
+### Onglet Calendrier unifié (Semaine / Mois / Année)
+- Les vues **Semaine** et **Mois** sont fusionnées dans **un seul onglet « 📅 Calendrier »** (bottom-nav mobile +
+  onglets PC). Un **sélecteur d'échelle** (`#cal-scale-switch`, segmented control iOS) bascule **Semaine / Mois / Année**.
+- **Vue Année** (`renderYear`) : mini-mois de la saison (`allMois`), jours avec régie en vert, aujourd'hui entouré ;
+  clic sur un mini-mois → `gotoMonth` → zoom sur la vue Mois.
+- **Animations** façon Calendrier Apple (`animateView`, classes `cal-anim-in`/`cal-anim-out`, keyframes `calZoomIn/Out`) :
+  zoom-in vers une échelle plus fine, dézoom vers une plus large. `currentView` ∈ {week, grid, year, list, resume} ;
+  `CAL_SCALES`/`SCALE_ORDER`/`calLastScale` ; `openCal()` rouvre la dernière échelle.
+
 ## 🚧 À surveiller / limites connues
 
 - **Détection couleur/barré** dépend du format exact du `.xlsx` (validée sur les fichiers actuels).
