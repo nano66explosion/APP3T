@@ -335,6 +335,12 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 > ce sont de vraies régies mais leurs heures sont déclarées en heures supp (pas dans la base). `computeHeures`/
 > `computeCoverage` les sortent des « ❌ non trouvés » → catégorie à part **« 💼 comptés en heures supp »**
 > (Intermittence → Couverture, et détail « Heures spect. »). **NE PAS les ajouter à la base** (double comptage).
+> **2026-06-08 — Réveillon (3 créneaux)** : le 31/12 est saisi sur **3 lignes** (date seulement sur la 1ʳᵉ),
+> créneaux **18h45 / 21h / 23h** (l'heure dans la colonne 18h45, le spectacle+régie dans la colonne 21h).
+> `parsePlanTech` gère les **lignes de continuation** (ligne sans date mais avec contenu spectacle → rattachée à
+> la date précédente ; cellules d'heure seules ignorées). Vérifié : seul le réveillon utilise ce format.
+> ⚠️ Le **2ᵉ bloc de colonnes T-Z** (« Matin/Après-midi » = Faux British/heures supp, répétitions, montages,
+> auditions, SOCOTEC…) reste **NON lu** volontairement (fourre-tout, pas des paires Spectacle/Régie).
 
 ## 🧭 Pour reprendre après un /clear
 

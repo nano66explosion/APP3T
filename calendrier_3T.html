@@ -1892,17 +1892,30 @@ function parsePlanTech(wb){
       }
     }
 
+    let lastDateObj=null, lastJour='';
     rows.forEach((row,ri)=>{
       if(ri<firstDataRow) return;
       const jourRaw=String(row[0]||'').trim().toLowerCase();
-      if(!JOURS_V.some(j=>jourRaw.startsWith(j))) return;
-
-      // Convert Excel serial to a UTC-based date key string (YYYY-MM-DD)
       const serial=rows[ri][1];
-      if(typeof serial!=='number'||serial<40000) return;
-      const utcDate=new Date(Math.round((serial-25569)*86400000));
-      // Use UTC values to build correct date, override year from sheet header
-      const dateObj=new Date(Date.UTC(sheetYear,utcDate.getUTCMonth(),utcDate.getUTCDate()));
+      const hasDate = JOURS_V.some(j=>jourRaw.startsWith(j)) && typeof serial==='number' && serial>=40000;
+      let dateObj, jour;
+      if(hasDate){
+        // Convert Excel serial to a UTC-based date ; year overridden by sheet header
+        const utcDate=new Date(Math.round((serial-25569)*86400000));
+        dateObj=new Date(Date.UTC(sheetYear,utcDate.getUTCMonth(),utcDate.getUTCDate()));
+        jour=jourRaw;
+        lastDateObj=dateObj; lastJour=jour;
+      } else {
+        // Ligne de CONTINUATION (ex. réveillon : 3 créneaux 18h45/21h/23h, la date n'est
+        // écrite que sur la 1ʳᵉ ligne) → rattachée à la date précédente si du vrai contenu existe.
+        if(!lastDateObj) return;
+        const hasContent=[2,3,4,5,7,8,9,10,12,13,14,15].some(c=>{
+          const v=String(row[c]||'').trim();
+          return v && !/^\d{1,2}h\d{0,2}$/i.test(v);   // ignore les cellules d'heure seules (18h45/21h/23h)
+        });
+        if(!hasContent) return;
+        dateObj=lastDateObj; jour=lastJour;
+      }
 
       const isSam=dateObj.getDay()===6;
       const slots=isSam?SAM:SEM;
@@ -1954,7 +1967,7 @@ function parsePlanTech(wb){
       }
 
       if(entries.length>0)
-        days.push({date:dateObj,jour:jourRaw,entries});
+        days.push({date:dateObj,jour,entries});
     });
   });
 
@@ -1993,7 +2006,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b27 (Blind Test/Faux British = comptés en heures supp)';
+const APP_VERSION = '2026-06-08 · b28 (réveillon : lit les 3 créneaux 18h45/21h/23h)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
