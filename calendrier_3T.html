@@ -2084,7 +2084,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b47 (pull-to-refresh désactivé quand un volet est ouvert)';
+const APP_VERSION = '2026-06-08 · b48 (swipe = navigation entre pages Calendrier/Agenda/Heures)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5165,11 +5165,24 @@ function onTeamToggle() {
 let currentView = 'week';
 // Échelles « calendrier » regroupées dans un seul onglet (Semaine / Mois / Année)
 const CAL_SCALES = ['week','grid','year'];
-// Ordre global des pages pour le swipe (Agenda ↔ Semaine ↔ Mois ↔ Année ↔ Heures)
-const SWIPE_ORDER = ['list','week','grid','year','hsupp'];
-const SCALE_ORDER = { list:0, week:1, grid:2, year:3, hsupp:4 };   // sens de l'animation
+const SCALE_ORDER = { week:0, grid:1, year:2, list:3, hsupp:4, resume:5 };   // sens des animations de switch
 let calLastScale = 'week';
 let _calPreview = false;   // vrai pendant le pré-rendu d'aperçu d'un swipe
+
+// ── PAGES (ordre des icônes du bas) : 0=Calendrier · 1=Agenda · 2=Heures ──
+// Le SWIPE navigue entre ces pages (≠ du sélecteur Semaine/Mois/Année du calendrier).
+function currentPageIdx(){
+  if(CAL_SCALES.includes(currentView)) return 0;
+  if(currentView==='list') return 1;
+  if(currentView==='hsupp') return 2;
+  return -1;   // résumé / autre → pas de swipe entre pages
+}
+function pageView(idx){
+  if(idx===0) return calLastScale || 'grid';
+  if(idx===1) return 'list';
+  if(idx===2) return 'hsupp';
+  return null;
+}
 
 // Ouvre l'onglet Calendrier sur la dernière échelle utilisée
 function openCal(){ switchView(calLastScale || 'grid'); }
@@ -5256,15 +5269,15 @@ function updateBottomNav(){
     if(!decided){
       if(Math.abs(dx)<6 && Math.abs(dy)<6) return;
       decided=true;
-      if(Math.abs(dx) > Math.abs(dy)*1.2 && SWIPE_ORDER.includes(currentView)){
+      const pi = currentPageIdx();
+      if(Math.abs(dx) > Math.abs(dy)*1.2 && pi>=0){
         mode='h';
-        const i=SWIPE_ORDER.indexOf(currentView);
-        dir = dx<0 ? 1 : -1;
+        dir = dx<0 ? 1 : -1;                 // gauche → page suivante (ordre des icônes du bas)
         curEl = viewEl(currentView);
-        const ni = i+dir;
-        if(ni>=0 && ni<SWIPE_ORDER.length){
-          renderInto(SWIPE_ORDER[ni]);
-          nbEl = viewEl(SWIPE_ORDER[ni]);
+        const np = pi+dir, target = pageView(np);
+        if(np>=0 && np<=2 && target){
+          renderInto(target);
+          nbEl = viewEl(target);
           const top=((curEl?curEl.offsetTop:0)+vc.scrollTop)+'px';
           if(nbEl){ nbEl.style.display=''; nbEl.style.position='absolute'; nbEl.style.top=top; nbEl.style.left='0'; nbEl.style.right='0'; nbEl.style.zIndex='3'; nbEl.style.transition='none'; nbEl.style.transform='translateX('+(dir*100)+'%)'; }
         } else { nbEl=null; }
@@ -5273,9 +5286,9 @@ function updateBottomNav(){
     }
     if(mode==='h'){
       e.preventDefault();
-      const i=SWIPE_ORDER.indexOf(currentView);
       let move=dx;
-      if(!nbEl && ((move>0 && i===0)||(move<0 && i===SWIPE_ORDER.length-1))) move*=0.34;
+      if(!nbEl) move*=0.34;                  // pas de page voisine de ce côté → élastique
+
       if(curEl) curEl.style.transform='translateX('+move+'px)';
       if(nbEl) nbEl.style.transform='translateX(calc('+(dir*100)+'% + '+move+'px))';
     }
@@ -5283,14 +5296,13 @@ function updateBottomNav(){
   function endGesture(e){
     if(mode==='h'){
       const dx=(e.changedTouches?e.changedTouches[0].clientX:sx)-sx;
-      const i=SWIPE_ORDER.indexOf(currentView);
-      const ni=i+dir;
-      const commit = nbEl && Math.abs(dx) > Math.min(70, w*0.18) && ni>=0 && ni<SWIPE_ORDER.length;
+      const target = pageView(currentPageIdx()+dir);
+      const commit = nbEl && target && Math.abs(dx) > Math.min(70, w*0.18);
       const tr='transform .2s cubic-bezier(.22,.61,.36,1)';
       if(commit){
         if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX('+(-dir*w)+'px)'; }
         if(nbEl){ nbEl.style.transition=tr; nbEl.style.transform='translateX(0)'; }
-        setTimeout(()=>{ cleanup(); vc.scrollTop=0; switchView(SWIPE_ORDER[ni], true); }, 200);
+        setTimeout(()=>{ cleanup(); vc.scrollTop=0; switchView(target, true); }, 200);
       } else {
         if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX(0)'; }
         if(nbEl){ nbEl.style.transition=tr; nbEl.style.transform='translateX('+(dir*100)+'%)'; }
