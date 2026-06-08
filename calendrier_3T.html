@@ -630,8 +630,7 @@ select:focus{outline:none;border-color:var(--muted2)}
   .view-tabs{display:none}
   .header-actions{display:none !important}
   .header-actions-mobile{display:flex !important}
-  .header-row1{position:relative}
-  .hdr-reg{display:flex !important;position:absolute;left:50%;transform:translateX(-50%);max-width:55vw;justify-content:center}
+  .hdr-reg{display:flex !important}
   #view-container{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
   /* Détail des heures : panneau centré fixe (ne déborde pas, ne déforme pas) */
   .htech-pop{position:fixed;left:50%;right:auto;top:auto;bottom:calc(70px + env(safe-area-inset-bottom));
@@ -2085,7 +2084,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b45 (Heures = page, swipe Agenda/Calendrier/Heures)';
+const APP_VERSION = '2026-06-08 · b46 (régisseur non centré, fermeture animée du volet Plus)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5305,24 +5304,10 @@ function updateBottomNav(){
 })();
 
 // ── Pull-to-refresh : en haut de page, la page descend (overscroll natif) + anneau en haut ──
-// Retour haptique : Vibration API (Android) + astuce iOS (<input switch> qui déclenche
-// un léger haptique sur iOS 17.4+/18, y compris en PWA). Best-effort, dégrade en silence.
-let _hapticSwitch=null;
+// Retour haptique : Vibration API (Android). iOS web ne supporte pas les vibrations
+// (l'astuce <input switch> n'a pas fonctionné) → no-op silencieux sur iPhone.
 function hapticTick(ms){
   try{ if(navigator.vibrate) navigator.vibrate(ms||12); }catch(_){}
-  try{
-    if(!_hapticSwitch){
-      const label=document.createElement('label');
-      label.setAttribute('aria-hidden','true');
-      label.style.cssText='position:fixed;top:-50px;left:-50px;width:1px;height:1px;opacity:0;pointer-events:none;overflow:hidden';
-      const inp=document.createElement('input');
-      inp.type='checkbox'; inp.setAttribute('switch',''); inp.tabIndex=-1;
-      label.appendChild(inp); document.body.appendChild(label);
-      _hapticSwitch={label,inp};
-    }
-    _hapticSwitch.inp.checked=!_hapticSwitch.inp.checked;
-    _hapticSwitch.label.click();   // le clic du label déclenche le haptique iOS
-  }catch(_){}
 }
 
 (function initPullToRefresh(){
@@ -5385,8 +5370,23 @@ function hapticTick(ms){
   document.addEventListener('touchend', end, {passive:true});
   document.addEventListener('touchcancel', end, {passive:true});
 })();
-function openMoreMenu(){ const m = document.getElementById('more-modal'); if(m) m.style.display = 'flex'; }
-function closeMoreMenu(){ const m = document.getElementById('more-modal'); if(m) m.style.display = 'none'; }
+function openMoreMenu(){
+  const m = document.getElementById('more-modal'), sheet = document.getElementById('more-sheet');
+  if(!m) return;
+  if(sheet){ sheet.style.transition=''; sheet.style.transform=''; }   // repart propre (anim sheetUp)
+  m.style.opacity=''; m.style.display = 'flex';
+}
+let _moreClosing = false;
+function closeMoreMenu(){
+  const m = document.getElementById('more-modal'), sheet = document.getElementById('more-sheet');
+  if(!m || _moreClosing) return;
+  if(!sheet){ m.style.display='none'; return; }
+  _moreClosing = true;
+  sheet.style.transition='transform .24s cubic-bezier(.4,0,.6,1)';
+  sheet.style.transform='translateY(100%)';
+  m.style.transition='opacity .24s ease'; m.style.opacity='0';
+  setTimeout(()=>{ m.style.display='none'; m.style.opacity=''; m.style.transition=''; sheet.style.transition=''; sheet.style.transform=''; _moreClosing=false; }, 230);
+}
 
 // Fermer le volet « Plus » en balayant vers le bas
 (function initMoreSheetSwipe(){
@@ -5404,9 +5404,8 @@ function closeMoreMenu(){ const m = document.getElementById('more-modal'); if(m)
   function end(e){
     if(!dragging) return; dragging=false;
     const dy=(e.changedTouches?e.changedTouches[0].clientY:y0)-y0;
-    sheet.style.transition='transform .22s ease';
-    if(dy>90){ sheet.style.transform='translateY(100%)'; setTimeout(()=>{ closeMoreMenu(); sheet.style.transition=''; sheet.style.transform=''; }, 200); }
-    else { sheet.style.transform='translateY(0)'; setTimeout(()=>{ sheet.style.transition=''; sheet.style.transform=''; }, 230); }
+    if(dy>90){ closeMoreMenu(); }   // anime jusqu'en bas + masque (depuis la position actuelle)
+    else { sheet.style.transition='transform .22s ease'; sheet.style.transform='translateY(0)'; setTimeout(()=>{ sheet.style.transition=''; sheet.style.transform=''; }, 230); }
   }
   sheet.addEventListener('touchend', end, {passive:true});
   sheet.addEventListener('touchcancel', end, {passive:true});
