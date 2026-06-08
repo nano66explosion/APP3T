@@ -279,6 +279,16 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   zoom-in vers une échelle plus fine, dézoom vers une plus large. `currentView` ∈ {week, grid, year, list, resume} ;
   `CAL_SCALES`/`SCALE_ORDER`/`calLastScale` ; `openCal()` rouvre la dernière échelle.
 
+### Navigation par pages + gestes (2026-06-08)
+- **Pages swipables** : `SWIPE_ORDER = ['list','week','grid','year','hsupp']` (Agenda · Semaine · Mois · Année · Heures).
+  Carrousel interactif (la vue voisine est pré-rendue via `renderInto` + `_calPreview`, glisse pendant le drag).
+  `SCALE_ORDER` = mêmes indices pour le sens des animations. Bottom-nav : Calendrier · Agenda · Heures · Plus.
+- **Heures = PAGE** (`#view-hsupp`, `renderHsupp`/`loadHsuppFile`), plus une modale. `openHsupp()`=`switchView('hsupp')`.
+- **Pull-to-refresh** : overscroll natif (la page descend) + anneau en haut, déclenché en haut de page (scroll body).
+- **Haptique** : `hapticTick()` = Vibration API (Android) + astuce `<input switch>` (iOS 17.4+, best-effort).
+- **Volet « Plus »** : fermeture au swipe vers le bas. **Régisseur centré** dans l'en-tête mobile.
+- Détail heures (accueil) : croix OK (hover restreint à `hover:hover`), total = **heures spect + heures supp du mois** (cache).
+
 ## 🚧 À surveiller / limites connues
 
 - **Détection couleur/barré** dépend du format exact du `.xlsx` (validée sur les fichiers actuels).
