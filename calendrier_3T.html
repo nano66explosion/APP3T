@@ -1475,6 +1475,15 @@ function matchBaseSpec(specName){
   return null;
 }
 
+// Spectacles dont les heures sont déclarées EN HEURES SUPP (pas dans la base spectacles).
+// → exclus du calcul base ET sortis des « non trouvés » : catégorie à part « 💼 comptés en heures supp ».
+// (Ne PAS les ajouter à la base, sinon double comptage avec les heures supp.)
+const HSUPP_SPEC_NAMES = ['blind test', 'faux british'];
+function isHsuppSpec(spec){
+  const k = normSpec(spec);
+  return !!k && HSUPP_SPEC_NAMES.some(n => k.includes(n));
+}
+
 
 // Un spectacle écrit en orange MAIS présent dans la base = vraie pièce (pas un invité).
 // On corrige le drapeau `guest` sur allDays une fois la base chargée.
@@ -1489,9 +1498,10 @@ function applyGuestBaseOverride(){
 // Retourne {total, montage, demontage, duree, service, nbRegies, specs:{}, unmatched:[]}
 function computeHeures(dayMap){
   const res = {total:0, montage:0, demontage:0, duree:0, service:0,
-               nbRegies:0, specs:{}, unmatched:[], guests:[]};
+               nbRegies:0, specs:{}, unmatched:[], guests:[], hsupp:[]};
   const unmatchedSet = new Set();   // spectacles censés être au répertoire mais absents de la base
   const guestSet = new Set();       // artistes invités (texte orange)
+  const hsuppSet = new Set();       // spectacles comptés en heures supp (hors base, normal)
   Object.values(dayMap).forEach(entries => entries.forEach(e => {
     if(e.salle === 'Tournée') return;
     if(e.cancelled) return; // spectacle annulé → hors calcul
@@ -1500,7 +1510,11 @@ function computeHeures(dayMap){
     if(e.guest){ guestSet.add(e.spec || '—'); return; } // invité (orange) → hors calcul d'heures
     const isGT = e.salle === 'GT';
     const base = matchBaseSpec(e.spec);
-    if(!base){ unmatchedSet.add(e.spec || '—'); return; }
+    if(!base){
+      if(isHsuppSpec(e.spec)) hsuppSet.add(e.spec || '—');   // compté en heures supp → pas une erreur
+      else unmatchedSet.add(e.spec || '—');
+      return;
+    }
     const montage = isGT ? base.mGT : base.m3T;
     const demont  = isGT ? base.dGT : base.d3T;
     const h = montage + base.duree + demont + 1; // +1h service
@@ -1516,6 +1530,7 @@ function computeHeures(dayMap){
   }));
   res.unmatched = [...unmatchedSet];
   res.guests = [...guestSet];
+  res.hsupp = [...hsuppSet];
   // arrondis propres
   ['total','montage','demontage','duree','service'].forEach(k=>{
     res[k] = Math.round(res[k]*100)/100;
@@ -1978,7 +1993,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b26 (lit les séances 18h45 en semaine — fêtes)';
+const APP_VERSION = '2026-06-08 · b27 (Blind Test/Faux British = comptés en heures supp)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3470,16 +3485,17 @@ function computeSeason(reg){
 // Couverture du calcul d'heures sur TOUT le théâtre (tous régisseurs, toute la saison) :
 // quels spectacles sont calculables (présents dans la base), lesquels manquent, lesquels sont invités.
 function computeCoverage(){
-  const calc = {}, unmatched = {}, guests = {};
+  const calc = {}, unmatched = {}, guests = {}, hsupp = {};
   allDays.forEach(d => (d.entries||[]).forEach(e => {
     if(e.salle === 'Tournée' || e.cancelled) return;
     const name = e.spec || '—';
     if(e.guest){ guests[name] = (guests[name]||0)+1; return; }
     if(matchBaseSpec(e.spec)){ calc[name] = (calc[name]||0)+1; }
+    else if(isHsuppSpec(e.spec)){ hsupp[name] = (hsupp[name]||0)+1; }
     else { unmatched[name] = (unmatched[name]||0)+1; }
   }));
   const sortNames = o => Object.keys(o).sort((a,b)=>a.localeCompare(b,'fr'));
-  return { calc: sortNames(calc), unmatched: sortNames(unmatched), guests: sortNames(guests) };
+  return { calc: sortNames(calc), unmatched: sortNames(unmatched), guests: sortNames(guests), hsupp: sortNames(hsupp) };
 }
 
 function openIntermittence(){
@@ -3523,9 +3539,11 @@ function openIntermittence(){
         ${covList(cov.calc, 'var(--muted)')}
         <div class="intermi-row"><span class="intermi-label" style="color:var(--c3tc)">❌ Non trouvés dans la base</span><span class="intermi-val">${cov.unmatched.length}</span></div>
         ${covList(cov.unmatched, 'var(--c3tc)')}
+        <div class="intermi-row"><span class="intermi-label" style="color:#a78bfa">💼 Comptés en heures supp</span><span class="intermi-val">${cov.hsupp.length}</span></div>
+        ${covList(cov.hsupp, '#a78bfa')}
         <div class="intermi-row"><span class="intermi-label" style="color:var(--cguest)">🎤 Invités (exclus du calcul)</span><span class="intermi-val">${cov.guests.length}</span></div>
         ${covList(cov.guests, 'var(--cguest)')}
-        <div style="font-size:11px;color:var(--muted)">Les « non trouvés » sont les spectacles à ajouter dans le fichier base heures pour qu'ils soient calculés.</div>
+        <div style="font-size:11px;color:var(--muted)">Les « non trouvés » sont à ajouter dans le fichier base heures. Les « 💼 comptés en heures supp » sont normaux (leurs heures viennent de tes déclarations d'heures supp, pas de la base).</div>
       </div>
     </details>`;
 
@@ -4565,6 +4583,8 @@ function heuresPopHTML(h){
     : '';
   const warn = h.unmatched.length
     ? `<div class="hp-warn">⚠️ Non trouvés dans la base : ${h.unmatched.join(', ')}</div>` : '';
+  const hsuppNote = (h.hsupp && h.hsupp.length)
+    ? `<div style="font-size:11px;color:#a78bfa;margin-top:.4rem">💼 Comptés en heures supp : ${h.hsupp.join(', ')}</div>` : '';
   return `<div class="htech-pop" onclick="event.stopPropagation()">
     <button class="hp-close" onclick="closeHeuresPop(event)" aria-label="Fermer" title="Fermer">✕</button>
     <div class="hp-title">Détail des heures · ${h.total}h</div>
@@ -4577,6 +4597,7 @@ function heuresPopHTML(h){
     <div class="hp-row hp-total"><span class="hp-l">Total</span><span class="hp-v">${h.total}h</span></div>
     ${unm}
     ${warn}
+    ${hsuppNote}
     <div class="hp-note">⚠️ Estimation approximative — en développement.</div>
   </div>`;
 }

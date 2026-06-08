@@ -331,6 +331,10 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 > (Meilleur Homme 26/12, Crime 29/12). Devrait beaucoup réduire l'écart de décembre. **Décisions du 2026-06-08** :
 > préfixes « 33/37 » = ignorés (codes internes) ; parenthèses `X(Y)` → Y = observateur (exclu) ; tournées sans
 > régisseur = ignorées (à compléter dans le fichier : déc 11/12 « SEMI PRIVE BOUYGUES », mars 13-14-28/03 « Monde Merveilleux »).
+> **Spectacles « comptés en heures supp »** (`HSUPP_SPEC_NAMES = ['blind test','faux british']`, `isHsuppSpec`) :
+> ce sont de vraies régies mais leurs heures sont déclarées en heures supp (pas dans la base). `computeHeures`/
+> `computeCoverage` les sortent des « ❌ non trouvés » → catégorie à part **« 💼 comptés en heures supp »**
+> (Intermittence → Couverture, et détail « Heures spect. »). **NE PAS les ajouter à la base** (double comptage).
 
 ## 🧭 Pour reprendre après un /clear
 
