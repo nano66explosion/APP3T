@@ -391,11 +391,12 @@ select:focus{outline:none;border-color:var(--muted2)}
 .cal-scale button.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.22)}
 .cal-scale button:active{transform:scale(.97)}
 
-/* Animations de transition entre échelles (zoom Apple) */
-.cal-anim-in{animation:calZoomIn .3s cubic-bezier(.22,.61,.36,1)}
-.cal-anim-out{animation:calZoomOut .3s cubic-bezier(.22,.61,.36,1)}
-@keyframes calZoomIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
-@keyframes calZoomOut{from{opacity:0;transform:scale(1.05)}to{opacity:1;transform:scale(1)}}
+/* Animations de transition entre vues : carrousel (glissement horizontal) */
+#view-container{overflow-x:hidden}
+.cal-anim-fwd{animation:calSlideFwd .32s cubic-bezier(.22,.61,.36,1)}
+.cal-anim-back{animation:calSlideBack .32s cubic-bezier(.22,.61,.36,1)}
+@keyframes calSlideFwd{from{transform:translateX(100%);opacity:.6}to{transform:translateX(0);opacity:1}}
+@keyframes calSlideBack{from{transform:translateX(-100%);opacity:.6}to{transform:translateX(0);opacity:1}}
 
 /* Vue Année : mini-mois de la saison */
 .year-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.55rem;padding:.55rem 1rem 1rem}
@@ -2077,7 +2078,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b36 (swipe Semaine/Mois/Année)';
+const APP_VERSION = '2026-06-08 · b37 (transitions carrousel entre les vues)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5159,15 +5160,16 @@ function switchView(v) {
   if(typeof updateStickyOffsets==='function') requestAnimationFrame(updateStickyOffsets);
 }
 
-// Animation de transition (zoom façon Calendrier Apple) sur la vue qui apparaît
+// Animation de transition (carrousel) : la vue entrante glisse depuis la droite
+// (échelle suivante / plus large) ou depuis la gauche (échelle précédente).
 function animateView(prev, v){
   const el = document.getElementById('view-'+v);
   if(!el) return;
   const delta = (SCALE_ORDER[v] ?? 1) - (SCALE_ORDER[prev] ?? 1);
-  el.classList.remove('cal-anim-in','cal-anim-out');
+  el.classList.remove('cal-anim-fwd','cal-anim-back');
   void el.offsetWidth;                       // force un reflow pour rejouer l'animation
-  el.classList.add(delta > 0 ? 'cal-anim-out' : 'cal-anim-in');  // dézoom si on va vers + large
-  setTimeout(()=>el.classList.remove('cal-anim-in','cal-anim-out'), 340);
+  el.classList.add(delta >= 0 ? 'cal-anim-fwd' : 'cal-anim-back');
+  setTimeout(()=>el.classList.remove('cal-anim-fwd','cal-anim-back'), 360);
 }
 
 // ── Barre d'onglets bas (mobile) ──
