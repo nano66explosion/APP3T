@@ -398,7 +398,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 #ptr-spin{height:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
 #ptr-spin .ptr-ring{width:22px;height:22px;border:2.5px solid var(--surface3);border-top-color:var(--c3t);border-radius:50%}
 #ptr-spin.ready .ptr-ring{border-top-color:var(--c3t);box-shadow:0 0 6px var(--c3t)}
-#ptr-spin.spinning .ptr-ring{animation:lpspin .7s linear infinite}
+#ptr-spin.spinning .ptr-ring{animation:ptrSpin .8s linear infinite;transform:none}
+@keyframes ptrSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .cal-anim-fwd{animation:calSlideFwd .32s cubic-bezier(.22,.61,.36,1)}
 .cal-anim-back{animation:calSlideBack .32s cubic-bezier(.22,.61,.36,1)}
 @keyframes calSlideFwd{from{transform:translateX(100%);opacity:.6}to{transform:translateX(0);opacity:1}}
@@ -2084,7 +2085,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b40 (bandeau du mois animé en arrivant sur Mois)';
+const APP_VERSION = '2026-06-08 · b41 (spinner pull-to-refresh : rotation fluide)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5281,6 +5282,7 @@ function updateBottomNav(){
       const ready = ptr.classList.contains('ready');
       ptr.style.transition='height .2s';
       if(ready){
+        const ring=ptr.querySelector('.ptr-ring'); if(ring) ring.style.transform='';   // repart de 0 → tour fluide
         ptr.style.height='44px'; ptr.classList.add('spinning'); ptr.classList.remove('ready');
         Promise.resolve(typeof refreshData==='function' ? refreshData() : null)
           .catch(()=>{}).finally(()=>{ ptr.style.height='0px'; ptr.classList.remove('spinning'); });
