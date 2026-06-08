@@ -768,7 +768,7 @@ select:focus{outline:none;border-color:var(--muted2)}
         <button class="back-btn" onclick="openSettingsModal()" title="Paramètres">⚙️</button>
       </div>
     </div>
-    <div class="month-nav">
+    <div class="month-nav" id="month-nav">
       <button class="mnav-btn" onclick="changeMonth(-1)">‹</button>
       <select id="mois-select" onchange="renderCalendar()"></select>
       <button class="mnav-btn" onclick="changeMonth(1)">›</button>
@@ -2072,7 +2072,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b33 (onglet Calendrier unifié : Semaine/Mois/Année + animations)';
+const APP_VERSION = '2026-06-08 · b34 (nav du mois masquée sur Semaine/Année)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5143,9 +5143,15 @@ function switchView(v) {
     seg.style.display = CAL_SCALES.includes(v) ? '' : 'none';
     seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.scale===v));
   }
+  // Nav du mois (‹ mois › Auj.) : utile seulement sur Mois / Agenda / Résumé,
+  // inutile sur Semaine (semaine en cours) et Année (tous les mois affichés).
+  const mnav = document.getElementById('month-nav');
+  if(mnav) mnav.style.display = (v==='grid' || v==='list' || v==='resume') ? '' : 'none';
   renderCalendar();   // dispatche selon currentView (stats + bonne vue)
   updateBottomNav();
   animateView(prev, v);
+  // La hauteur de l'en-tête change (nav du mois masquée/affichée) → recalcule le sticky
+  if(typeof updateStickyOffsets==='function') requestAnimationFrame(updateStickyOffsets);
 }
 
 // Animation de transition (zoom façon Calendrier Apple) sur la vue qui apparaît
