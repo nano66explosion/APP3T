@@ -2093,7 +2093,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b49 (refonte : Home central, Heures à gauche, Plus à droite, icônes SVG)';
+const APP_VERSION = '2026-06-08 · b50 (swipe capté sur toute la page, en-tête inclus)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5268,6 +5268,9 @@ function updateBottomNav(){
 (function initCalCarousel(){
   const vc = document.getElementById('view-container');
   if(!vc) return;
+  // Le geste est capté sur TOUTE la page (stats, régie du jour, légende… inclus),
+  // mais on anime toujours les vues du view-container.
+  const gestureEl = document.getElementById('app-screen') || vc;
   let sx=0, sy=0, decided=false, mode=null, w=1;     // mode: 'h' | 'scroll'
   let curEl=null, nbEl=null, dir=0;
   const viewEl = s => document.getElementById('view-'+s);
@@ -5282,13 +5285,13 @@ function updateBottomNav(){
     if(curEl){ curEl.style.transition=''; curEl.style.transform=''; }
     curEl=nbEl=null; dir=0;
   }
-  vc.addEventListener('touchstart', e=>{
+  gestureEl.addEventListener('touchstart', e=>{
     decided=false; mode=null; curEl=nbEl=null;
     if(e.touches.length!==1){ decided=true; return; }
     sx=e.touches[0].clientX; sy=e.touches[0].clientY;
     w = vc.clientWidth || window.innerWidth || 1;
   }, {passive:true});
-  vc.addEventListener('touchmove', e=>{
+  gestureEl.addEventListener('touchmove', e=>{
     if(decided && mode!=='h') return;                 // 'scroll' → scroll natif
     const dx=e.touches[0].clientX-sx, dy=e.touches[0].clientY-sy;
     if(!decided){
@@ -5341,8 +5344,8 @@ function updateBottomNav(){
     }
     decided=false; mode=null;
   }
-  vc.addEventListener('touchend', endGesture, {passive:true});
-  vc.addEventListener('touchcancel', endGesture, {passive:true});
+  gestureEl.addEventListener('touchend', endGesture, {passive:true});
+  gestureEl.addEventListener('touchcancel', endGesture, {passive:true});
 })();
 
 // ── Pull-to-refresh : en haut de page, la page descend (overscroll natif) + anneau en haut ──
