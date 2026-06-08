@@ -251,6 +251,14 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   fonctions `openMeeting`/`loadMeetingSlots`/`submitMeetingSlot`/`renderMeetingSlots`. Les créneaux **passés sont
   masqués** (auto-nettoyage d'un mois sur l'autre). **Pas de push** (consultation in-app, décision 2026-06-08).
 
+### Accueil : prochaine régie + rappel heures supp
+- **Prochaine régie** (`nextRegie`/`nextRegieHTML`) : quand pas de régie aujourd'hui, la carte « Régie du jour »
+  affiche « ⏭️ Prochaine régie dans X jours · date · spectacle (salle) » (jour strictement après aujourd'hui où
+  je suis positionné, hors observateur/annulé/tournée).
+- **Rappel heures supp fin de mois** (`hsuppReminderHTML`/`dismissHsuppReminder`) : bandeau ambre sur l'accueil
+  les 3 derniers jours du mois (bouton « Déclarer » → `openHsupp`, ✕ masque pour le mois, clé `3t_hsupp_rem_<mois>`).
+  + **notif locale** 1×/mois à l'ouverture (`checkReminders`, clé `3t_hsupp_notif_<mois>`).
+
 ## 🚧 À surveiller / limites connues
 
 - **Détection couleur/barré** dépend du format exact du `.xlsx` (validée sur les fichiers actuels).
@@ -284,7 +292,10 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **14. Alerte régies non attribuées** — bandeau « ⚠️ X régies sans personne ce mois » sous les stats (compté en vue équipe, annulés exclus). **+** marqueur **⚠️** sur chaque jour concerné dans le calendrier, **+** bandeau **cliquable** → modale `unassigned-modal` listant date / salle / spectacle, clic sur une ligne → ouvre le jour dans la grille (`showUnassigned`/`gotoUnassigned`). ✅ FAIT
 - [ ] **15. Statistiques avancées** — heures par salle/type, comparaison mois par mois, projection 507h.
 - [x] **16. Vrai push (Firebase)** — ✅ FAIT (app fermée). Projet Firebase `tapp-2c0a8` (FCM + Firestore, plan gratuit). Client : SDK compat, `firebase-messaging-sw.js` (scope dédié), enregistrement des jetons dans Firestore (`pushTokens`), `publishSchedule()` publie le planning à venir (`schedule/v1`). Envoi via **GitHub Actions cron** (`scripts/send-reminders.js`, workflow `push-reminders.yml`) = « 🎭 Régie demain ». **Broadcast manuel** à toute l'équipe (`scripts/broadcast.js`, workflow `broadcast.yml`). Secret `FIREBASE_SERVICE_ACCOUNT`. iOS : nécessite l'app installée sur l'écran d'accueil (le « from 3T TECH » est ajouté par iOS, non supprimable). **Déclencheur clôture STOP** (`checkStops` dans `send-reminders.js`) : lit les fichiers heures supp sur Drive via le compte de service (lecture seule), notifie « 🔒 Heures supp clôturées », anti-doublon (collection `stops`). Setup : API Drive activée + dossier partagé avec l'email du compte de service. **Bouton activer/désactiver** dans Paramètres (`3t_push_disabled`). **Anti-doublon** : 1 doc par appareil (`3t_device_id`), dédoublonnage des jetons à l'envoi, `tag` sur les notifs, `skipWaiting` sur le SW. **Clic notif régie → `#today`** (accueil + régie du jour). Cron `0 6-21/2 * * *` (« régie demain » envoyé seulement 17h-22h Paris ; STOP à chaque run). **Broadcast manuel** : `scripts/broadcast.js` + workflow `broadcast.yml`.
-- [ ] **17. Détection auto des colonnes du plan tech** (par en-têtes) au lieu des colonnes en dur.
+- [x] **17. Détection auto des colonnes du plan tech** (par en-têtes) — ✅ FAIT. `detectPlanColumns(rows)` lit les
+  3 lignes d'en-tête (salles « 3T / 3T CÔTE / GRAND THEATRE », horaires 18h45/21h, « Spectacle/Régie/Tournée »),
+  reconstruit `slotsSam`/`slotsSem`/`tourCol`. **Repli sur les colonnes EN DUR** (`SLOTS_SAM/SEM`) si l'analyse
+  échoue → ne casse jamais. Vérifié : produit exactement le mapping en dur sur le fichier actuel.
 - [x] **18. Message clair quand la limite ~30 heures supp/mois est atteinte.** ✅ FAIT
 - [x] **19. Mode hors-ligne** — ✅ FAIT. Le planning parsé (plan + base + barrés/invités) est mis en cache localStorage (`3t_offline_cache`) à chaque chargement/refresh (`saveOfflineCache`). Au démarrage **sans réseau** (ou si le chargement Drive échoue), l'app s'ouvre **en lecture seule** depuis le cache (`loadOfflineCache`/`enterOfflineMode`) avec une **bannière** « 📴 Mode hors-ligne ». Écritures bloquées (`blockIfOffline` sur positionnement, heures supp, refresh). Bascule online/offline en direct. `sw.js` **v2** pré-cache aussi les libs CDN + cache réseau-d'abord. `gapi.load` protégé (libs CDN possiblement absentes hors-ligne).
 - [ ] **20. Découper le fichier** — externaliser JS/CSS/images (le HTML fait ~1 Mo, logos base64) → chargement + maintenance + coût de lecture améliorés.

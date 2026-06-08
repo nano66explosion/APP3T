@@ -209,6 +209,12 @@ select:focus{outline:none;border-color:var(--muted2)}
 .today-card.etour{background:#c084fc18;border-color:#c084fc35}
 .today-card.eobs{background:#94a3b818;border-color:#94a3b835}
 .today-card.empty{border:1px dashed var(--border)}
+.today-next{margin-top:.6rem;padding-top:.55rem;border-top:1px solid var(--border);font-size:12.5px;color:var(--c3t);line-height:1.45}
+.today-next .tn-d{color:var(--muted);font-size:11.5px}
+.hsupp-remind{margin:.6rem 1rem 0;background:#fbbf2418;border:1px solid #fbbf2455;border-radius:12px;padding:.7rem .85rem;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--text);line-height:1.35}
+.hsupp-remind .hr-act{display:flex;gap:6px;flex-shrink:0}
+.hsupp-remind .hr-go{background:#fbbf24;border:none;color:#0f0f0f;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+.hsupp-remind .hr-x{background:none;border:1px solid var(--border);color:var(--muted2);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:12px;font-family:inherit}
 .today-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem}
 .today-label{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
 .today-dot{width:7px;height:7px;border-radius:50%}
@@ -1761,6 +1767,64 @@ async function parseCellStyles(arrayBuffer){
 function moisKey(d){ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
 function moisLabel(d){ return d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'}); }
 
+// #17 — Détection AUTO des colonnes du plan tech à partir des en-têtes.
+// Lit 3 lignes d'en-tête : salles (3T / 3T CÔTE / GRAND THEATRE), horaires (18h45/21h),
+// et "Spectacle"/"Régie"/"Tournée". Renvoie {slotsSam, slotsSem, tourCol} ou null si
+// l'analyse échoue → dans ce cas on retombe sur les colonnes EN DUR (SLOTS_SAM/SEM).
+function salleFromHeader(txt){
+  const t = norm(txt);
+  if(!t) return null;
+  if(t.includes('cote')) return '3TC';           // « 3T CÔTE » (accents déjà retirés)
+  if(t.includes('grand')) return 'GT';
+  if(t.includes('3t')) return '3T';
+  return null;
+}
+function detectPlanColumns(rows){
+  try{
+    // 1) Ligne d'en-tête « Date / Spectacle / Régie »
+    let hdrRow = -1;
+    for(let i=0;i<Math.min(rows.length,10);i++){
+      const r = rows[i]||[];
+      const hasDate = norm(r[0])==='date';
+      const hasSpec = r.some(c=>/spectacle/i.test(String(c)));
+      const hasReg  = r.some(c=>/r[ée]gie/i.test(String(c)));
+      if((hasDate && hasSpec) || (hasSpec && hasReg)){ hdrRow=i; break; }
+    }
+    if(hdrRow<1) return null;
+    const hdr = rows[hdrRow]||[];
+    const timeRow = rows[hdrRow-1]||[];
+    // 2) Ligne des salles (juste au-dessus, on remonte jusqu'à 3 lignes)
+    let salleRow = null;
+    for(let i=hdrRow-1;i>=Math.max(0,hdrRow-3);i--){
+      if((rows[i]||[]).some(c=>salleFromHeader(c))){ salleRow=rows[i]; break; }
+    }
+    if(!salleRow) return null;
+    // 3) Chaque colonne hérite de la dernière salle rencontrée (remplissage avant)
+    const maxc = Math.max(hdr.length, salleRow.length, timeRow.length);
+    const colSalle = []; let cur = null;
+    for(let c=0;c<maxc;c++){ const s = salleFromHeader(salleRow[c]); if(s) cur=s; colSalle[c]=cur; }
+    // 4) Paires Spectacle→Régie + colonne Tournée
+    const detected = []; let tourCol = -1;
+    for(let c=0;c<hdr.length;c++){
+      const h = String(hdr[c]||'').trim();
+      if(/tourn/i.test(h)){ tourCol=c; continue; }
+      if(/spectacle/i.test(h)){
+        let cR = -1;
+        for(let k=c+1;k<Math.min(hdr.length,c+3);k++){ if(/r[ée]gie/i.test(String(hdr[k]||''))){ cR=k; break; } }
+        const salle = colSalle[c];
+        if(salle && cR>=0) detected.push({salle, cS:c, cR, h:String(timeRow[c]||'').trim()});
+      }
+    }
+    if(!detected.length) return null;
+    // Samedi : tous les créneaux. Semaine : le créneau « 21h » par salle, affiché « 20h ».
+    const slotsSam = detected.map(d=>({salle:d.salle, cS:d.cS, cR:d.cR, h:d.h}));
+    const bySalle = {};
+    detected.forEach(d=>{ if(!bySalle[d.salle] || /21/.test(d.h)) bySalle[d.salle]=d; });
+    const slotsSem = Object.values(bySalle).map(d=>({salle:d.salle, cS:d.cS, cR:d.cR, h:'20h'}));
+    return { slotsSam, slotsSem, tourCol: tourCol>=0?tourCol:null };
+  }catch(e){ console.warn('detectPlanColumns:', e); return null; }
+}
+
 function parsePlanTech(wb){
   const days=[];
   const regSet=new Set();
@@ -1790,10 +1854,17 @@ function parsePlanTech(wb){
     }
     if(!sheetYear) return;
 
-    // Find Tournée col dynamically
-    let tourCol=17;
-    const hRow=rows[3]||[];
-    hRow.forEach((c,i)=>{ if(String(c).trim().toLowerCase()==='tournée') tourCol=i; });
+    // #17 — Colonnes détectées depuis les en-têtes (repli sur les colonnes en dur)
+    const det = detectPlanColumns(rows);
+    const SAM = (det && det.slotsSam.length) ? det.slotsSam : SLOTS_SAM;
+    const SEM = (det && det.slotsSem.length) ? det.slotsSem : SLOTS_SEM;
+
+    // Colonne Tournée : détectée par en-tête, sinon scan ligne 3, sinon 17
+    let tourCol = (det && det.tourCol!=null) ? det.tourCol : 17;
+    if(!det || det.tourCol==null){
+      const hRow=rows[3]||[];
+      hRow.forEach((c,i)=>{ if(String(c).trim().toLowerCase()==='tournée') tourCol=i; });
+    }
 
     // Dynamically find the first data row (row after the "Date" header)
     let firstDataRow = 4; // fallback
@@ -1816,7 +1887,7 @@ function parsePlanTech(wb){
       const dateObj=new Date(Date.UTC(sheetYear,utcDate.getUTCMonth(),utcDate.getUTCDate()));
 
       const isSam=dateObj.getDay()===6;
-      const slots=isSam?SLOTS_SAM:SLOTS_SEM;
+      const slots=isSam?SAM:SEM;
       const entries=[];
 
       slots.forEach(slot=>{
@@ -1904,7 +1975,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b24 (version affichée sur l\'écran de connexion)';
+const APP_VERSION = '2026-06-08 · b25 (prochaine régie, rappel heures supp, colonnes auto)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2388,6 +2459,16 @@ function checkReminders(){
     const txt = mine.map(e => `${e.spec||'—'} · ${salleLbl(e.salle)}${e.h?' '+e.h:''}`).join('\n');
     showNotif(`🎭 Régie ${when}`, txt);
   });
+  // Rappel fin de mois : déclarer les heures supp (1× par mois, 3 derniers jours)
+  const now = new Date();
+  const last = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  if(now.getDate() >= last-2){
+    const key = '3t_hsupp_notif_'+now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+    if(!localStorage.getItem(key)){
+      localStorage.setItem(key, '1');
+      showNotif('⏱️ Heures supp', 'Fin de mois : pense à déclarer tes heures supp !', 'hsupp-rappel');
+    }
+  }
 }
 
 window.addEventListener('load', () => {
@@ -4692,6 +4773,55 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
   </div>`;
 }
 
+// #4 — Ma prochaine régie (jour strictement après aujourd'hui où JE suis positionné)
+function nextRegie(){
+  const me = myRegName();
+  const todayIso = isoToday();
+  let best = null;
+  allDays.forEach(d => {
+    const iso = d.date.toISOString().slice(0,10);
+    if(iso <= todayIso) return;
+    const ent = (d.entries||[]).find(e => e.salle!=='Tournée' && !e.cancelled &&
+      (e.regies||[]).some(r => r.reg===me && r.role!=='observateur'));
+    if(!ent) return;
+    if(!best || iso < best.iso) best = { iso, spec: ent.spec||'', salle: ent.salle };
+  });
+  if(!best) return null;
+  best.days = Math.round((new Date(best.iso+'T00:00:00') - new Date(todayIso+'T00:00:00')) / 86400000);
+  return best;
+}
+function nextRegieHTML(){
+  const nr = nextRegie();
+  if(!nr) return '';
+  const j = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'], mo = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  const d = new Date(nr.iso+'T00:00:00');
+  const dateLbl = `${j[d.getDay()]} ${d.getDate()} ${mo[d.getMonth()]}`;
+  const salleLbl = nr.salle==='3TC'?'3T Côté':nr.salle==='GT'?'Grand Théâtre':nr.salle;
+  const delai = nr.days===1 ? 'demain' : `dans ${nr.days} jours`;
+  return `<div class="today-next">⏭️ Prochaine régie <b>${delai}</b><br><span class="tn-d">${dateLbl}${nr.spec?` · ${nr.spec}`:''}${nr.salle?` (${salleLbl})`:''}</span></div>`;
+}
+// Rappel « déclare tes heures supp » sur les 3 derniers jours du mois (masquable, 1×/mois)
+function hsuppReminderKey(){ const n=new Date(); return '3t_hsupp_rem_'+n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); }
+function hsuppReminderDue(){
+  const now = new Date();
+  const last = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  if(now.getDate() < last-2) return false;            // seulement J-2 → fin de mois
+  return localStorage.getItem(hsuppReminderKey()) !== '1';
+}
+function hsuppReminderHTML(){
+  if(!hsuppReminderDue()) return '';
+  return `<div class="hsupp-remind" id="hsupp-remind">
+    <span>⏱️ Fin de mois : pense à déclarer tes <b>heures supp</b> !</span>
+    <div class="hr-act">
+      <button class="hr-go" onclick="openHsupp()">Déclarer</button>
+      <button class="hr-x" onclick="dismissHsuppReminder()" title="Masquer ce mois">✕</button>
+    </div>
+  </div>`;
+}
+function dismissHsuppReminder(){
+  localStorage.setItem(hsuppReminderKey(), '1');
+  const el = document.getElementById('hsupp-remind'); if(el) el.remove();
+}
 function renderTodayCard(reg, dayMap) {
   const wrap = document.getElementById('today-card-wrap');
   const now = new Date();
@@ -4715,13 +4845,14 @@ function renderTodayCard(reg, dayMap) {
   const entries = (todayDayMap[todayD] || []).filter(e => !e.unassigned);
 
   if (entries.length === 0) {
-    wrap.innerHTML = `<div class="today-card empty">
+    wrap.innerHTML = hsuppReminderHTML() + `<div class="today-card empty">
       <div class="today-top">
         <span class="today-label">Régie du jour</span>
         <span style="font-size:11px;color:var(--muted)">${timeStr}</span>
       </div>
       <div style="font-size:11px;color:var(--muted2);margin-bottom:4px">${dateStr}</div>
       <div class="today-name">Pas de régie aujourd'hui</div>
+      ${nextRegieHTML()}
     </div>${todayFm}`;
     return;
   }
@@ -4764,7 +4895,7 @@ function renderTodayCard(reg, dayMap) {
     </div>`;
   });
 
-  wrap.innerHTML = cardsHTML + todayFm;
+  wrap.innerHTML = hsuppReminderHTML() + cardsHTML + todayFm;
 }
 
 function buildTeamDayMap(y, m) {
