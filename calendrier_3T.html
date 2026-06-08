@@ -297,14 +297,21 @@ select:focus{outline:none;border-color:var(--muted2)}
   padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 20px rgba(0,0,0,.28)}
 .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;
   cursor:pointer;font-family:inherit;padding:8px 4px 6px;color:var(--muted2);font-size:10px;font-weight:600;transition:color .12s}
-.bnav-btn .bnav-ico{font-size:21px;line-height:1}
+.bnav-btn .bnav-ico{font-size:21px;line-height:1;display:flex;align-items:center;justify-content:center}
+.bnav-btn .bnav-ico svg{width:25px;height:25px;display:block}
+.bnav-btn.active .bnav-ico svg{stroke-width:2}
+/* Bascule Mois ↔ Liste (agenda) */
+.agenda-toggle-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin:.15rem 0 .35rem;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;transition:background .12s}
+.agenda-toggle-btn:active{background:var(--surface2)}
+.agenda-toggle-btn svg{width:17px;height:17px;stroke:currentColor;fill:none}
+/* Page Heures : on masque tout l'en-tête (stats, régie du jour, voir équipe, légende) */
+body.page-hsupp #stats,body.page-hsupp #today-card-wrap,body.page-hsupp #btn-soiree-card,body.page-hsupp .app-controls{display:none !important}
 .bnav-btn.active{color:var(--c3t)}
 .bnav-btn:active{opacity:.6}
 /* Menu "Plus" (bottom sheet) */
 .more-sheet{position:fixed;left:0;right:0;bottom:0;width:100%;max-width:480px;margin:0 auto;
   background:var(--surface);border-radius:20px 20px 0 0;border-top:1px solid var(--border);
-  padding:1rem 1rem calc(1.1rem + env(safe-area-inset-bottom));animation:sheetUp .2s ease}
-@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  padding:1rem 1rem calc(1.1rem + env(safe-area-inset-bottom))}
 .more-handle{width:36px;height:4px;border-radius:3px;background:var(--border);margin:0 auto .9rem}
 .more-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .more-grid button{display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--surface3);
@@ -782,7 +789,6 @@ select:focus{outline:none;border-color:var(--muted2)}
       <!-- Actions rapides mobile (en-tête léger) : le reste est dans « Plus » -->
       <div class="header-actions-mobile" style="display:none;gap:6px">
         <button class="back-btn" onclick="refreshData()" id="btn-refresh-m" title="Rafraîchir">🔄</button>
-        <button class="back-btn" onclick="openSettingsModal()" title="Paramètres">⚙️</button>
       </div>
     </div>
     <div class="month-nav mnav-hidden" id="month-nav">
@@ -816,6 +822,10 @@ select:focus{outline:none;border-color:var(--muted2)}
       <select id="reg-select" onchange="onRegChange()" style="max-width:130px"></select>
     </div>
   </div>
+  <!-- Bascule Mois ↔ Liste (agenda), visible seulement en vue Mois/Liste -->
+  <button class="agenda-toggle-btn" id="btn-agenda-toggle" onclick="toggleAgenda()" style="display:none">
+    <span id="agenda-toggle-ico"></span><span id="agenda-toggle-lbl">Vue liste</span>
+  </button>
 
   <div class="legend">
     <div class="leg"><div class="leg-dot" style="background:var(--c3t)"></div>3T</div>
@@ -920,10 +930,9 @@ select:focus{outline:none;border-color:var(--muted2)}
 
   <!-- Barre d'onglets bas (mobile) -->
   <nav class="bottom-nav" id="bottom-nav">
-    <button class="bnav-btn active" id="bnav-cal" onclick="openCal()"><span class="bnav-ico">📅</span>Calendrier</button>
-    <button class="bnav-btn" id="bnav-list" onclick="switchView('list')"><span class="bnav-ico">📋</span>Agenda</button>
-    <button class="bnav-btn" id="bnav-hsupp" onclick="openHsupp()"><span class="bnav-ico">⏱️</span>Heures</button>
-    <button class="bnav-btn" id="bnav-more" onclick="openMoreMenu()"><span class="bnav-ico">⋯</span>Plus</button>
+    <button class="bnav-btn" id="bnav-hsupp" onclick="openHsupp()"><span class="bnav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12.5" r="8"/><path d="M12 8v4.5l3 1.8"/></svg></span>Heures</button>
+    <button class="bnav-btn active" id="bnav-home" onclick="openCal()"><span class="bnav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.6"/><path d="M3.5 9.5h17M8 3.2v3.6M16 3.2v3.6"/></svg></span>Home</button>
+    <button class="bnav-btn" id="bnav-more" onclick="openMoreMenu()"><span class="bnav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6.4" height="6.4" rx="1.9"/><rect x="13.6" y="4" width="6.4" height="6.4" rx="1.9"/><rect x="4" y="13.6" width="6.4" height="6.4" rx="1.9"/><rect x="13.6" y="13.6" width="6.4" height="6.4" rx="1.9"/></svg></span>Plus</button>
   </nav>
 
   <!-- Menu "Plus" (bottom sheet, mobile) -->
@@ -2084,7 +2093,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b48 (swipe = navigation entre pages Calendrier/Agenda/Heures)';
+const APP_VERSION = '2026-06-08 · b49 (refonte : Home central, Heures à gauche, Plus à droite, icônes SVG)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5163,34 +5172,43 @@ function onTeamToggle() {
 }
 
 let currentView = 'week';
-// Échelles « calendrier » regroupées dans un seul onglet (Semaine / Mois / Année)
+// Échelles « calendrier » regroupées dans la page Home (Semaine / Mois / Année)
 const CAL_SCALES = ['week','grid','year'];
-const SCALE_ORDER = { week:0, grid:1, year:2, list:3, hsupp:4, resume:5 };   // sens des animations de switch
+// Vues de la page HOME (calendrier + agenda en liste)
+const HOME_VIEWS = ['week','grid','year','list'];
+const SCALE_ORDER = { hsupp:0, week:1, grid:2, year:3, list:4, resume:5 };   // sens des animations de switch
 let calLastScale = 'week';
-let _calPreview = false;   // vrai pendant le pré-rendu d'aperçu d'un swipe
+let homeLastView = 'week';   // dernière vue Home (week/grid/year/list)
+let _calPreview = false;     // vrai pendant le pré-rendu d'aperçu d'un swipe
 
-// ── PAGES (ordre des icônes du bas) : 0=Calendrier · 1=Agenda · 2=Heures ──
-// Le SWIPE navigue entre ces pages (≠ du sélecteur Semaine/Mois/Année du calendrier).
+// ── PAGES (ordre des icônes du bas) : 0=Heures (gauche) · 1=Home (centre) ──
+// Le SWIPE navigue entre ces pages (Plus = volet, ouvert au tap).
 function currentPageIdx(){
-  if(CAL_SCALES.includes(currentView)) return 0;
-  if(currentView==='list') return 1;
-  if(currentView==='hsupp') return 2;
+  if(currentView==='hsupp') return 0;
+  if(HOME_VIEWS.includes(currentView)) return 1;
   return -1;   // résumé / autre → pas de swipe entre pages
 }
 function pageView(idx){
-  if(idx===0) return calLastScale || 'grid';
-  if(idx===1) return 'list';
-  if(idx===2) return 'hsupp';
+  if(idx===0) return 'hsupp';
+  if(idx===1) return homeLastView || 'week';
   return null;
 }
 
-// Ouvre l'onglet Calendrier sur la dernière échelle utilisée
-function openCal(){ switchView(calLastScale || 'grid'); }
+// Ouvre la page Home sur la dernière vue utilisée
+function openCal(){ switchView(homeLastView || 'week'); }
+
+const ICON_LIST = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>';
+const ICON_MONTH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17"/></svg>';
+
+// Bascule Mois ↔ Liste (agenda) dans la page Home
+function toggleAgenda(){ switchView(currentView==='list' ? 'grid' : 'list'); }
 
 function switchView(v, skipAnim) {
   const prev = currentView;
   currentView = v;
   if(CAL_SCALES.includes(v)) calLastScale = v;
+  if(HOME_VIEWS.includes(v)) homeLastView = v;
+  document.body.classList.toggle('page-hsupp', v==='hsupp');
   // Always reset search state when changing tab
   document.getElementById('view-search').style.display = 'none';
   document.getElementById('grid-body').style.display = '';
@@ -5207,6 +5225,14 @@ function switchView(v, skipAnim) {
   if(seg){
     seg.style.display = CAL_SCALES.includes(v) ? '' : 'none';
     seg.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.scale===v));
+  }
+  // Bouton Mois ↔ Liste : visible en vue Mois et Liste
+  const agToggle = document.getElementById('btn-agenda-toggle');
+  if(agToggle){
+    agToggle.style.display = (v==='grid' || v==='list') ? '' : 'none';
+    const lbl=document.getElementById('agenda-toggle-lbl'), ico=document.getElementById('agenda-toggle-ico');
+    if(v==='list'){ if(lbl) lbl.textContent='Vue mois'; if(ico) ico.innerHTML=ICON_MONTH; }
+    else { if(lbl) lbl.textContent='Vue liste'; if(ico) ico.innerHTML=ICON_LIST; }
   }
   // Nav du mois (‹ mois › Auj.) : utile seulement sur Mois / Agenda / Résumé,
   // inutile sur Semaine (semaine en cours) et Année (tous les mois affichés).
@@ -5234,9 +5260,8 @@ function animateView(prev, v){
 // ── Barre d'onglets bas (mobile) ──
 function updateBottomNav(){
   const set = (id,on)=>{ const el=document.getElementById(id); if(el) el.classList.toggle('active', on); };
-  set('bnav-cal', CAL_SCALES.includes(currentView));
-  set('bnav-list', currentView === 'list');
   set('bnav-hsupp', currentView === 'hsupp');
+  set('bnav-home', HOME_VIEWS.includes(currentView));
 }
 
 // ── Carrousel horizontal : la vue voisine glisse pendant le swipe ──
@@ -5297,8 +5322,13 @@ function updateBottomNav(){
     if(mode==='h'){
       const dx=(e.changedTouches?e.changedTouches[0].clientX:sx)-sx;
       const target = pageView(currentPageIdx()+dir);
-      const commit = nbEl && target && Math.abs(dx) > Math.min(70, w*0.18);
       const tr='transform .2s cubic-bezier(.22,.61,.36,1)';
+      // Swipe vers la GAUCHE depuis Home (pas de page à droite) → ouvre le volet Plus
+      if(!target && dir===1 && currentPageIdx()===1 && Math.abs(dx) > Math.min(80, w*0.2)){
+        if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX(0)'; setTimeout(()=>{ if(curEl){curEl.style.transition='';curEl.style.transform='';} curEl=nbEl=null; },220); }
+        openMoreMenu(); decided=false; mode=null; return;
+      }
+      const commit = nbEl && target && Math.abs(dx) > Math.min(70, w*0.18);
       if(commit){
         if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX('+(-dir*w)+'px)'; }
         if(nbEl){ nbEl.style.transition=tr; nbEl.style.transform='translateX(0)'; }
@@ -5390,8 +5420,14 @@ function hapticTick(ms){
 function openMoreMenu(){
   const m = document.getElementById('more-modal'), sheet = document.getElementById('more-sheet');
   if(!m) return;
-  if(sheet){ sheet.style.transition=''; sheet.style.transform=''; }   // repart propre (anim sheetUp)
-  m.style.opacity=''; m.style.display = 'flex';
+  m.style.display = 'flex';
+  if(!sheet){ return; }
+  sheet.style.transition='none'; sheet.style.transform='translateY(100%)';
+  m.style.transition='none'; m.style.opacity='0';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    sheet.style.transition='transform .28s cubic-bezier(.22,.61,.36,1)'; sheet.style.transform='translateY(0)';
+    m.style.transition='opacity .26s ease'; m.style.opacity='1';
+  }));
 }
 let _moreClosing = false;
 function closeMoreMenu(){

@@ -279,6 +279,16 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   zoom-in vers une échelle plus fine, dézoom vers une plus large. `currentView` ∈ {week, grid, year, list, resume} ;
   `CAL_SCALES`/`SCALE_ORDER`/`calLastScale` ; `openCal()` rouvre la dernière échelle.
 
+### Refonte disposition (2026-06-08, b49)
+- **Bottom-nav 3 boutons** (icônes **SVG** sobres, `stroke:currentColor` → clair/sombre) : **Heures** (horloge, gauche) ·
+  **Home** (calendrier, centre) · **Plus** (grille, droite). `bnav-hsupp`/`bnav-home`/`bnav-more`.
+- **Page Home** = calendrier (Semaine/Mois/Année au sélecteur) **+ agenda** : bouton `#btn-agenda-toggle` (Mois ↔ Liste,
+  `toggleAgenda`) visible en vue Mois/Liste. L'agenda garde ses filtres. `HOME_VIEWS=['week','grid','year','list']`.
+- **Pages swipables** : 0=Heures (gauche) · 1=Home (centre). Swipe gauche depuis Home → ouvre le volet **Plus**.
+  `currentPageIdx`/`pageView`, `homeLastView`.
+- **Page Heures** : tout l'en-tête (stats, régie du jour, voir équipe, légende) masqué via `body.page-hsupp`.
+- **Bouton Paramètres** retiré de l'en-tête mobile (dispo dans Plus). **Volet Plus** : ouverture animée (slide-up + fondu).
+
 ### Navigation par pages + gestes (2026-06-08)
 - **Pages swipables** : `SWIPE_ORDER = ['list','week','grid','year','hsupp']` (Agenda · Semaine · Mois · Année · Heures).
   Carrousel interactif (la vue voisine est pré-rendue via `renderInto` + `_calPreview`, glisse pendant le drag).
