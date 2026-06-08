@@ -38,6 +38,7 @@
   match /pushTokens/{t} { allow read, write: if true; }
   match /schedule/{d}   { allow read, write: if true; }
   match /formations/{d} { allow read, write: if true; }
+  match /meetingSlots/{d} { allow read, write: if true; }
   ```
 - **Notif formation INSTANTANÉE (Cloudflare Worker)** : le cron GitHub `schedule` étant non fiable (runs `*/5`
   ignorés, retards jusqu'à 1h+), la notif de formation part désormais d'un **Worker Cloudflare gratuit**
@@ -240,6 +241,15 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   L'URL cible est passée dans `data.url` du message (`send-reminders.js`) ; le SW `postMessage({type:'notif-nav',hash})`
   à la page, qui écoute (`navigator.serviceWorker` message) → `location.hash` + `handleNotifNav` → `gotoDate` (grille +
   jour sélectionné + détail avec « Je participe »).
+
+### Réunion planning (Framadate)
+- Sondage partagé pour caler la **réunion mensuelle** des régisseurs. Collection Firestore **`meetingSlots`**
+  (1 doc/créneau : `date`, `time` au quart d'heure, `by`, `available[]`). **Règle Firestore `meetingSlots` requise.**
+- N'importe quel régisseur **propose un créneau** (date + heure), chacun **coche sa dispo** (`toggleMeetingAvail`,
+  arrayUnion/Remove), le créneau le plus large s'affiche en **vert ★ top**. Suppression d'un créneau par son auteur.
+- Entrées : bouton **🗓️ Réunion** dans l'en-tête PC + menu **⋯ Plus** (mobile). Modale `meeting-modal`,
+  fonctions `openMeeting`/`loadMeetingSlots`/`submitMeetingSlot`/`renderMeetingSlots`. Les créneaux **passés sont
+  masqués** (auto-nettoyage d'un mois sur l'autre). **Pas de push** (consultation in-app, décision 2026-06-08).
 
 ## 🚧 À surveiller / limites connues
 

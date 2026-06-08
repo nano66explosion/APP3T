@@ -345,6 +345,20 @@ select:focus{outline:none;border-color:var(--muted2)}
 .soiree-empty .se-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:.5rem}
 .soiree-empty .se-sub{font-size:13px;color:var(--muted);line-height:1.6}
 
+/* ── RÉUNION PLANNING (Framadate) ── */
+.mt-sep{border-top:1px solid var(--border);margin:.9rem 0}
+.mt-card{background:var(--surface3);border:1px solid var(--border);border-radius:12px;padding:.7rem .85rem;margin-bottom:.5rem}
+.mt-card.best{background:#4ade8014;border-color:#4ade8066}
+.mt-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mt-when{font-size:14px;font-weight:600;color:var(--text);text-transform:capitalize}
+.mt-best-badge{font-size:10px;font-weight:700;color:var(--c3t);text-transform:uppercase;letter-spacing:.4px;margin-left:4px}
+.mt-count{font-size:13px;font-weight:600;font-family:'DM Mono',monospace;color:var(--c3t);white-space:nowrap}
+.mt-who{font-size:12px;color:var(--muted);margin:.35rem 0 .55rem;line-height:1.4}
+.mt-actions{display:flex;gap:8px}
+.mt-join{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;font-weight:600}
+.mt-join.in{background:#4ade8022;border-color:#4ade8066;color:var(--c3t)}
+.mt-del{background:none;border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer;font-size:13px}
+
 /* ── VUE « MA SEMAINE » ── */
 .week-title{font-size:13px;font-weight:600;color:var(--text);padding:.8rem 1rem .25rem}
 .week-empty{font-size:13px;color:var(--muted);padding:.2rem 0 .4rem}
@@ -698,6 +712,7 @@ select:focus{outline:none;border-color:var(--muted2)}
         <button class="back-btn" onclick="openSearch()" title="Rechercher un spectacle / artiste">🔍</button>
         <button class="back-btn" onclick="openHsupp()">⏱️ Heure supp</button>
         <button class="back-btn" onclick="openFormationModal()">📚 Formation</button>
+        <button class="back-btn" onclick="openMeeting()">🗓️ Réunion</button>
         <button class="back-btn" onclick="openIntermittence()">📊 Intermittence</button>
         <button class="back-btn" onclick="openHelp()">💡 Aide</button>
         <button class="back-btn" onclick="openSettingsModal()">⚙️ Paramètres</button>
@@ -815,6 +830,7 @@ select:focus{outline:none;border-color:var(--muted2)}
         <button onclick="closeMoreMenu();openIntermittence()"><span class="mg-ico">📈</span>Intermittence</button>
         <button onclick="closeMoreMenu();openSoiree()"><span class="mg-ico">💬</span>Bilan soirée</button>
         <button onclick="closeMoreMenu();openFormationModal()"><span class="mg-ico">📚</span>Formation</button>
+        <button onclick="closeMoreMenu();openMeeting()"><span class="mg-ico">🗓️</span>Réunion</button>
         <button onclick="closeMoreMenu();openSearch()"><span class="mg-ico">🔍</span>Recherche</button>
         <button onclick="closeMoreMenu();openHelp()"><span class="mg-ico">💡</span>Aide</button>
         <button onclick="closeMoreMenu();openSettingsModal()"><span class="mg-ico">⚙️</span>Paramètres</button>
@@ -854,6 +870,27 @@ select:focus{outline:none;border-color:var(--muted2)}
       <input type="text" id="fm-subject" class="fm-input" placeholder="Ex. Formation lumière, console son…" style="margin-bottom:.5rem">
       <div id="fm-error" style="font-size:12px;color:#f87171;min-height:16px;margin-bottom:.3rem"></div>
       <button class="go-btn" onclick="submitFormation()" style="padding:11px;font-size:14px">Proposer la formation</button>
+    </div>
+  </div>
+
+  <!-- Réunion planning (Framadate : créneaux + dispos) -->
+  <div id="meeting-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeMeeting()">
+    <div class="modal-card" style="text-align:left;max-width:460px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <div class="modal-title">🗓️ Réunion planning</div>
+        <button onclick="closeMeeting()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div class="modal-sub">Proposez des créneaux, puis chacun coche ses dispos. Le créneau le plus large ressort en vert.</div>
+      <label class="file-label">Proposer un créneau (date + heure au quart d'heure)</label>
+      <div style="display:flex;gap:8px;margin-bottom:.5rem">
+        <input type="date" id="mt-date" class="fm-input" style="flex:1.5">
+        <select id="mt-h" class="fm-input" style="flex:1"></select>
+        <select id="mt-m" class="fm-input" style="flex:1"></select>
+      </div>
+      <div id="mt-error" style="font-size:12px;color:#f87171;min-height:16px;margin-bottom:.3rem"></div>
+      <button class="go-btn" onclick="submitMeetingSlot()" style="padding:10px;font-size:13px">+ Ajouter ce créneau</button>
+      <div class="mt-sep"></div>
+      <div id="meeting-list"></div>
     </div>
   </div>
 
@@ -1866,7 +1903,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b22 (bouton Formation dans l\'en-tête PC)';
+const APP_VERSION = '2026-06-08 · b23 (réunion planning Framadate)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3116,6 +3153,124 @@ function openFormationModal(iso){
   document.getElementById('formation-modal').style.display = 'flex';
 }
 function closeFormationModal(){ document.getElementById('formation-modal').style.display = 'none'; }
+
+// ─── RÉUNION PLANNING (Framadate : créneaux partagés + dispos) ───────────────
+let _meetingSlots = [];
+async function loadMeetingSlots(){
+  if(!pushConfigured()) return;
+  initFirebase();
+  if(!_fbDb) return;
+  try{
+    const snap = await _fbDb.collection('meetingSlots').get();
+    _meetingSlots = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      _meetingSlots.push({ id:doc.id, date:d.date||'', time:d.time||'', by:d.by||'', available:d.available||[] });
+    });
+    _meetingSlots.sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+    renderMeetingSlots();
+  }catch(e){ console.warn('loadMeetingSlots:', e); }
+}
+function openMeeting(){
+  // Remplit les selects heure (00–23) + quart d'heure (00/15/30/45)
+  const hSel = document.getElementById('mt-h'), mSel = document.getElementById('mt-m');
+  let hOpts = '<option value="">-- h --</option>'; for(let h=0;h<24;h++){ const v=String(h).padStart(2,'0'); hOpts += `<option value="${v}">${v}h</option>`; }
+  hSel.innerHTML = hOpts;
+  mSel.innerHTML = '<option value="">-- min --</option>' + ['00','15','30','45'].map(m=>`<option value="${m}">${m}</option>`).join('');
+  document.getElementById('mt-date').value = isoToday();
+  document.getElementById('mt-error').textContent = '';
+  document.getElementById('meeting-list').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1rem">Chargement…</div>';
+  document.getElementById('meeting-modal').style.display = 'flex';
+  loadMeetingSlots();
+}
+function closeMeeting(){ document.getElementById('meeting-modal').style.display = 'none'; }
+
+async function submitMeetingSlot(){
+  if(blockIfOffline()) return;
+  const date = document.getElementById('mt-date').value;
+  const h = document.getElementById('mt-h').value, mn = document.getElementById('mt-m').value;
+  const time = (h && mn) ? `${h}:${mn}` : (h ? `${h}:00` : '');
+  const err = document.getElementById('mt-error');
+  if(!date){ if(err) err.textContent = 'Choisis une date.'; return; }
+  if(!time){ if(err) err.textContent = 'Choisis une heure (au quart d\'heure).'; return; }
+  if(!pushConfigured()){ if(err) err.textContent = 'Configuration manquante.'; return; }
+  initFirebase();
+  if(!_fbDb){ if(err) err.textContent = 'Connexion requise.'; return; }
+  if(_meetingSlots.some(s => s.date===date && s.time===time)){ if(err) err.textContent = 'Ce créneau existe déjà.'; return; }
+  const me = myRegName() || getMyReg() || '';
+  try{
+    showBusy(true);
+    await _fbDb.collection('meetingSlots').add({
+      date, time, by: me, available: me ? [me] : [], createdAt: new Date().toISOString()
+    });
+    await loadMeetingSlots();
+    if(err) err.textContent = '';
+    toast('🗓️ Créneau ajouté', 'ok');
+  }catch(e){ if(err) err.textContent = e.message; }
+  finally{ showBusy(false); }
+}
+
+async function toggleMeetingAvail(id){
+  if(blockIfOffline()) return;
+  const me = myRegName() || getMyReg() || '';
+  if(!me){ openProfileModal(); return; }
+  initFirebase();
+  if(!_fbDb) return;
+  try{
+    showBusy(true);
+    const ref = _fbDb.collection('meetingSlots').doc(id);
+    const doc = await ref.get(); if(!doc.exists) return;
+    const av = doc.data().available || [];
+    const FV = firebase.firestore.FieldValue;
+    await ref.update({ available: av.includes(me) ? FV.arrayRemove(me) : FV.arrayUnion(me) });
+    await loadMeetingSlots();
+  }catch(e){ toast('❌ ' + e.message, 'err'); }
+  finally{ showBusy(false); }
+}
+
+async function deleteMeetingSlot(id){
+  if(blockIfOffline()) return;
+  if(!confirm('Supprimer ce créneau ?')) return;
+  initFirebase(); if(!_fbDb) return;
+  try{ showBusy(true); await _fbDb.collection('meetingSlots').doc(id).delete(); await loadMeetingSlots(); toast('🗑️ Créneau supprimé','ok'); }
+  catch(e){ toast('❌ '+e.message,'err'); } finally{ showBusy(false); }
+}
+
+function renderMeetingSlots(){
+  const box = document.getElementById('meeting-list');
+  if(!box) return;
+  const today = isoToday();
+  // On n'affiche que les créneaux à venir (auto-nettoyage d'un mois sur l'autre).
+  const slots = _meetingSlots.filter(s => s.date >= today);
+  if(!slots.length){
+    box.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1.2rem">Aucun créneau à venir.<br>Ajoute le premier ci-dessus 👆</div>';
+    return;
+  }
+  const me = myRegName() || getMyReg() || '';
+  const maxV = Math.max(...slots.map(s => (s.available||[]).length));
+  const jourStr = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+  const moisStr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  box.innerHTML = slots.map(s => {
+    const av = s.available || [];
+    const iIn = av.includes(me);
+    const isBest = maxV > 0 && av.length === maxV;
+    const d = s.date ? new Date(s.date+'T00:00:00') : null;
+    const dateLbl = d ? `${jourStr[d.getDay()]} ${d.getDate()} ${moisStr[d.getMonth()]}` : s.date;
+    const who = av.length ? av.join(', ') : 'Personne pour l\'instant';
+    const del = (s.by && s.by===me) ? `<button class="mt-del" onclick="deleteMeetingSlot('${s.id}')" title="Supprimer">🗑️</button>` : '';
+    return `<div class="mt-card${isBest?' best':''}">
+      <div class="mt-top">
+        <span class="mt-when">${dateLbl}${s.time?` · ${s.time}`:''}${isBest?'<span class="mt-best-badge">★ top</span>':''}</span>
+        <span class="mt-count">✓ ${av.length}</span>
+      </div>
+      <div class="mt-who">${who}</div>
+      <div class="mt-actions">
+        <button class="mt-join${iIn?' in':''}" onclick="toggleMeetingAvail('${s.id}')">${iIn?'✓ Je suis dispo':'+ Je suis dispo'}</button>
+        ${del}
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // Ouvre une date précise (ex. via notif de formation) dans la grille
 function gotoDate(iso){
