@@ -1921,6 +1921,14 @@ function parsePlanTech(wb){
       const slots=isSam?SAM:SEM;
       const entries=[];
 
+      // Réveillon : l'heure réelle (18h45/21h/23h) est écrite seule dans la colonne 18h45
+      // (cols 2/7/12, identique pour les 3 salles) → on l'utilise comme libellé horaire de la ligne.
+      let rowTime = null;
+      for(const c of [2,7,12]){
+        const v = String(row[c]||'').trim();
+        if(/^\d{1,2}h\d{0,2}$/i.test(v)){ rowTime = v; break; }
+      }
+
       slots.forEach(slot=>{
         const specRaw=String(row[slot.cS]||'').trim();
         const regRaw=String(row[slot.cR]||'').trim();
@@ -1936,7 +1944,7 @@ function parsePlanTech(wb){
         const cancelled = struckCells.has(specRef) || struckCells.has(regRef);
         const guest = guestCells.has(specRef);
         if(specNom||special||regies.length>0)
-          entries.push({salle:slot.salle,h:slot.h,spec:specNom,special,regies,cancelled,guest,
+          entries.push({salle:slot.salle,h:rowTime||slot.h,spec:specNom,special,regies,cancelled,guest,
             unassigned:regies.length===0&&!!specNom,
             // Provenance pour pouvoir écrire dans le Google Sheet
             src:{sheet:sheetName,row0:ri,col0:slot.cR,rawReg:regRaw}});
@@ -2006,7 +2014,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b28 (réveillon : lit les 3 créneaux 18h45/21h/23h)';
+const APP_VERSION = '2026-06-08 · b29 (réveillon : vraie heure 18h45/21h/23h affichée)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
