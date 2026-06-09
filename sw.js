@@ -1,10 +1,11 @@
 // Service worker — Calendrier 3T (PWA)
-const CACHE = '3t-cache-v3';
+const CACHE = '3t-cache-v4';
 const ASSETS = [
   'calendrier_3T.html',
   'manifest.webmanifest',
   'icon-192.png',
-  'icon-512.png'
+  'icon-512.png',
+  'logo.png'
 ];
 // Libs externes (CDN) — pré-cachées pour que l'app fonctionne hors-ligne
 const CDN = [

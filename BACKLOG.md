@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b66`**.
+  Bumper à chaque évolution notable. Actuelle : **`b69`**.
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -112,7 +112,8 @@
   identifiants enregistrés dans le trousseau macOS). Une branche `dev` existe mais inutilisée pour l'instant.
 - **`.gitignore`** : exclut les `*.xlsx` (données réelles à ne pas publier), `.DS_Store`, `.claude/`.
 - **Fichiers versionnés** : `calendrier_3T.html`, `manifest.webmanifest`, `sw.js`,
-  `icon-192.png`, `icon-512.png`, `BACKLOG.md`, `.gitignore`, **`firestore.rules`** (règles à publier en console).
+  `icon-192.png`, `icon-512.png`, **`logo.png`** (logo 512² externalisé), `BACKLOG.md`, `.gitignore`,
+  **`firestore.rules`** (règles à publier en console).
 - **Fichiers locaux NON versionnés** (dossier `APP 3T`, pour tests uniquement) :
   `copie plan tech.xlsx`, `Base HEURES SPECT2026 Modèle.xlsx`, `HEURES MAI 26.xlsx`,
   `HEURES JUIN 26.xlsx`, logo source PNG.
@@ -122,7 +123,9 @@
 - Un seul fichier : `<head>` (métas PWA + libs CDN), `<style>` (tout le CSS), `<body>`
   (écran connexion + écran app + modales), `<script>` (toute la logique).
 - **Libs externes (CDN)** : `gapi`/`gsi` (Google), `xlsx` (SheetJS 0.18.5), `jszip` 3.10.1.
-- **Logos** : intégrés en **base64** directement dans le HTML (écran connexion + en-tête).
+- **Logos** : **externalisés (b69)** dans `logo.png` (512×512, ~53 Ko), référencé par les 2 `<img>`
+  (login + en-tête). *(Avant : 2× base64 1600² = ~560 Ko inline → HTML passé de ~900 Ko à ~345 Ko.)*
+  Pré-caché par `sw.js` (`CACHE='3t-cache-v4'`).
 - **Vérif syntaxe JS** utilisée pendant le dev : extraire le dernier `<script>` et
   `osascript -l JavaScript` avec `new Function(src)` (pas de Node dispo).
 
