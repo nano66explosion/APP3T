@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b73`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b74`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -357,6 +357,12 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - **Haptique** : `hapticTick()` = Vibration API (Android). **iOS web ne supporte pas les vibrations** (astuce `<input switch>`
   testée et abandonnée) → no-op sur iPhone.
 - **Divers** : version affichée sur l'écran de connexion ; barres de scroll masquées ; double-tap zoom désactivé.
+
+### Animations globales (b74)
+- **Modales** : entrée animée (overlay `overlayFade` + carte `modalPop` scale/translate) — toutes les modales d'un coup.
+- **Cartes** : apparition `cardIn` (fade + montée) sur `.event-card`/`.fm-card`/`.mt-card`/`.note-card`/`.today-card`/`.intermi-block`.
+- **Retour tactile** : `button:active{scale(.96)}` (transition transform), `.emoji-opt:active`, `.cal-cell:active{scale(.95)}`.
+- **Accessibilité** : `@media (prefers-reduced-motion: reduce)` neutralise toutes les animations/transitions. CSS dans `style.css`.
 
 ### b57 (2026-06-09) — Nav du mois repositionnée
 - La **barre de navigation du mois** (`#month-nav` : ‹ · `mois-select` · › · « Auj. ») était dans l'en-tête
