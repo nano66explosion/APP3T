@@ -1073,7 +1073,10 @@ body.page-hsupp #page-hsupp{display:block}
       </div>
 
       <label class="file-label" style="margin-top:1.1rem">Date anniversaire d'intermittence <span style="color:var(--muted);font-weight:400">(optionnel)</span></label>
-      <input type="date" id="profile-anniv" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.35rem">
+      <div style="display:flex;gap:8px;margin-bottom:.35rem">
+        <select id="profile-anniv-d" style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--text);font-family:inherit"></select>
+        <select id="profile-anniv-m" style="flex:2;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--text);font-family:inherit"></select>
+      </div>
       <div style="font-size:11px;color:var(--muted)">Sert à calculer ta jauge 507h sur 12 mois glissants (à partir de cette date). Laisse vide pour un calcul sur toute la saison.</div>
 
       <button class="go-btn" onclick="saveProfile()" style="margin-top:1.3rem">Enregistrer</button>
@@ -1118,7 +1121,7 @@ body.page-hsupp #page-hsupp{display:block}
 
     <!-- Mon régisseur / avatar -->
     <div class="settings-block">
-      <label class="file-label">👤 Mon régisseur</label>
+      <label class="file-label">👤 Mon profil</label>
       <div class="file-name" id="lbl-profile" style="color:var(--text)"></div>
       <button class="file-btn" onclick="openProfileModal()" style="margin-top:.4rem">Régisseur / avatar / date anniversaire</button>
     </div>
@@ -2132,7 +2135,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b67 (libellé profil : date anniversaire visible)';
+const APP_VERSION = '2026-06-10 · b68 (profil : section « Mon profil » + anniversaire jour/mois sans année)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3854,8 +3857,26 @@ function openProfileModal(){
   grid.innerHTML = EMOJI_CHOICES.map(e=>
     `<div class="emoji-opt${e===pendingEmoji?' sel':''}" onclick="pickEmoji('${e}')">${e}</div>`
   ).join('');
-  const anniv = document.getElementById('profile-anniv'); if(anniv) anniv.value = getMyAnniv() || '';
+  // Date anniversaire = jour + mois seulement (pas d'année). Stockée au format MM-DD.
+  const dSel = document.getElementById('profile-anniv-d'), mSel = document.getElementById('profile-anniv-m');
+  if(dSel && mSel){
+    const cur = parseAnnivMD(getMyAnniv());   // {m, d} ou null
+    dSel.innerHTML = '<option value="">— jour —</option>' +
+      Array.from({length:31}, (_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
+    mSel.innerHTML = '<option value="">— mois —</option>' +
+      _MOIS_FR.map((nm,i)=>`<option value="${i+1}">${nm.charAt(0).toUpperCase()+nm.slice(1)}</option>`).join('');
+    dSel.value = cur ? String(cur.d) : '';
+    mSel.value = cur ? String(cur.m) : '';
+  }
   document.getElementById('profile-modal').style.display = 'flex';
+}
+// Extrait {m, d} d'une date anniversaire stockée (MM-DD ou ancien YYYY-MM-DD). Année ignorée.
+function parseAnnivMD(s){
+  const a = /^(?:\d{4}-)?(\d{1,2})-(\d{1,2})$/.exec(String(s||'').trim());
+  if(!a) return null;
+  const m = +a[1], d = +a[2];
+  if(m<1||m>12||d<1||d>31) return null;
+  return { m, d };
 }
 function pickEmoji(e){
   pendingEmoji = e;
@@ -3870,7 +3891,11 @@ function saveProfile(){
   const reg = document.getElementById('profile-reg').value;
   const custom = document.getElementById('emoji-custom').value.trim();
   const emoji = custom || pendingEmoji;
-  const anniv = (document.getElementById('profile-anniv')?.value || '').trim();
+  // Date anniversaire jour/mois (format MM-DD), sans année
+  const dV = +(document.getElementById('profile-anniv-d')?.value || 0);
+  const mV = +(document.getElementById('profile-anniv-m')?.value || 0);
+  const anniv = (dV>=1 && dV<=31 && mV>=1 && mV<=12)
+    ? `${String(mV).padStart(2,'0')}-${String(dV).padStart(2,'0')}` : '';
   if (reg) localStorage.setItem('3t_my_reg', reg);
   if (emoji) localStorage.setItem('3t_my_emoji', emoji);
   if (anniv) localStorage.setItem('3t_anniv', anniv); else localStorage.removeItem('3t_anniv');
@@ -3922,13 +3947,13 @@ function computeSeason(reg){
   return t;
 }
 
-// Fenêtre de 12 mois à partir de la date anniversaire d'intermittence (YYYY-MM-DD).
+// Fenêtre de 12 mois à partir de la date anniversaire d'intermittence (jour/mois, sans année).
 // start = dernière occurrence du jour/mois anniversaire ≤ aujourd'hui ; end = start + 1 an (exclu).
 function annivWindow(annivStr, ref){
   ref = ref || new Date();
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(annivStr || '');
-  if(!m) return null;
-  const am = +m[2], ad = +m[3];                       // mois (1-12) et jour de l'anniversaire
+  const md = parseAnnivMD(annivStr);                  // {m, d} depuis MM-DD (ou ancien YYYY-MM-DD)
+  if(!md) return null;
+  const am = md.m, ad = md.d;                          // mois (1-12) et jour de l'anniversaire
   let start = new Date(ref.getFullYear(), am-1, ad);
   if(start > ref) start = new Date(ref.getFullYear()-1, am-1, ad);   // pas encore passé cette année
   const end = new Date(start.getFullYear()+1, start.getMonth(), start.getDate());
