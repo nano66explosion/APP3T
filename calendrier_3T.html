@@ -304,8 +304,19 @@ select:focus{outline:none;border-color:var(--muted2)}
 .agenda-toggle-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin:.15rem 0 .35rem;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;transition:background .12s}
 .agenda-toggle-btn:active{background:var(--surface2)}
 .agenda-toggle-btn svg{width:17px;height:17px;stroke:currentColor;fill:none}
-/* Page Heures : on masque tout l'en-tête (stats, régie du jour, voir équipe, légende) */
-body.page-hsupp #stats,body.page-hsupp #today-card-wrap,body.page-hsupp #btn-soiree-card,body.page-hsupp .app-controls{display:none !important}
+/* Pages (Home / Heures) : glissent en entier sur mobile ; sur PC, transparentes (2 colonnes) */
+#pages{position:relative}
+#page-hsupp{display:none}
+body.page-hsupp #page-home{display:none}
+body.page-hsupp #page-hsupp{display:block}
+@media (max-width:767px),(max-height:499px){ #pages{overflow-x:hidden} }
+@media (min-width:768px) and (min-height:500px){
+  #pages{display:contents}
+  #page-home{display:contents}
+  #page-hsupp{display:none}
+  body.page-hsupp #page-home{display:none}
+  body.page-hsupp #page-hsupp{display:contents}
+}
 .bnav-btn.active{color:var(--c3t)}
 .bnav-btn:active{opacity:.6}
 /* Menu "Plus" (bottom sheet) */
@@ -756,6 +767,9 @@ body.page-hsupp #stats,body.page-hsupp #today-card-wrap,body.page-hsupp #btn-soi
 <!-- ── APP ── -->
 <div id="app-screen" style="display:none">
 
+  <div id="pages">
+  <div id="page-home">
+
   <!-- COLONNE GAUCHE (PC) : logo → régie du jour -->
   <div class="app-col app-col-left">
 
@@ -884,6 +898,10 @@ body.page-hsupp #stats,body.page-hsupp #today-card-wrap,body.page-hsupp #btn-soi
     <div id="view-year" style="display:none"></div>
     <div id="view-list" style="display:none"></div>
     <div id="view-resume" style="display:none"></div>
+      </div><!-- /view-container -->
+    </div><!-- /app-col-right -->
+  </div><!-- /page-home -->
+  <div id="page-hsupp">
     <!-- Page Heures supplémentaires -->
     <div id="view-hsupp" style="display:none">
       <div class="hsupp-page">
@@ -923,10 +941,9 @@ body.page-hsupp #stats,body.page-hsupp #today-card-wrap,body.page-hsupp #btn-soi
           <div id="hs-list"><div style="color:var(--muted);font-size:13px;padding:.5rem 0">Chargement…</div></div>
         </div>
       </div>
-    </div>
-  </div>
-
-  </div><!-- /app-col-right -->
+    </div><!-- /view-hsupp -->
+  </div><!-- /page-hsupp -->
+  </div><!-- /pages -->
 
   <!-- Barre d'onglets bas (mobile) -->
   <nav class="bottom-nav" id="bottom-nav">
@@ -2093,7 +2110,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b51 (retrait du swipe vers Plus)';
+const APP_VERSION = '2026-06-08 · b52 (vraie page distincte : Home/Heures glissent en entier)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5264,33 +5281,27 @@ function updateBottomNav(){
   set('bnav-home', HOME_VIEWS.includes(currentView));
 }
 
-// ── Carrousel horizontal : la vue voisine glisse pendant le swipe ──
+// ── Carrousel horizontal : la PAGE ENTIÈRE glisse (Home ↔ Heures) ──
 (function initCalCarousel(){
-  const vc = document.getElementById('view-container');
-  if(!vc) return;
-  // Le geste est capté sur TOUTE la page (stats, régie du jour, légende… inclus),
-  // mais on anime toujours les vues du view-container.
-  const gestureEl = document.getElementById('app-screen') || vc;
+  const pages = document.getElementById('pages');
+  const gestureEl = document.getElementById('app-screen') || pages;
+  if(!pages || !gestureEl) return;
+  // Pré-remplit le formulaire heures (selects) pour que l'aperçu de swipe soit complet
+  try{ _calPreview=true; renderHsupp(); _calPreview=false; }catch(_){}
   let sx=0, sy=0, decided=false, mode=null, w=1;     // mode: 'h' | 'scroll'
   let curEl=null, nbEl=null, dir=0;
-  const viewEl = s => document.getElementById('view-'+s);
-  function renderInto(scale){
-    if(scale===currentView) return;
-    const saved=currentView; currentView=scale; _calPreview=true;
-    try{ renderCalendar(); }catch(_){}
-    _calPreview=false; currentView=saved;
-  }
-  function cleanup(){
-    if(nbEl){ nbEl.style.cssText=''; nbEl.style.display='none'; }
-    if(curEl){ curEl.style.transition=''; curEl.style.transform=''; }
-    curEl=nbEl=null; dir=0;
-  }
+  const pageEl = idx => idx===0 ? document.getElementById('page-hsupp') : (idx===1 ? document.getElementById('page-home') : null);
+  const pageDefView = idx => idx===0 ? 'hsupp' : (homeLastView || 'week');
+  function clearEl(el){ if(!el) return; el.style.transition=''; el.style.transform=''; el.style.position=''; el.style.top=''; el.style.left=''; el.style.right=''; el.style.zIndex=''; el.style.display=''; }
+  function cleanup(){ clearEl(curEl); clearEl(nbEl); curEl=nbEl=null; dir=0; }
+
   gestureEl.addEventListener('touchstart', e=>{
     decided=false; mode=null; curEl=nbEl=null;
     if(e.touches.length!==1){ decided=true; return; }
     sx=e.touches[0].clientX; sy=e.touches[0].clientY;
-    w = vc.clientWidth || window.innerWidth || 1;
+    w = pages.clientWidth || window.innerWidth || 1;
   }, {passive:true});
+
   gestureEl.addEventListener('touchmove', e=>{
     if(decided && mode!=='h') return;                 // 'scroll' → scroll natif
     const dx=e.touches[0].clientX-sx, dy=e.touches[0].clientY-sy;
@@ -5298,16 +5309,15 @@ function updateBottomNav(){
       if(Math.abs(dx)<6 && Math.abs(dy)<6) return;
       decided=true;
       const pi = currentPageIdx();
-      if(Math.abs(dx) > Math.abs(dy)*1.2 && pi>=0){
+      if(Math.abs(dx) > Math.abs(dy)*1.2 && (pi===0 || pi===1)){
         mode='h';
-        dir = dx<0 ? 1 : -1;                 // gauche → page suivante (ordre des icônes du bas)
-        curEl = viewEl(currentView);
-        const np = pi+dir, target = pageView(np);
-        if(np>=0 && np<=2 && target){
-          renderInto(target);
-          nbEl = viewEl(target);
-          const top=((curEl?curEl.offsetTop:0)+vc.scrollTop)+'px';
-          if(nbEl){ nbEl.style.display=''; nbEl.style.position='absolute'; nbEl.style.top=top; nbEl.style.left='0'; nbEl.style.right='0'; nbEl.style.zIndex='3'; nbEl.style.transition='none'; nbEl.style.transform='translateX('+(dir*100)+'%)'; }
+        dir = dx<0 ? 1 : -1;                            // gauche → Heures (à droite de Home ? non : Heures à gauche)
+        curEl = pageEl(pi);
+        const np = pi+dir, nb = pageEl(np);
+        if((np===0||np===1) && nb){
+          nbEl = nb;
+          const top = (window.pageYOffset || document.scrollingElement.scrollTop || 0) + 'px';
+          nbEl.style.display='block'; nbEl.style.position='absolute'; nbEl.style.top=top; nbEl.style.left='0'; nbEl.style.right='0'; nbEl.style.zIndex='3'; nbEl.style.transition='none'; nbEl.style.transform='translateX('+(dir*100)+'%)';
         } else { nbEl=null; }
         if(curEl) curEl.style.transition='none';
       } else { mode='scroll'; }
@@ -5316,25 +5326,25 @@ function updateBottomNav(){
       e.preventDefault();
       let move=dx;
       if(!nbEl) move*=0.34;                  // pas de page voisine de ce côté → élastique
-
       if(curEl) curEl.style.transform='translateX('+move+'px)';
       if(nbEl) nbEl.style.transform='translateX(calc('+(dir*100)+'% + '+move+'px))';
     }
   }, {passive:false});
+
   function endGesture(e){
     if(mode==='h'){
       const dx=(e.changedTouches?e.changedTouches[0].clientX:sx)-sx;
-      const target = pageView(currentPageIdx()+dir);
-      const tr='transform .2s cubic-bezier(.22,.61,.36,1)';
-      const commit = nbEl && target && Math.abs(dx) > Math.min(70, w*0.18);
+      const np = currentPageIdx()+dir;
+      const tr='transform .22s cubic-bezier(.22,.61,.36,1)';
+      const commit = nbEl && (np===0||np===1) && Math.abs(dx) > Math.min(70, w*0.18);
       if(commit){
         if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX('+(-dir*w)+'px)'; }
         if(nbEl){ nbEl.style.transition=tr; nbEl.style.transform='translateX(0)'; }
-        setTimeout(()=>{ cleanup(); vc.scrollTop=0; switchView(target, true); }, 200);
+        setTimeout(()=>{ cleanup(); window.scrollTo(0,0); switchView(pageDefView(np), true); }, 220);
       } else {
         if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX(0)'; }
         if(nbEl){ nbEl.style.transition=tr; nbEl.style.transform='translateX('+(dir*100)+'%)'; }
-        setTimeout(cleanup, 220);
+        setTimeout(cleanup, 240);
       }
     }
     decided=false; mode=null;
