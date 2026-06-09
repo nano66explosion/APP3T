@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b57`**.
+  Bumper à chaque évolution notable. Actuelle : **`b58`**.
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -310,6 +310,12 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   d'échelle), donc **directement au-dessus de la zone de recherche** en vue Mois. Toujours **partagée** par Mois /
   Agenda / Résumé (masquée Semaine / Année via `mnav-hidden`, logique inchangée dans `switchView`). Padding inline
   `.15rem 1rem .35rem` pour aligner avec la `search-row`.
+
+### b58 (2026-06-09) — Sélecteur d'échelle conservé en vue Liste
+- En vue **Liste** (agenda), le sélecteur `#cal-scale-switch` (Semaine/Mois/Année) disparaissait (Liste ∉ `CAL_SCALES`).
+  Désormais il **reste visible** en vue Liste (`switchView` : `display` si `CAL_SCALES.includes(v) || v==='list'`), avec
+  le bouton **« Mois » en surbrillance** (la Liste = l'échelle Mois en version agenda, `activeScale='grid'`). Permet de
+  rebasculer vers Semaine/Année directement depuis l'agenda.
 
 ## 🚧 À surveiller / limites connues
 
