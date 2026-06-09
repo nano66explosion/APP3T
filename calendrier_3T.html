@@ -1155,7 +1155,8 @@ body.page-hsupp #page-hsupp{display:block}
 
     <button id="btn-base-continue" onclick="launchApp()" style="display:none;width:100%;margin-top:.5rem;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline">Continuer sans le calcul d'heures →</button>
     <button class="go-btn" id="btn-enter-app" onclick="launchApp()" style="display:none;margin-top:1rem">Entrer dans l'app</button>
-    <div id="app-version" style="text-align:center;font-size:10px;color:var(--muted);margin-top:1rem"></div>
+    <div id="auth-status" style="text-align:center;font-size:11px;color:var(--muted);margin-top:.9rem"></div>
+    <div id="app-version" style="text-align:center;font-size:10px;color:var(--muted);margin-top:.4rem"></div>
   </div>
 </div>
 
@@ -2129,7 +2130,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-09 · b62 (Firebase Auth : session Google pour verrouiller Firestore — phase 1)';
+const APP_VERSION = '2026-06-09 · b63 (indicateur état session base dans Paramètres — diagnostic auth)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2189,6 +2190,7 @@ function openSettingsModal() {
   updateThemeLabel();
   const ver = document.getElementById('app-version'); if(ver) ver.textContent = 'Version ' + APP_VERSION;
   const lver = document.getElementById('login-version'); if(lver) lver.textContent = 'Version ' + APP_VERSION;
+  try{ initFirebase(); updateAuthStatus(_fbAuth && _fbAuth.currentUser); }catch(e){}   // état session base
   document.getElementById('settings-modal').style.display = 'flex';
 }
 
@@ -2451,8 +2453,26 @@ function initFirebase(){
     _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
     _fbDb = firebase.firestore();        // d'abord Firestore (marche partout)
   }catch(e){ console.warn('initFirebase (firestore):', e); }
-  try{ if(firebase.auth) _fbAuth = firebase.auth(); }   // session Firebase Auth (verrou Firestore)
-  catch(e){ console.warn('initFirebase (auth):', e); }
+  try{
+    if(firebase.auth){
+      _fbAuth = firebase.auth();
+      _fbAuth.onAuthStateChanged(u => updateAuthStatus(u));   // met à jour l'indicateur visible
+    }
+  }catch(e){ console.warn('initFirebase (auth):', e); }
+}
+
+// Indicateur visible (bas des Paramètres) de l'état de la session base.
+let _lastAuthErr = '';
+function updateAuthStatus(user){
+  const el = document.getElementById('auth-status');
+  if(!el) return;
+  if(user){
+    el.textContent = '🔐 Base sécurisée — connecté (' + (user.email || user.uid) + ')';
+    el.style.color = 'var(--c3t)';
+  }else{
+    el.textContent = '🔓 Base : session non ouverte' + (_lastAuthErr ? ' — ' + _lastAuthErr : '');
+    el.style.color = 'var(--c3tc)';
+  }
 }
 
 // Ouvre une session Firebase Auth à partir du jeton Google DÉJÀ obtenu (aucune 2ᵉ connexion,
@@ -2466,8 +2486,14 @@ async function firebaseSignIn(token){
     if(_fbAuth.currentUser) return _fbAuth.currentUser;   // session déjà ouverte (persistée)
     const cred = firebase.auth.GoogleAuthProvider.credential(null, token);
     const res = await _fbAuth.signInWithCredential(cred);
+    _lastAuthErr = '';
     return (res && res.user) || null;
-  }catch(e){ console.warn('firebaseSignIn:', e); return null; }
+  }catch(e){
+    _lastAuthErr = (e && (e.code || e.message)) || 'échec';
+    console.warn('firebaseSignIn:', e);
+    updateAuthStatus(_fbAuth && _fbAuth.currentUser);
+    return null;
+  }
   try{
     // messaging() peut échouer sur navigateurs non supportés (ex. Safari onglet) → isolé
     _fbMessaging = firebase.messaging();
