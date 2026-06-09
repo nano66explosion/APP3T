@@ -809,12 +809,6 @@ body.page-hsupp #page-hsupp{display:block}
         <button class="back-btn refresh-btn" onclick="refreshData()" id="btn-refresh-m" title="Rafraîchir"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3.5v5h-5"/></svg></button>
       </div>
     </div>
-    <div class="month-nav mnav-hidden" id="month-nav">
-      <button class="mnav-btn" onclick="changeMonth(-1)">‹</button>
-      <select id="mois-select" onchange="renderCalendar()"></select>
-      <button class="mnav-btn" onclick="changeMonth(1)">›</button>
-      <button class="mnav-btn" onclick="goToday()" title="Revenir à aujourd'hui" style="width:auto;padding:0 10px;font-size:12px">Auj.</button>
-    </div>
   </div>
 
   <div class="stats-row" id="stats"></div>
@@ -870,6 +864,14 @@ body.page-hsupp #page-hsupp{display:block}
       <button data-scale="week" onclick="switchView('week')">Semaine</button>
       <button data-scale="grid" onclick="switchView('grid')">Mois</button>
       <button data-scale="year" onclick="switchView('year')">Année</button>
+    </div>
+    <!-- Nav du mois (‹ mois › Auj.) — placée juste au-dessus de la recherche / vue,
+         partagée par Mois / Agenda / Résumé (masquée sur Semaine / Année). -->
+    <div class="month-nav mnav-hidden" id="month-nav" style="padding:.15rem 1rem .35rem">
+      <button class="mnav-btn" onclick="changeMonth(-1)">‹</button>
+      <select id="mois-select" onchange="renderCalendar()"></select>
+      <button class="mnav-btn" onclick="changeMonth(1)">›</button>
+      <button class="mnav-btn" onclick="goToday()" title="Revenir à aujourd'hui" style="width:auto;padding:0 10px;font-size:12px">Auj.</button>
     </div>
     <!-- Grid view -->
     <div id="view-grid">
@@ -2114,7 +2116,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b56 (pull-to-refresh : même icône flèche, spin au seuil)';
+const APP_VERSION = '2026-06-09 · b57 (nav du mois déplacée juste au-dessus de la recherche)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →

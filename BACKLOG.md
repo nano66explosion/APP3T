@@ -3,7 +3,7 @@
 > Application web mono-fichier (`calendrier_3T.html`) pour gérer le planning des régies
 > d'un théâtre (3T), les heures, les heures supplémentaires et l'intermittence.
 > Déployée en PWA sur GitHub Pages.
-> **Dernière mise à jour : 2026-06-08**
+> **Dernière mise à jour : 2026-06-09**
 
 ---
 
@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b56`**.
+  Bumper à chaque évolution notable. Actuelle : **`b57`**.
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -303,6 +303,13 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - **Haptique** : `hapticTick()` = Vibration API (Android). **iOS web ne supporte pas les vibrations** (astuce `<input switch>`
   testée et abandonnée) → no-op sur iPhone.
 - **Divers** : version affichée sur l'écran de connexion ; barres de scroll masquées ; double-tap zoom désactivé.
+
+### b57 (2026-06-09) — Nav du mois repositionnée
+- La **barre de navigation du mois** (`#month-nav` : ‹ · `mois-select` · › · « Auj. ») était dans l'en-tête
+  (`.app-header`, colonne gauche). Déplacée **dans `#view-container`, juste avant `#view-grid`** (sous le sélecteur
+  d'échelle), donc **directement au-dessus de la zone de recherche** en vue Mois. Toujours **partagée** par Mois /
+  Agenda / Résumé (masquée Semaine / Année via `mnav-hidden`, logique inchangée dans `switchView`). Padding inline
+  `.15rem 1rem .35rem` pour aligner avec la `search-row`.
 
 ## 🚧 À surveiller / limites connues
 
