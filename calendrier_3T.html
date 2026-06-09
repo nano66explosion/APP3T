@@ -419,9 +419,10 @@ body.page-hsupp #page-hsupp{display:block}
 #ptr-spin{position:fixed;top:env(safe-area-inset-top,0px);left:50%;transform:translate(-50%,-46px);z-index:200;
   width:36px;height:36px;display:flex;align-items:center;justify-content:center;opacity:0;
   background:var(--surface);border:1px solid var(--border);border-radius:50%;box-shadow:0 5px 18px rgba(0,0,0,.4);pointer-events:none}
-#ptr-spin .ptr-ring{width:19px;height:19px;border:2.5px solid var(--surface3);border-top-color:var(--c3t);border-radius:50%}
-#ptr-spin.ready .ptr-ring{box-shadow:0 0 6px var(--c3t)}
-#ptr-spin.spinning .ptr-ring{animation:ptrSpin .8s linear infinite;transform:none}
+#ptr-spin .ptr-ico{width:20px;height:20px;color:var(--c3t);display:block}
+#ptr-spin .ptr-ico svg{width:100%;height:100%;display:block}
+#ptr-spin.ready{box-shadow:0 5px 20px rgba(74,222,128,.45)}
+#ptr-spin.spinning .ptr-ico{animation:ptrSpin .7s linear infinite}
 @keyframes ptrSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .cal-anim-fwd{animation:calSlideFwd .32s cubic-bezier(.22,.61,.36,1)}
 .cal-anim-back{animation:calSlideBack .32s cubic-bezier(.22,.61,.36,1)}
@@ -2113,7 +2114,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b55 (Heures safe-area, refresh en icône, swipe anti-blocage)';
+const APP_VERSION = '2026-06-08 · b56 (pull-to-refresh : même icône flèche, spin au seuil)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5405,7 +5406,7 @@ function hapticTick(ms){
   function ensurePtr(){
     if(ptr) return ptr;
     ptr=document.createElement('div'); ptr.id='ptr-spin';
-    ptr.innerHTML='<div class="ptr-ring"></div>';
+    ptr.innerHTML='<span class="ptr-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3.5v5h-5"/></svg></span>';
     document.body.appendChild(ptr);
     return ptr;
   }
@@ -5438,11 +5439,16 @@ function hapticTick(ms){
     p.style.transition='none';
     p.style.opacity=Math.min(1, pull/45).toFixed(3);
     p.style.transform='translate(-50%,'+Math.min(70, pull*0.55)+'px)';   // l'anneau descend dans l'espace révélé
-    const ring=p.querySelector('.ptr-ring'); if(ring && !p.classList.contains('spinning')) ring.style.transform='rotate('+(pull*3)+'deg)';
+    const ico=p.querySelector('.ptr-ico');
     const nowArmed = pull>=66;
-    if(nowArmed && !armed){ armed=true; haptic(14); }     // tic haptique au passage du seuil (Android)
-    if(!nowArmed) armed=false;
-    p.classList.toggle('ready', nowArmed);
+    if(nowArmed){
+      if(!armed){ armed=true; haptic(14); }                 // tic haptique au passage du seuil (Android)
+      p.classList.add('ready'); p.classList.add('spinning'); // au plus haut → la flèche se met à tourner
+      if(ico) ico.style.transform='';                        // laisse l'animation prendre le relais
+    } else {
+      armed=false; p.classList.remove('ready'); p.classList.remove('spinning');
+      if(ico) ico.style.transform='rotate('+(pull*3)+'deg)'; // sinon : rotation suit le pull
+    }
   }, {passive:true});
 
   function end(){
@@ -5451,7 +5457,7 @@ function hapticTick(ms){
     const p=ptr; if(!p) return;
     if(p.classList.contains('ready')){
       refreshing=true; haptic(18);
-      const ring=p.querySelector('.ptr-ring'); if(ring) ring.style.transform='';
+      const ico=p.querySelector('.ptr-ico'); if(ico) ico.style.transform='';
       p.style.transition='transform .25s cubic-bezier(.22,.61,.36,1),opacity .2s';
       p.style.opacity='1'; p.style.transform='translate(-50%,22px)';
       p.classList.add('spinning'); p.classList.remove('ready');

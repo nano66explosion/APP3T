@@ -3,15 +3,16 @@
 > Application web mono-fichier (`calendrier_3T.html`) pour gérer le planning des régies
 > d'un théâtre (3T), les heures, les heures supplémentaires et l'intermittence.
 > Déployée en PWA sur GitHub Pages.
-> **Dernière mise à jour : 2026-06-07**
+> **Dernière mise à jour : 2026-06-08**
 
 ---
 
 ## 🏷️ Versions
 
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
-- **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 1855),
-  visible **en bas de ⚙️ Paramètres**. Bumper à chaque évolution notable. Actuelle : **`b12`**.
+- **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
+  visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
+  Bumper à chaque évolution notable. Actuelle : **`b56`**.
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -279,25 +280,29 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   zoom-in vers une échelle plus fine, dézoom vers une plus large. `currentView` ∈ {week, grid, year, list, resume} ;
   `CAL_SCALES`/`SCALE_ORDER`/`calLastScale` ; `openCal()` rouvre la dernière échelle.
 
-### Refonte disposition (2026-06-08, b49)
+### Refonte disposition + gestes (état b56, 2026-06-08)
+- **Structure « pages »** : `#app-screen > #pages > [#page-home, #page-hsupp] + bottom-nav`. Chaque page glisse en
+  entier (mobile). **PC préservé** : `#pages`/`#page-home`/`#page-hsupp` en `display:contents` (≥768px) → la mise en
+  page 2 colonnes (`app-col-left`/`app-col-right`) reste intacte. Visibilité des pages via la classe `body.page-hsupp`.
 - **Bottom-nav 3 boutons** (icônes **SVG** sobres, `stroke:currentColor` → clair/sombre) : **Heures** (horloge, gauche) ·
-  **Home** (calendrier, centre) · **Plus** (grille, droite). `bnav-hsupp`/`bnav-home`/`bnav-more`.
-- **Page Home** = calendrier (Semaine/Mois/Année au sélecteur) **+ agenda** : bouton `#btn-agenda-toggle` (Mois ↔ Liste,
-  `toggleAgenda`) visible en vue Mois/Liste. L'agenda garde ses filtres. `HOME_VIEWS=['week','grid','year','list']`.
-- **Pages swipables** : 0=Heures (gauche) · 1=Home (centre). Swipe gauche depuis Home → ouvre le volet **Plus**.
-  `currentPageIdx`/`pageView`, `homeLastView`.
-- **Page Heures** : tout l'en-tête (stats, régie du jour, voir équipe, légende) masqué via `body.page-hsupp`.
-- **Bouton Paramètres** retiré de l'en-tête mobile (dispo dans Plus). **Volet Plus** : ouverture animée (slide-up + fondu).
-
-### Navigation par pages + gestes (2026-06-08)
-- **Pages swipables** : `SWIPE_ORDER = ['list','week','grid','year','hsupp']` (Agenda · Semaine · Mois · Année · Heures).
-  Carrousel interactif (la vue voisine est pré-rendue via `renderInto` + `_calPreview`, glisse pendant le drag).
-  `SCALE_ORDER` = mêmes indices pour le sens des animations. Bottom-nav : Calendrier · Agenda · Heures · Plus.
-- **Heures = PAGE** (`#view-hsupp`, `renderHsupp`/`loadHsuppFile`), plus une modale. `openHsupp()`=`switchView('hsupp')`.
-- **Pull-to-refresh** : overscroll natif (la page descend) + anneau en haut, déclenché en haut de page (scroll body).
-- **Haptique** : `hapticTick()` = Vibration API (Android) + astuce `<input switch>` (iOS 17.4+, best-effort).
-- **Volet « Plus »** : fermeture au swipe vers le bas. **Régisseur centré** dans l'en-tête mobile.
-- Détail heures (accueil) : croix OK (hover restreint à `hover:hover`), total = **heures spect + heures supp du mois** (cache).
+  **Home** (calendrier, centre) · **Plus** (grille, droite). `bnav-hsupp`/`bnav-home`/`bnav-more`, `updateBottomNav`.
+- **Page Home** = calendrier (`HOME_VIEWS=['week','grid','year','list']`) : Semaine/Mois/Année au **sélecteur**
+  (`#cal-scale-switch`) **+ agenda** via bouton `#btn-agenda-toggle` (Mois ↔ Liste, `toggleAgenda`, visible en Mois/Liste).
+- **Page Heures** = `#view-hsupp` dans `#page-hsupp` (plus une modale ; `openHsupp()`=`switchView('hsupp')`).
+  `.hsupp-page` a une marge **safe-area** en haut (Dynamic Island).
+- **Carrousel unifié** (`initCalCarousel`, geste sur `#app-screen`) : séquence `SEQ=['hsupp','week','grid','year']`,
+  `seqIdx()` (list≈grid). Deux animations : **scale** (Semaine/Mois/Année → seule la VUE glisse, voisine pré-rendue via
+  `renderInto`+`_calPreview`) et **page** (Home↔Heures → la PAGE entière glisse, `#page-home`/`#page-hsupp`). Verrou
+  `animating` + capture locale des éléments (`settle`) = plus de blocage au milieu. `SCALE_ORDER` = sens des switch au tap.
+- **Pull-to-refresh** (`initPullToRefresh`, sur `document`, haut de page seulement, désactivé si un volet ouvert) :
+  overscroll natif (la page descend) + **pastille flottante** en haut avec **l'icône flèche refresh** ; la flèche **tourne
+  avec le pull** puis **spin continu dès le seuil atteint** (classe `.spinning` = `@keyframes ptrSpin`). Même icône que le
+  **bouton 🔄** de l'en-tête (`#btn-refresh`/`#btn-refresh-m`, classe `.refresh-btn`, qui tourne pendant `refreshData`).
+- **Volet « Plus »** : ouverture **animée** (slide-up + fondu, `openMoreMenu`) + fermeture au **swipe vers le bas** ou clic
+  ailleurs (animé, `closeMoreMenu`). **Bouton Paramètres retiré** de l'en-tête mobile (dispo dans Plus).
+- **Haptique** : `hapticTick()` = Vibration API (Android). **iOS web ne supporte pas les vibrations** (astuce `<input switch>`
+  testée et abandonnée) → no-op sur iPhone.
+- **Divers** : version affichée sur l'écran de connexion ; barres de scroll masquées ; double-tap zoom désactivé.
 
 ## 🚧 À surveiller / limites connues
 
