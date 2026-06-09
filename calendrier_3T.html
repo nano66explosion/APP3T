@@ -2110,7 +2110,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b53 (swipe pages : la vue interne s\'affiche pendant l\'animation)';
+const APP_VERSION = '2026-06-08 · b54 (carrousel calendrier Semaine/Mois/Année + swipe page Heures réunis)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5281,55 +5281,78 @@ function updateBottomNav(){
   set('bnav-home', HOME_VIEWS.includes(currentView));
 }
 
-// ── Carrousel horizontal : la PAGE ENTIÈRE glisse (Home ↔ Heures) ──
+// ── Carrousel : Heures · Semaine · Mois · Année ──
+// Scale (Semaine/Mois/Année) → seule la VUE calendrier glisse.
+// Passage Home ↔ Heures → la PAGE ENTIÈRE glisse.
 (function initCalCarousel(){
   const pages = document.getElementById('pages');
+  const vc = document.getElementById('view-container');
   const gestureEl = document.getElementById('app-screen') || pages;
   if(!pages || !gestureEl) return;
-  // Pré-remplit le formulaire heures (selects) pour que l'aperçu de swipe soit complet
   try{ _calPreview=true; renderHsupp(); _calPreview=false; }catch(_){}
-  let sx=0, sy=0, decided=false, mode=null, w=1;     // mode: 'h' | 'scroll'
-  let curEl=null, nbEl=null, nbInnerEl=null, dir=0;
-  const pageEl = idx => idx===0 ? document.getElementById('page-hsupp') : (idx===1 ? document.getElementById('page-home') : null);
-  const pageDefView = idx => idx===0 ? 'hsupp' : (homeLastView || 'week');
-  const innerView = idx => idx===0 ? 'hsupp' : (homeLastView || 'week');
-  function clearEl(el){ if(!el) return; el.style.transition=''; el.style.transform=''; el.style.position=''; el.style.top=''; el.style.left=''; el.style.right=''; el.style.zIndex=''; el.style.display=''; }
-  function cleanup(){ clearEl(curEl); clearEl(nbEl); curEl=nbEl=null; nbInnerEl=null; dir=0; }
+  const SEQ = ['hsupp','week','grid','year'];          // ordre linéaire du swipe
+  const seqIdx = () => currentView==='list' ? 2 : SEQ.indexOf(currentView);
+  const viewEl = s => document.getElementById('view-'+s);
+  const pageWrap = isH => document.getElementById(isH ? 'page-hsupp' : 'page-home');
+  function renderInto(view){ const s=currentView; currentView=view; _calPreview=true; try{renderCalendar()}catch(_){} _calPreview=false; currentView=s; }
+
+  let sx=0, sy=0, decided=false, mode=null, w=1;
+  let curEl=null, nbEl=null, nbInner=null, dir=0, slideType=null;
+  function clearT(el){ if(!el) return; el.style.transition=''; el.style.transform=''; el.style.position=''; el.style.top=''; el.style.left=''; el.style.right=''; el.style.zIndex=''; }
+  function cleanup(committed){
+    clearT(curEl); clearT(nbEl);
+    if(slideType==='page'){
+      if(curEl) curEl.style.display='';
+      if(nbEl) nbEl.style.display='';
+      if(!committed && nbInner) nbInner.style.display='none';   // springback : recache la vue interne
+    } else if(slideType==='scale'){
+      if(!committed && nbEl) nbEl.style.display='none';         // springback : recache la vue voisine
+    }
+    curEl=nbEl=nbInner=null; dir=0; slideType=null;
+  }
 
   gestureEl.addEventListener('touchstart', e=>{
-    decided=false; mode=null; curEl=nbEl=null; nbInnerEl=null;
+    decided=false; mode=null; curEl=nbEl=null; nbInner=null; slideType=null;
     if(e.touches.length!==1){ decided=true; return; }
     sx=e.touches[0].clientX; sy=e.touches[0].clientY;
     w = pages.clientWidth || window.innerWidth || 1;
   }, {passive:true});
 
   gestureEl.addEventListener('touchmove', e=>{
-    if(decided && mode!=='h') return;                 // 'scroll' → scroll natif
+    if(decided && mode!=='h') return;
     const dx=e.touches[0].clientX-sx, dy=e.touches[0].clientY-sy;
     if(!decided){
       if(Math.abs(dx)<6 && Math.abs(dy)<6) return;
       decided=true;
-      const pi = currentPageIdx();
-      if(Math.abs(dx) > Math.abs(dy)*1.2 && (pi===0 || pi===1)){
+      const idx = seqIdx();
+      if(Math.abs(dx) > Math.abs(dy)*1.2 && idx>=0){
         mode='h';
-        dir = dx<0 ? 1 : -1;                            // gauche → Heures (à droite de Home ? non : Heures à gauche)
-        curEl = pageEl(pi);
-        const np = pi+dir, nb = pageEl(np);
-        if((np===0||np===1) && nb){
-          nbEl = nb;
-          // Affiche la vue interne de la page entrante (sinon elle glisse vide)
-          nbInnerEl = document.getElementById('view-'+innerView(np));
-          if(nbInnerEl) nbInnerEl.style.display='';
-          const top = (window.pageYOffset || document.scrollingElement.scrollTop || 0) + 'px';
-          nbEl.style.display='block'; nbEl.style.position='absolute'; nbEl.style.top=top; nbEl.style.left='0'; nbEl.style.right='0'; nbEl.style.zIndex='3'; nbEl.style.transition='none'; nbEl.style.transform='translateX('+(dir*100)+'%)';
-        } else { nbEl=null; }
+        dir = dx<0 ? 1 : -1;
+        const ni = idx+dir, target = (ni>=0 && ni<SEQ.length) ? SEQ[ni] : null;
+        const crossesPage = currentView==='hsupp' || target==='hsupp';
+        slideType = crossesPage ? 'page' : 'scale';
+        curEl = (slideType==='page') ? pageWrap(currentView==='hsupp') : viewEl(currentView);
         if(curEl) curEl.style.transition='none';
+        if(target){
+          if(slideType==='page'){
+            nbEl = pageWrap(target==='hsupp');
+            nbInner = viewEl(target==='hsupp' ? 'hsupp' : target);
+            if(nbInner) nbInner.style.display='';
+            const top = (window.pageYOffset || document.scrollingElement.scrollTop || 0) + 'px';
+            nbEl.style.display='block'; nbEl.style.position='absolute'; nbEl.style.top=top; nbEl.style.left='0'; nbEl.style.right='0'; nbEl.style.zIndex='3'; nbEl.style.transition='none'; nbEl.style.transform='translateX('+(dir*100)+'%)';
+          } else {
+            renderInto(target);
+            nbEl = viewEl(target);
+            const top = ((curEl?curEl.offsetTop:0) + (vc?vc.scrollTop:0)) + 'px';
+            if(nbEl){ nbEl.style.display=''; nbEl.style.position='absolute'; nbEl.style.top=top; nbEl.style.left='0'; nbEl.style.right='0'; nbEl.style.zIndex='3'; nbEl.style.transition='none'; nbEl.style.transform='translateX('+(dir*100)+'%)'; }
+          }
+        } else { nbEl=null; }
       } else { mode='scroll'; }
     }
     if(mode==='h'){
       e.preventDefault();
       let move=dx;
-      if(!nbEl) move*=0.34;                  // pas de page voisine de ce côté → élastique
+      if(!nbEl) move*=0.34;
       if(curEl) curEl.style.transform='translateX('+move+'px)';
       if(nbEl) nbEl.style.transform='translateX(calc('+(dir*100)+'% + '+move+'px))';
     }
@@ -5338,18 +5361,19 @@ function updateBottomNav(){
   function endGesture(e){
     if(mode==='h'){
       const dx=(e.changedTouches?e.changedTouches[0].clientX:sx)-sx;
-      const np = currentPageIdx()+dir;
+      const ni = seqIdx()+dir;
+      const target = (ni>=0 && ni<SEQ.length) ? SEQ[ni] : null;
       const tr='transform .22s cubic-bezier(.22,.61,.36,1)';
-      const commit = nbEl && (np===0||np===1) && Math.abs(dx) > Math.min(70, w*0.18);
+      const commit = nbEl && target && Math.abs(dx) > Math.min(70, w*0.18);
+      const st = slideType;
       if(commit){
         if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX('+(-dir*w)+'px)'; }
         if(nbEl){ nbEl.style.transition=tr; nbEl.style.transform='translateX(0)'; }
-        setTimeout(()=>{ cleanup(); window.scrollTo(0,0); switchView(pageDefView(np), true); }, 220);
+        setTimeout(()=>{ cleanup(true); if(st==='page') window.scrollTo(0,0); switchView(target, true); }, 220);
       } else {
         if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX(0)'; }
         if(nbEl){ nbEl.style.transition=tr; nbEl.style.transform='translateX('+(dir*100)+'%)'; }
-        const innerToHide = nbInnerEl;
-        setTimeout(()=>{ if(innerToHide) innerToHide.style.display='none'; cleanup(); }, 240);
+        setTimeout(()=>cleanup(false), 240);
       }
     }
     decided=false; mode=null;
