@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b62`**.
+  Bumper à chaque évolution notable. Actuelle : **`b64`**.
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -73,16 +73,20 @@
   Barrière légère (Origin forgeable hors navigateur) — la vraie protection reste le secret du compte de
   service. **Redéployer le Worker** après modif de `cloudflare/worker.js`.
 - **Firebase Auth — EN COURS (b62, déploiement par étapes)** :
-  - **Phase 1 (b62, FAIT côté code)** : l'app ouvre une **session Firebase Auth** réutilisant le **jeton Google
-    déjà obtenu** (`firebaseSignIn` → `signInWithCredential(GoogleAuthProvider.credential(null, accessToken))`,
-    appelé dans `onAuthenticated` avant toute lecture Firestore). **Aucune 2ᵉ connexion / pas de popup-redirect**
-    → compatible **PWA iOS**. Scopes élargis `openid email profile` (`SCOPE_VERSION` 4→**5** = un re-consentement).
-    Lib `firebase-auth-compat` ajoutée. `signOut` à la déconnexion. **Les règles restent permissives** à ce stade
-    (rien ne casse si l'auth échoue : try/catch silencieux).
-    - **⚠️ Pré-requis console** : activer **Authentication → Sign-in method → Google → Enable** (sinon
-      `auth/operation-not-allowed`). Vérifier les **domaines autorisés** (`nano66explosion.github.io`).
-    - **À TESTER sur iPhone + PC** : la connexion fonctionne toujours, et dans la console Firebase →
-      Authentication, un **utilisateur apparaît** après connexion.
+  - **Phase 1 (b62→b64, FAIT côté code)** : l'app ouvre une **session Firebase Auth** réutilisant le **jeton Google
+    déjà obtenu**, **sans 2ᵉ connexion ni popup/redirect** → compatible **PWA iOS**.
+    - ❌ `signInWithCredential(GoogleAuthProvider.credential(null, accessToken))` (b62) → **échec `auth/invalid-credential`**
+      (Firebase refuse un simple access_token Drive).
+    - ✅ **b64 — via le Worker Cloudflare** : `firebaseSignIn(token)` `POST {action:'firebaseToken', googleAccessToken}`
+      au Worker → le Worker vérifie l'identité (`oauth2/v3/userinfo`) puis **signe un custom token Firebase**
+      (`makeFirebaseCustomToken`, RS256, clé du compte de service, `uid='g_'+sub`, claims email/name) → l'app
+      `signInWithCustomToken`. **N'exige PAS d'activer le fournisseur Google** dans Firebase Auth (les custom tokens
+      marchent d'office). Scopes `openid email profile` (`SCOPE_VERSION`=5, un re-consentement). Lib
+      `firebase-auth-compat` chargée. `signOut` à la déconnexion. **Règles encore permissives** (rien ne casse si KO).
+    - **Indicateur visible** (b63) en bas des **Paramètres** : 🔐 connecté (email) / 🔓 non + code d'erreur.
+    - **⚠️ Pré-requis** : **redéployer le Worker** (`cloudflare/worker.js`, nouvelle route `firebaseToken`).
+    - **À TESTER sur iPhone + PC** : reconnexion OK + indicateur **vert** dans Paramètres (et user visible dans
+      Console Firebase → Authentication).
   - **Phase 2 (À FAIRE une fois la phase 1 validée)** : durcir `firestore.rules` en exigeant
     `request.auth != null` (lecture + écriture) → bloque tout accès anonyme/REST, protège les emails de `profiles`.
     Option : restreindre aux emails des régisseurs (allowlist). **Ne pas faire avant confirmation** que tout le

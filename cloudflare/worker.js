@@ -47,6 +47,33 @@ export default {
 
     let body;
     try { body = await request.json(); } catch (e) { return cors(json({ error: 'bad json' }, 400), origin); }
+
+    // ── Échange d'identité : jeton Google → jeton sur-mesure Firebase ──────────
+    // L'app envoie son access_token Google ; on vérifie l'identité via userinfo,
+    // puis on signe un custom token Firebase (RS256, clé du compte de service).
+    // Permet d'ouvrir une session Firebase Auth en PWA iOS (sans popup/redirect).
+    if (body && body.action === 'firebaseToken') {
+      const gtoken = body.googleAccessToken;
+      if (!gtoken) return cors(json({ error: 'missing token' }, 400), origin);
+      let saA;
+      try { saA = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); }
+      catch (e) { return cors(json({ error: 'service account manquant/invalide' }, 500), origin); }
+      try {
+        const ui = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: 'Bearer ' + gtoken }
+        });
+        if (!ui.ok) return cors(json({ error: 'jeton Google invalide' }, 401), origin);
+        const info = await ui.json();
+        if (!info || !info.sub) return cors(json({ error: 'identité Google introuvable' }, 401), origin);
+        const ct = await makeFirebaseCustomToken(saA, 'g_' + info.sub, {
+          email: info.email || '', name: info.name || ''
+        });
+        return cors(json({ token: ct, email: info.email || '' }), origin);
+      } catch (e) {
+        return cors(json({ error: String((e && e.message) || e) }, 500), origin);
+      }
+    }
+
     const id = body && body.id;
     if (!id) return cors(json({ error: 'missing id' }, 400), origin);
 
@@ -105,6 +132,26 @@ export default {
     }
   }
 };
+
+/* ── Custom token Firebase (RS256, clé du compte de service) ───────────────────
+   Ouvre une session Firebase Auth côté app via signInWithCustomToken. */
+async function makeFirebaseCustomToken(sa, uid, claims) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+    iat: now, exp: now + 3600,
+    uid: String(uid).slice(0, 128),
+    claims: claims || {}
+  };
+  const enc = (o) => b64url(new TextEncoder().encode(JSON.stringify(o)));
+  const unsigned = enc(header) + '.' + enc(payload);
+  const key = await importKey(sa.private_key);
+  const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(unsigned));
+  return unsigned + '.' + b64url(new Uint8Array(sig));
+}
 
 /* ── OAuth2 : JWT signé RS256 → access_token (scope cloud-platform) ─────────── */
 async function getAccessToken(sa) {
