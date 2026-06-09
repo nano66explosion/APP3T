@@ -403,10 +403,10 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   `reauth()` = Worker d'abord, sinon ancien `silentRefresh`. **Refresh token jamais exposé à l'app** ; `client_secret`
   uniquement dans le Worker. **Mode test Google → session ~7 jours** (pour l'infini : publier + validation Google).
   **Fallback total** : si Worker/secret/KV non configurés → comportement implicite 1h inchangé (rien ne casse).
-  - **⚠️ Config requise (one-time)** : Worker secret **`GOOGLE_CLIENT_SECRET`** (Google Cloud → OAuth client) +
-    **KV namespace bindé `TOKENS`** + **redéployer le Worker**. *Authorized JS origins* du client OAuth =
-    `https://nano66explosion.github.io`. Si pas de refresh token rendu (consentement déjà accordé) → révoquer une
-    fois l'accès sur myaccount.google.com/permissions puis reconnexion.
+  - **Config (faite + vérifiée PC/iPhone le 2026-06-10)** : Worker secret **`GOOGLE_CLIENT_SECRET`** (Google Cloud →
+    OAuth client) + **KV namespace bindé `TOKENS`** + Worker redéployé. *Authorized JS origins* du client OAuth =
+    `https://nano66explosion.github.io`. *(En cas de réinstall/rotation : si pas de refresh token rendu car
+    consentement déjà accordé → révoquer une fois l'accès sur myaccount.google.com/permissions puis reconnexion.)*
 - **Notifications push** : **formations = INSTANTANÉ** via le Worker Cloudflare (cf. section Backend). Le reste
   (STOP heures supp, « régie demain », « bilan soirée », rattrapage formations) passe par le **cron GitHub Actions
   `*/15`** (best-effort, parfois 15-40 min ; ne jamais redescendre sous ~15 min, GitHub ignore les crons rapprochés).
