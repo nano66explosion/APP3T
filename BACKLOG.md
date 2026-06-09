@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b71`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b72`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -20,7 +20,11 @@
 
 - **Formations → INSTANTANÉ** via **Worker Cloudflare** (`https://formation-notif.nano66explosion.workers.dev/`,
   code `cloudflare/worker.js`, secret `FIREBASE_SERVICE_ACCOUNT`). L'app appelle `notifyFormationNow(id)` à la
-  création (`FORMATION_WORKER_URL` en dur ~ligne 1882). Le Worker envoie le push en quelques secondes + `notified:true`.
+  création (`FORMATION_WORKER_URL`). Le Worker envoie le push en quelques secondes + `notified:true`.
+- **Route Worker générique `action:'notify'` (b72)** : push instantané à toute l'équipe (réunion confirmée,
+  nouvelle note…) — `notifyAll(title, body, {url,tag,pref,excludeReg})` côté app, **protégée par le jeton
+  d'identité Firebase**. Le Worker gère aussi `firebaseToken` (session Firebase), `exchangeCode`/`refreshToken`
+  (session Drive persistante).
 - **Cron GitHub `*/15` = FILET DE SECOURS** (toutes les 15 min, best-effort). Gère le **STOP heures supp**, « régie
   demain », « bilan soirée », et **rattrape** une formation seulement si le Worker a échoué (`notified` encore `false`).
   ⚠️ Les crons rapprochés (`*/5`) sont **ignorés par GitHub** → ne jamais redescendre sous ~15 min.
@@ -295,7 +299,11 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   arrayUnion/Remove), le créneau le plus large s'affiche en **vert ★ top**. Suppression d'un créneau par son auteur.
 - Entrées : bouton **🗓️ Réunion** dans l'en-tête PC + menu **⋯ Plus** (mobile). Modale `meeting-modal`,
   fonctions `openMeeting`/`loadMeetingSlots`/`submitMeetingSlot`/`renderMeetingSlots`. Les créneaux **passés sont
-  masqués** (auto-nettoyage d'un mois sur l'autre). **Pas de push** (consultation in-app, décision 2026-06-08).
+  masqués** (auto-nettoyage d'un mois sur l'autre).
+- **Créneau retenu (b72)** : bouton **« ✓ Retenir ce créneau »** → champ `chosen:true` (un seul à la fois, batch
+  qui retire le flag des autres ; `chooseMeetingSlot`/`unchooseMeetingSlot`). Le créneau confirmé remonte en tête,
+  bordure verte + badge **✅ Confirmé**. **Push à toute l'équipe** « 🗓️ Réunion confirmée … » via la route Worker
+  `action:'notify'` (pref `info`).
 
 ### Accueil : prochaine régie + rappel heures supp
 - **Prochaine régie** (`nextRegie`/`nextRegieHTML`) : quand pas de régie aujourd'hui, la carte « Régie du jour »
@@ -309,6 +317,8 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - Section **📝 Notes** (en-tête PC + menu Plus mobile) : chaque régisseur écrit une note, **tout le monde la voit**.
   Collection Firestore **`notes`** (`text`, `by`, `createdAt`). **Règle Firestore `notes` requise.** Modale `notes-modal`,
   fonctions `openNotes`/`loadNotes`/`submitNote`/`deleteNote`/`renderNotes`. Suppression par l'auteur. Tri plus récent en haut.
+- **Push à la publication (b72)** : `submitNote` appelle `notifyAll('📝 Nouvelle note de …', texte, {pref:'info', excludeReg:auteur})`
+  (route Worker `action:'notify'`) → les autres sont prévenus (respecte la préférence « info »).
 
 ### Résumé → Heures calculées : bloc « 💼 comptés en heures supp »
 - Affiche `heures.hsupp` (Blind Test, Faux British…) avec la mention « heures supp » au lieu d'une valeur.

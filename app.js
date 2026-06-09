@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b71 (session Google persistante ~7j via Worker/KV — refresh sans popup)';
+const APP_VERSION = '2026-06-10 · b72 (confort : toasts au lieu d\'alert, réunion « créneau retenu » + notif, notif Notes)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1083,9 +1083,9 @@ function isStandalone(){ return window.navigator.standalone === true || window.m
 function requestNotifications(){
   if(!notifSupported()){
     if(isIOS() && !isStandalone()){
-      alert("Sur iPhone, les notifications ne marchent que si l'app est installée :\n\n1. Appuie sur le bouton Partager (carré avec une flèche)\n2. « Sur l'écran d'accueil »\n3. Ouvre l'app depuis l'icône, puis réessaie d'activer les rappels.");
+      toast("📲 Installe l'app (Partager → « Sur l'écran d'accueil ») pour activer les notifications iOS", 'err');
     } else {
-      alert("Ton navigateur ne gère pas les notifications.");
+      toast("Ton navigateur ne gère pas les notifications.", 'err');
     }
     return;
   }
@@ -1478,7 +1478,7 @@ function toast(msg, type){
 // kind : 'plan' (plan tech) ou 'base' (base heures spectacles)
 function pickDriveFile(kind) {
   kind = kind || 'plan';
-  if (!accessToken) { alert('Connecte-toi d\'abord à Google.'); return; }
+  if (!accessToken) { toast('Connecte-toi d\'abord à Google.', 'err'); return; }
 
   gapi.load('picker', () => {
     const view = new google.picker.DocsView()
@@ -2156,6 +2156,24 @@ function notifyFormationNow(id){
   }catch(e){}
 }
 
+// Push instantané générique à toute l'équipe (réunion confirmée, nouvelle note…)
+// via le Worker. opts : {url, tag, pref, excludeReg}. Échec silencieux.
+async function notifyAll(title, bodyText, opts){
+  opts = opts || {};
+  if(!FORMATION_WORKER_URL || !bodyText) return;
+  try{
+    const user = await ensureFirebaseReady();
+    if(!user) return;
+    const idToken = await user.getIdToken();
+    await fetch(FORMATION_WORKER_URL, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'notify', firebaseIdToken: idToken,
+        title, body: bodyText, url: opts.url || '', tag: opts.tag || 'info',
+        pref: opts.pref || '', excludeReg: opts.excludeReg || '' })
+    });
+  }catch(e){ console.warn('notifyAll:', e); }
+}
+
 async function toggleFormation(id){
   if(blockIfOffline()) return;
   const me = myRegName() || getMyReg() || '';
@@ -2232,7 +2250,7 @@ async function loadMeetingSlots(){
     _meetingSlots = [];
     snap.forEach(doc => {
       const d = doc.data();
-      _meetingSlots.push({ id:doc.id, date:d.date||'', time:d.time||'', by:d.by||'', available:d.available||[] });
+      _meetingSlots.push({ id:doc.id, date:d.date||'', time:d.time||'', by:d.by||'', available:d.available||[], chosen:d.chosen===true });
     });
     _meetingSlots.sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
     renderMeetingSlots();
@@ -2303,6 +2321,48 @@ async function deleteMeetingSlot(id){
   catch(e){ toast('❌ '+e.message,'err'); } finally{ showBusy(false); }
 }
 
+// Marque un créneau comme retenu (réunion confirmée) : un seul à la fois, puis
+// prévient toute l'équipe par notification.
+async function chooseMeetingSlot(id){
+  if(blockIfOffline()) return;
+  const me = myRegName() || getMyReg() || '';
+  initFirebase(); if(!_fbDb) return;
+  const slot = _meetingSlots.find(s => s.id === id);
+  if(!slot) return;
+  try{
+    showBusy(true);
+    // Un seul créneau retenu : on enlève le flag des autres, on le met sur celui-ci.
+    const batch = _fbDb.batch();
+    _meetingSlots.forEach(s => {
+      if(s.chosen && s.id !== id) batch.update(_fbDb.collection('meetingSlots').doc(s.id), { chosen:false });
+    });
+    batch.update(_fbDb.collection('meetingSlots').doc(id), { chosen:true });
+    await batch.commit();
+    await loadMeetingSlots();
+    toast('✅ Réunion confirmée', 'ok');
+    const d = slot.date ? new Date(slot.date+'T00:00:00') : null;
+    const jourStr = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+    const moisStr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+    const lbl = d ? `${jourStr[d.getDay()]} ${d.getDate()} ${moisStr[d.getMonth()]}` : slot.date;
+    notifyAll('🗓️ Réunion confirmée',
+      `${lbl}${slot.time?' à '+slot.time:''} (par ${me||'—'})`,
+      { pref:'info', tag:'meeting', url:'' });
+  }catch(e){ toast('❌ '+e.message,'err'); }
+  finally{ showBusy(false); }
+}
+// Annule le choix (revient au sondage).
+async function unchooseMeetingSlot(id){
+  if(blockIfOffline()) return;
+  initFirebase(); if(!_fbDb) return;
+  try{
+    showBusy(true);
+    await _fbDb.collection('meetingSlots').doc(id).update({ chosen:false });
+    await loadMeetingSlots();
+    toast('Choix annulé', 'ok');
+  }catch(e){ toast('❌ '+e.message,'err'); }
+  finally{ showBusy(false); }
+}
+
 function renderMeetingSlots(){
   const box = document.getElementById('meeting-list');
   if(!box) return;
@@ -2317,22 +2377,31 @@ function renderMeetingSlots(){
   const maxV = Math.max(...slots.map(s => (s.available||[]).length));
   const jourStr = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
   const moisStr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  // Le créneau retenu (réunion confirmée) remonte en tête.
+  slots.sort((a,b) => (b.chosen?1:0)-(a.chosen?1:0) || (a.date+a.time).localeCompare(b.date+b.time));
   box.innerHTML = slots.map(s => {
     const av = s.available || [];
     const iIn = av.includes(me);
-    const isBest = maxV > 0 && av.length === maxV;
+    const isBest = !s.chosen && maxV > 0 && av.length === maxV;
     const d = s.date ? new Date(s.date+'T00:00:00') : null;
     const dateLbl = d ? `${jourStr[d.getDay()]} ${d.getDate()} ${moisStr[d.getMonth()]}` : escapeHtml(s.date);
     const who = av.length ? av.map(escapeHtml).join(', ') : 'Personne pour l\'instant';
     const del = (s.by && s.by===me) ? `<button class="mt-del" onclick="deleteMeetingSlot('${safeId(s.id)}')" title="Supprimer">🗑️</button>` : '';
-    return `<div class="mt-card${isBest?' best':''}">
+    const chooseBtn = me ? (s.chosen
+      ? `<button class="mt-join" onclick="unchooseMeetingSlot('${safeId(s.id)}')">↩︎ Annuler le choix</button>`
+      : `<button class="mt-join" onclick="chooseMeetingSlot('${safeId(s.id)}')">✓ Retenir ce créneau</button>`) : '';
+    const badge = s.chosen
+      ? '<span class="mt-best-badge" style="background:var(--c3t)">✅ Confirmé</span>'
+      : (isBest ? '<span class="mt-best-badge">★ top</span>' : '');
+    return `<div class="mt-card${isBest?' best':''}"${s.chosen?' style="border-color:var(--c3t);box-shadow:0 0 0 1.5px var(--c3t)"':''}>
       <div class="mt-top">
-        <span class="mt-when">${dateLbl}${s.time?` · ${escapeHtml(s.time)}`:''}${isBest?'<span class="mt-best-badge">★ top</span>':''}</span>
+        <span class="mt-when">${dateLbl}${s.time?` · ${escapeHtml(s.time)}`:''}${badge}</span>
         <span class="mt-count">✓ ${av.length}</span>
       </div>
       <div class="mt-who">${who}</div>
       <div class="mt-actions">
         <button class="mt-join${iIn?' in':''}" onclick="toggleMeetingAvail('${safeId(s.id)}')">${iIn?'✓ Je suis dispo':'+ Je suis dispo'}</button>
+        ${chooseBtn}
         ${del}
       </div>
     </div>`;
@@ -2380,6 +2449,9 @@ async function submitNote(){
     document.getElementById('note-text').value = '';
     if(err) err.textContent = '';
     await loadNotes();
+    // Prévient les autres (respecte la préférence « info », pas l'auteur)
+    notifyAll('📝 Nouvelle note de ' + (me || '—'), text.slice(0, 120),
+      { pref:'info', excludeReg: me, tag:'note', url:'' });
     toast('📝 Note publiée', 'ok');
   }catch(e){ if(err) err.textContent = e.message; }
   finally{ showBusy(false); }
@@ -3539,7 +3611,7 @@ async function reloadPlanSilent(){
 async function refreshData(){
   if(blockIfOffline()) return;
   const btns = [document.getElementById('btn-refresh'), document.getElementById('btn-refresh-m')].filter(Boolean);
-  if(!accessToken){ alert("Reconnecte-toi à Google d'abord."); return; }
+  if(!accessToken){ toast("Reconnecte-toi à Google d'abord.", 'err'); return; }
   btns.forEach(b=>{ b.disabled = true; b.classList.add('spinning'); });
   showBusy(true);
   try{
@@ -3591,14 +3663,11 @@ async function doPosition(i){
   const isSheet = mime === 'application/vnd.google-apps.spreadsheet';
   const isXlsx  = mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   if(!isSheet && !isXlsx){
-    alert('Type de fichier non modifiable.\nType détecté : ' + (mime || 'inconnu'));
+    toast('Type de fichier non modifiable (' + (mime || 'inconnu') + ')', 'err');
     return;
   }
   if(!hasWriteScope()){
-    alert('Le droit d\'écriture Google n\'a pas encore été accordé.\n\n'
-      + '➡️ Reviens à l\'accueil (🚪 Déconnexion), clique sur « Se connecter à Google » '
-      + 'et accepte TOUTES les autorisations demandées (dont la modification de tes fichiers Drive), '
-      + 'puis réessaie.');
+    toast('Droit d\'écriture Google non accordé — reconnecte-toi en acceptant toutes les autorisations', 'err');
     return;
   }
   let newVal, msg;

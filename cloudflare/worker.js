@@ -128,6 +128,45 @@ export default {
       }
     }
 
+    // ── Notification générique (réunion confirmée, nouvelle note…) ─────────────
+    // Protégée par le jeton d'identité Firebase. Push à tous les jetons (hors
+    // excludeReg), en respectant la préférence `pref` si fournie.
+    if (body && body.action === 'notify') {
+      const uid = await verifyFirebaseIdToken(body.firebaseIdToken);
+      if (!uid) return cors(json({ error: 'auth requise' }, 401), origin);
+      const title = (body.title || '3T TECH').slice(0, 120);
+      const text  = (body.body || '').slice(0, 300);
+      if (!text) return cors(json({ error: 'missing body' }, 400), origin);
+      let saN;
+      try { saN = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); }
+      catch (e) { return cors(json({ error: 'service account manquant/invalide' }, 500), origin); }
+      const pidN = saN.project_id;
+      try {
+        const tok = await getAccessToken(saN);
+        const docs = await firestoreList(pidN, tok, 'pushTokens');
+        const pref = body.pref || '', excl = body.excludeReg || '';
+        const tokens = [];
+        for (const d of docs) {
+          const v = parseFields(d.fields || {});
+          if (!v.token) continue;
+          if (excl && v.reg && v.reg === excl) continue;
+          if (pref && (v.prefs || {})[pref] === false) continue;
+          tokens.push(v.token);
+        }
+        const uniq = [...new Set(tokens)];
+        const link = body.url ? (APP_URL + body.url) : APP_URL;
+        const tag = (body.tag || 'info').slice(0, 60);
+        let sent = 0;
+        for (const tk of uniq) {
+          const r = await fcmSend(pidN, tok, tk, title, text, link, tag);
+          if (r.ok) sent++;
+        }
+        return cors(json({ ok: true, sent, recipients: uniq.length }), origin);
+      } catch (e) {
+        return cors(json({ error: String((e && e.message) || e) }, 500), origin);
+      }
+    }
+
     const id = body && body.id;
     if (!id) return cors(json({ error: 'missing id' }, 400), origin);
 
