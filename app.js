@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b70 (fichier découpé : app.js + style.css séparés du HTML)';
+const APP_VERSION = '2026-06-10 · b71 (session Google persistante ~7j via Worker/KV — refresh sans popup)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -944,6 +944,81 @@ function initTokenClient() {
     }
   });
   return tokenClient;
+}
+
+// ── Session Drive persistante (refresh token côté Worker) ─────────────────────
+// Attend que Firebase Auth ait restauré (ou non) la session au démarrage.
+async function ensureFirebaseReady(){
+  initFirebase();
+  if(!_fbAuth) return null;
+  if(_fbAuth.currentUser) return _fbAuth.currentUser;
+  return new Promise(res => {
+    let done = false;
+    const unsub = _fbAuth.onAuthStateChanged(u => { if(done) return; done=true; try{unsub();}catch(e){} res(u); });
+    setTimeout(() => { if(!done){ done=true; res(_fbAuth.currentUser); } }, 3000);  // garde-fou
+  });
+}
+// Échange le code d'autorisation contre une session (le refresh token reste dans le
+// Worker/KV). Renvoie true si on a obtenu un access_token.
+async function exchangeCodeForSession(code){
+  if(!FORMATION_WORKER_URL) return false;
+  try{
+    const r = await fetch(FORMATION_WORKER_URL, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'exchangeCode', code })
+    });
+    if(!r.ok) return false;
+    const j = await r.json().catch(()=>null);
+    if(!j || !j.access_token) return false;
+    saveToken(j.access_token, j.expires_in);
+    try{ localStorage.setItem('3t_granted_scopes', SCOPES); }catch(e){}
+    localStorage.setItem('3t_has_refresh', j.has_refresh ? '1' : '0');
+    return true;
+  }catch(e){ console.warn('exchangeCodeForSession:', e); return false; }
+}
+// Rafraîchit l'access_token Drive SANS popup via le Worker (marche en PWA iOS).
+// Nécessite une session Firebase (preuve d'identité). Renvoie true si OK.
+async function refreshViaWorker(){
+  if(!FORMATION_WORKER_URL) return false;
+  try{
+    const user = await ensureFirebaseReady();
+    if(!user) return false;
+    const idToken = await user.getIdToken();
+    const r = await fetch(FORMATION_WORKER_URL, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'refreshToken', firebaseIdToken: idToken })
+    });
+    if(!r.ok) return false;                      // 404 no_refresh / 501 non configuré → repli
+    const j = await r.json().catch(()=>null);
+    if(!j || !j.access_token) return false;
+    saveToken(j.access_token, j.expires_in);
+    return true;
+  }catch(e){ console.warn('refreshViaWorker:', e); return false; }
+}
+// Reconnexion silencieuse : Worker d'abord (sans popup), sinon ancien flux implicite.
+function reauth(){
+  refreshViaWorker().then(ok => { if(!ok) silentRefresh(); });
+}
+// Client "code" (flux authorization-code) pour obtenir un refresh token persistant.
+let codeClient = null;
+function initCodeClient(){
+  if(codeClient) return codeClient;
+  codeClient = google.accounts.oauth2.initCodeClient({
+    client_id: getClientId(),
+    scope: SCOPES,
+    ux_mode: 'popup',
+    callback: async (resp) => {
+      if(resp.error || !resp.code){
+        if(resp.error === 'access_denied'){ setStatus(''); loginStepsShow(false); }
+        else { setStatus('❌ Erreur : ' + (resp.error || 'connexion')); setStep('auth','error'); }
+        return;
+      }
+      const ok = await exchangeCodeForSession(resp.code);
+      if(ok){ onAuthenticated(); }
+      else { initTokenClient().requestAccessToken({ prompt: 'consent' }); }  // repli flux implicite
+    }
+  });
+  return codeClient;
 }
 
 // L'utilisateur a-t-il accordé le droit d'écriture Drive ?
@@ -1305,7 +1380,12 @@ window.addEventListener('load', () => {
     } else {
       setStatus('⏳ Reconnexion automatique…');
       loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
-      silentRefresh();
+      // Session persistante : on tente d'abord le Worker (sans popup, marche sur iOS) ;
+      // sinon ancien flux silencieux.
+      (async () => {
+        if (await refreshViaWorker()) { onAuthenticated(); }
+        else silentRefresh();
+      })();
     }
   }
 });
@@ -1314,7 +1394,13 @@ function connectGoogle() {
   const clientId = getClientId();
   if (!clientId) return; // always has a default, this won't trigger
   loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
-  // Si les scopes ont changé, on force l'écran de consentement pour obtenir les nouveaux droits.
+  // Flux "code" (session persistante ~7j via le Worker) si le Worker est configuré.
+  // En cas d'échec d'échange (Worker non configuré), repli automatique sur le flux implicite.
+  if (FORMATION_WORKER_URL && window.google && google.accounts && google.accounts.oauth2 && google.accounts.oauth2.initCodeClient) {
+    try { initCodeClient().requestCode(); return; }
+    catch (e) { console.warn('initCodeClient:', e); }
+  }
+  // Flux implicite (jeton 1h). Si les scopes ont changé, on force le consentement.
   const needConsent = localStorage.getItem('3t_scope_v') !== SCOPE_VERSION;
   initTokenClient().requestAccessToken(needConsent ? { prompt: 'consent' } : {});
 }
@@ -1327,6 +1413,7 @@ function disconnectGoogle() {
   try { if(_fbAuth && _fbAuth.currentUser) _fbAuth.signOut(); } catch(e) {}   // ferme la session Firebase Auth
   clearToken();
   localStorage.removeItem('3t_connected');
+  localStorage.removeItem('3t_has_refresh');   // (le refresh token en KV expirera seul côté Worker)
   document.getElementById('btn-connect').textContent = '🔗 Se connecter à Google';
   document.getElementById('btn-connect').style.opacity = '1';
   document.getElementById('btn-disconnect').style.display = 'none';
@@ -1443,7 +1530,7 @@ async function fetchDriveWorkbook(fileId, mimeType) {
     // Jeton en cache expiré/révoqué → on le purge et on retente en silence
     clearToken();
     setStatus('⏳ Session expirée, reconnexion…');
-    silentRefresh();
+    reauth();
     throw new Error('Session expirée — reconnexion en cours');
   }
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1454,7 +1541,7 @@ async function fetchDriveWorkbook(fileId, mimeType) {
 async function driveGetMeta(id){
   const r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType&supportsAllDrives=true`,
     { headers:{ Authorization:'Bearer '+accessToken } });
-  if(r.status===401){ clearToken(); silentRefresh(); throw new Error('Session expirée'); }
+  if(r.status===401){ clearToken(); reauth(); throw new Error('Session expirée'); }
   if(!r.ok) throw new Error(`Accès fichier impossible (HTTP ${r.status})`);
   return r.json();
 }
@@ -1528,7 +1615,7 @@ async function resolveHsuppForMonth(dateObj){
   const q = encodeURIComponent(`'${HSUPP_FOLDER_ID}' in parents and trashed=false`);
   const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     { headers:{ Authorization:'Bearer '+accessToken } });
-  if(r.status===401){ clearToken(); silentRefresh(); throw new Error('Session expirée'); }
+  if(r.status===401){ clearToken(); reauth(); throw new Error('Session expirée'); }
   if(!r.ok) throw new Error(`Lecture du dossier impossible (HTTP ${r.status})`);
   const files = (await r.json()).files || [];
   const match = files.find(f => { const n=hsNorm(f.name); return n.includes('HEURE') && n.includes(mois) && n.includes(yy); })
@@ -1545,7 +1632,7 @@ async function driveListFolder(folderId){
   const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
   const r = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,modifiedTime)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     { headers:{ Authorization:'Bearer '+accessToken } });
-  if(r.status===401){ clearToken(); silentRefresh(); throw new Error('Session expirée'); }
+  if(r.status===401){ clearToken(); reauth(); throw new Error('Session expirée'); }
   if(!r.ok) throw new Error(`Lecture du dossier impossible (HTTP ${r.status})`);
   return (await r.json()).files || [];
 }

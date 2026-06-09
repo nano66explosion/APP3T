@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b70`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b71`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -394,10 +394,19 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - **Détection couleur/barré** dépend du format exact du `.xlsx` (validée sur les fichiers actuels).
   Si la mise en forme change côté Drive, re-vérifier `parseCellStyles`.
 - **Heures supp** : limité à ~**30 lignes/onglet** (plage de la formule E3:E32 du modèle).
-- **Reconnexion** : jeton Google ~1h (flux implicite, pas de refresh token), renouvellement silencieux GIS.
-  *Idée discutée (2026-06-08, NON faite)* : session persistante via **flux authorization-code** + **refresh token stocké
-  dans Cloudflare Worker/KV**. Gratuit. Version « test Google » = 7 jours sans vérification ; « infinie » = vérification Google
-  (scope Drive sensible). Risque sécurité = endpoint à protéger (pas de vraie auth utilisateur). À faire si les déconnexions iOS gênent.
+- **Reconnexion / session persistante — FAIT (b71)** : flux **authorization-code** + **refresh token stocké dans
+  Cloudflare Worker/KV**. À la connexion, `connectGoogle` utilise `initCodeClient` (popup, `ux_mode:'popup'`) →
+  `exchangeCodeForSession(code)` POST le code au Worker (`action:'exchangeCode'`) qui l'échange (client_id +
+  **`GOOGLE_CLIENT_SECRET`**) et **stocke le refresh token en KV** (`rt:g_<sub>`, sub via userinfo), renvoie
+  l'access_token. À l'expiration (démarrage / 401), `refreshViaWorker()` (`action:'refreshToken'`, protégé par le
+  **jeton d'identité Firebase** → uid `g_<sub>`) renvoie un access_token frais **sans popup** (le gain iOS).
+  `reauth()` = Worker d'abord, sinon ancien `silentRefresh`. **Refresh token jamais exposé à l'app** ; `client_secret`
+  uniquement dans le Worker. **Mode test Google → session ~7 jours** (pour l'infini : publier + validation Google).
+  **Fallback total** : si Worker/secret/KV non configurés → comportement implicite 1h inchangé (rien ne casse).
+  - **⚠️ Config requise (one-time)** : Worker secret **`GOOGLE_CLIENT_SECRET`** (Google Cloud → OAuth client) +
+    **KV namespace bindé `TOKENS`** + **redéployer le Worker**. *Authorized JS origins* du client OAuth =
+    `https://nano66explosion.github.io`. Si pas de refresh token rendu (consentement déjà accordé) → révoquer une
+    fois l'accès sur myaccount.google.com/permissions puis reconnexion.
 - **Notifications push** : **formations = INSTANTANÉ** via le Worker Cloudflare (cf. section Backend). Le reste
   (STOP heures supp, « régie demain », « bilan soirée », rattrapage formations) passe par le **cron GitHub Actions
   `*/15`** (best-effort, parfois 15-40 min ; ne jamais redescendre sous ~15 min, GitHub ignore les crons rapprochés).

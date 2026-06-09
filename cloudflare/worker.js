@@ -22,6 +22,9 @@
 
 const APP_URL = 'https://nano66explosion.github.io/APP3T/calendrier_3T.html';
 const FS = 'https://firestore.googleapis.com/v1/projects/';
+// Identifiants publics (déjà exposés dans l'app) — pour la session Drive persistante.
+const GOOGLE_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.googleusercontent.com';
+const FIREBASE_API_KEY = 'AIzaSyDXOF7_eTKMDYp8swxmoznEfyxY8_4ArP0';
 
 // Origines autorisées (le site PWA). Bloque l'abus cross-site depuis un navigateur.
 // NB : un client non-navigateur (curl) peut forger l'en-tête Origin → barrière
@@ -69,6 +72,57 @@ export default {
           email: info.email || '', name: info.name || ''
         });
         return cors(json({ token: ct, email: info.email || '' }), origin);
+      } catch (e) {
+        return cors(json({ error: String((e && e.message) || e) }, 500), origin);
+      }
+    }
+
+    // ── Session Drive persistante : échange code OAuth ↔ refresh token (KV) ──────
+    // Le refresh token reste côté Worker (jamais renvoyé à l'app).
+    if (body && (body.action === 'exchangeCode' || body.action === 'refreshToken')) {
+      if (!env.GOOGLE_CLIENT_SECRET || !env.TOKENS) {
+        return cors(json({ error: 'persistance non configurée' }, 501), origin);
+      }
+      try {
+        if (body.action === 'exchangeCode') {
+          // 1ʳᵉ connexion : on échange le code. L'identité (uid) est dérivée du jeton
+          // fraîchement obtenu (userinfo → sub) car la session Firebase n'existe pas encore.
+          if (!body.code) return cors(json({ error: 'missing code' }, 400), origin);
+          const d = await googleToken({
+            grant_type: 'authorization_code',
+            code: body.code,
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: env.GOOGLE_CLIENT_SECRET,
+            redirect_uri: body.redirectUri || 'postmessage'
+          });
+          if (!d.access_token) return cors(json({ error: 'échange code: ' + JSON.stringify(d) }, 400), origin);
+          if (d.refresh_token) {
+            const ui = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: 'Bearer ' + d.access_token }
+            });
+            const info = ui.ok ? await ui.json() : null;
+            if (info && info.sub) await env.TOKENS.put('rt:g_' + info.sub, d.refresh_token);
+          }
+          return cors(json({ access_token: d.access_token, expires_in: d.expires_in || 3600,
+                             has_refresh: !!d.refresh_token }), origin);
+        } else {
+          // Rafraîchissement silencieux : protégé par le jeton d'identité Firebase.
+          const uid = await verifyFirebaseIdToken(body.firebaseIdToken);
+          if (!uid) return cors(json({ error: 'auth requise' }, 401), origin);
+          const rt = await env.TOKENS.get('rt:' + uid);
+          if (!rt) return cors(json({ error: 'no_refresh' }, 404), origin);
+          const d = await googleToken({
+            grant_type: 'refresh_token',
+            refresh_token: rt,
+            client_id: GOOGLE_CLIENT_ID,
+            client_secret: env.GOOGLE_CLIENT_SECRET
+          });
+          if (!d.access_token) {
+            if (d.error === 'invalid_grant') await env.TOKENS.delete('rt:' + uid);  // révoqué/expiré
+            return cors(json({ error: 'refresh: ' + (d.error || 'fail') }, 400), origin);
+          }
+          return cors(json({ access_token: d.access_token, expires_in: d.expires_in || 3600 }), origin);
+        }
       } catch (e) {
         return cors(json({ error: String((e && e.message) || e) }, 500), origin);
       }
@@ -132,6 +186,33 @@ export default {
     }
   }
 };
+
+/* ── Vérifie un jeton d'identité Firebase → renvoie l'uid (ou null) ────────────
+   Via Identity Toolkit accounts:lookup (clé API publique). Protège les routes
+   exchangeCode / refreshToken : seul l'utilisateur authentifié agit sur son jeton. */
+async function verifyFirebaseIdToken(idToken) {
+  if (!idToken) return null;
+  try {
+    const r = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + FIREBASE_API_KEY, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken })
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const u = d && d.users && d.users[0];
+    return (u && u.localId) ? u.localId : null;
+  } catch (e) { return null; }
+}
+
+/* ── Appel du endpoint de jetons Google (échange code / refresh) ──────────────── */
+async function googleToken(params) {
+  const r = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params)
+  });
+  return r.json();
+}
 
 /* ── Custom token Firebase (RS256, clé du compte de service) ───────────────────
    Ouvre une session Firebase Auth côté app via signInWithCustomToken. */
