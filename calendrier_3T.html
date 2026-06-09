@@ -271,6 +271,11 @@ select:focus{outline:none;border-color:var(--muted2)}
 .dow-header{display:grid;grid-template-columns:repeat(7,1fr);padding:.5rem 1rem .25rem;gap:2px}
 .dow{font-size:11px;font-weight:500;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.5px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;padding:0 1rem .5rem}
+/* Animation de changement de mois (glissement façon calendrier) */
+.cal-grid.mgrid-fwd{animation:mgridInRight .28s cubic-bezier(.22,.61,.36,1)}
+.cal-grid.mgrid-back{animation:mgridInLeft .28s cubic-bezier(.22,.61,.36,1)}
+@keyframes mgridInRight{from{opacity:0;transform:translateX(7%)}to{opacity:1;transform:translateX(0)}}
+@keyframes mgridInLeft{from{opacity:0;transform:translateX(-7%)}to{opacity:1;transform:translateX(0)}}
 .cal-cell{background:var(--surface);border-radius:8px;min-height:52px;padding:5px;cursor:pointer;transition:background .12s;position:relative;overflow:hidden}
 .cal-cell:hover{background:var(--surface2)}
 .cal-cell.empty{background:transparent;cursor:default;pointer-events:none}
@@ -869,7 +874,7 @@ body.page-hsupp #page-hsupp{display:block}
          partagée par Mois / Agenda / Résumé (masquée sur Semaine / Année). -->
     <div class="month-nav mnav-hidden" id="month-nav" style="padding:.15rem 1rem .35rem">
       <button class="mnav-btn" onclick="changeMonth(-1)">‹</button>
-      <select id="mois-select" onchange="renderCalendar()"></select>
+      <select id="mois-select" onchange="onMonthSelect()"></select>
       <button class="mnav-btn" onclick="changeMonth(1)">›</button>
       <button class="mnav-btn" onclick="goToday()" title="Revenir à aujourd'hui" style="width:auto;padding:0 10px;font-size:12px">Auj.</button>
     </div>
@@ -2116,7 +2121,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-09 · b58 (sélecteur Semaine/Mois/Année conservé en vue Liste)';
+const APP_VERSION = '2026-06-09 · b59 (animation de glissement au changement de mois)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -4589,9 +4594,15 @@ function goToday(){
   const now = new Date();
   const mk = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
   const sel = document.getElementById('mois-select');
+  let dir=1;
+  if(_prevMonthKey){
+    const a=allMois.findIndex(m=>m.k===_prevMonthKey), b=allMois.findIndex(m=>m.k===mk);
+    if(a>=0 && b>=0 && b<a) dir=-1;
+  }
   if([...sel.options].some(o=>o.value===mk)){ sel.value = mk; }
   selectedDay = now.getDate();
   renderCalendar();
+  animateMonthGrid(dir);
 }
 
 // Le "moi" pour le positionnement = régisseur de connexion (ou sélectionné à défaut)
@@ -4688,11 +4699,40 @@ function populateSelects(){
   }
 }
 
+// Sens du dernier changement de mois (1 = mois suivant, -1 = précédent) pour l'animation.
+let _prevMonthKey = null;
+// Glissement de la grille du mois (uniquement en vue Mois).
+function animateMonthGrid(dir){
+  if(currentView!=='grid') return;
+  const g=document.getElementById('cal-grid');
+  if(!g) return;
+  g.classList.remove('mgrid-fwd','mgrid-back');
+  void g.offsetWidth;                                  // reflow pour rejouer l'anim
+  g.classList.add(dir>=0 ? 'mgrid-fwd' : 'mgrid-back');
+  setTimeout(()=>g.classList.remove('mgrid-fwd','mgrid-back'), 320);
+}
+
 function changeMonth(d){
   const sel=document.getElementById('mois-select');
   const idx=allMois.findIndex(m=>m.k===sel.value);
-  sel.value=allMois[Math.max(0,Math.min(allMois.length-1,idx+d))].k;
+  const ni=Math.max(0,Math.min(allMois.length-1,idx+d));
+  if(ni===idx) return;                                 // déjà au bord (1er/dernier mois)
+  sel.value=allMois[ni].k;
   renderCalendar();
+  animateMonthGrid(d);
+}
+
+// Choix d'un mois dans le menu déroulant → anime selon le sens du saut.
+function onMonthSelect(){
+  const sel=document.getElementById('mois-select');
+  let dir=1;
+  if(_prevMonthKey){
+    const a=allMois.findIndex(m=>m.k===_prevMonthKey);
+    const b=allMois.findIndex(m=>m.k===sel.value);
+    if(a>=0 && b>=0 && b<a) dir=-1;
+  }
+  renderCalendar();
+  animateMonthGrid(dir);
 }
 
 
@@ -4867,6 +4907,7 @@ document.addEventListener('click', (e)=>{
 function renderCalendar() {
   const reg = getCurrentReg();
   const mk = document.getElementById('mois-select').value;
+  _prevMonthKey = mk;                       // mémorise le mois courant (sens d'anim au prochain changement)
   const [y, m] = mk.split('-').map(Number);
   const today = new Date();
   const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;

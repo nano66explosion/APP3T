@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b58`**.
+  Bumper à chaque évolution notable. Actuelle : **`b59`**.
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -316,6 +316,14 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   Désormais il **reste visible** en vue Liste (`switchView` : `display` si `CAL_SCALES.includes(v) || v==='list'`), avec
   le bouton **« Mois » en surbrillance** (la Liste = l'échelle Mois en version agenda, `activeScale='grid'`). Permet de
   rebasculer vers Semaine/Année directement depuis l'agenda.
+
+### b59 (2026-06-09) — Animation au changement de mois
+- En **vue Mois**, changer de mois (flèches `‹ ›`, menu déroulant, bouton « Auj. ») fait **glisser la grille**
+  `#cal-grid` : entrée depuis la droite vers le mois suivant, depuis la gauche vers le précédent
+  (`animateMonthGrid(dir)`, classes `.mgrid-fwd`/`.mgrid-back`, keyframes `mgridInRight`/`mgridInLeft`, ~280 ms).
+  Le sens est connu directement pour les flèches/Auj., et calculé pour le menu déroulant via `_prevMonthKey`
+  (mémorisé en haut de `renderCalendar`). `changeMonth` ne fait plus rien si on est déjà au 1er/dernier mois.
+  Animation **uniquement en vue Mois** (no-op ailleurs).
 
 ## 🚧 À surveiller / limites connues
 
