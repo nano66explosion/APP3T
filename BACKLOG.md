@@ -309,10 +309,14 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - **Détection couleur/barré** dépend du format exact du `.xlsx` (validée sur les fichiers actuels).
   Si la mise en forme change côté Drive, re-vérifier `parseCellStyles`.
 - **Heures supp** : limité à ~**30 lignes/onglet** (plage de la formule E3:E32 du modèle).
-- **Reconnexion** : jeton Google ~1h (limite sans backend). Pas de « connexion infinie ».
-- **Notifications push** : OK (Firebase) mais l'envoi passe par le **cron GitHub Actions** (toutes les **5 min**
-  depuis 2026-06-07), donc quasi instantané (notif de formation/STOP ≤ ~5 min ; GitHub peut retarder un cron
-  en période de charge). Pas de vrai temps réel sans backend (Spark = pas de Cloud Functions). iOS : app installée requise.
+- **Reconnexion** : jeton Google ~1h (flux implicite, pas de refresh token), renouvellement silencieux GIS.
+  *Idée discutée (2026-06-08, NON faite)* : session persistante via **flux authorization-code** + **refresh token stocké
+  dans Cloudflare Worker/KV**. Gratuit. Version « test Google » = 7 jours sans vérification ; « infinie » = vérification Google
+  (scope Drive sensible). Risque sécurité = endpoint à protéger (pas de vraie auth utilisateur). À faire si les déconnexions iOS gênent.
+- **Notifications push** : **formations = INSTANTANÉ** via le Worker Cloudflare (cf. section Backend). Le reste
+  (STOP heures supp, « régie demain », « bilan soirée », rattrapage formations) passe par le **cron GitHub Actions
+  `*/15`** (best-effort, parfois 15-40 min ; ne jamais redescendre sous ~15 min, GitHub ignore les crons rapprochés).
+  Pas de Cloud Functions (Spark gratuit). iOS : app installée sur l'écran d'accueil requise.
 - **Fichiers Drive** doivent être des **.xlsx** pour l'écriture (heures supp, plan tech xlsx).
 - **Colonnes du plan tech en dur** : un changement de structure du fichier casserait le parsing.
 
@@ -389,15 +393,25 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 
 ## 🧭 Pour reprendre après un /clear
 
-1. Code sur GitHub `main` (à jour). Fichier principal : `calendrier_3T.html` (~1 Mo, mono-fichier).
-   Autres : `sw.js`, `firebase-messaging-sw.js`, `scripts/*.js`, `.github/workflows/*.yml`.
-2. **Lire ce BACKLOG en entier** (architecture, Firebase, versions, limites) avant de coder.
-3. Modifs ciblées (grep/offset), ne pas relire tout le fichier d'un coup.
-4. **Avant push** : vérifier la syntaxe JS (extraire le dernier `<script>` → `osascript -l JavaScript` + `new Function`).
-5. **Bumper `APP_VERSION`** (≈ ligne 1855) à chaque évolution notable (visible dans Paramètres).
-6. Pousser : `cd "APP 3T" && git add -A && git commit -m "…  \n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" && git push origin main`.
-   ⚠️ Le token local n'a **pas** le scope `workflow` → ne pas créer/modifier `.github/workflows/*` par push
-   (l'utilisateur le fait via l'UI web GitHub).
-7. Tenir ce backlog à jour à chaque évolution.
-8. **Restant à faire** : #10 (accessibilité), #12 (export PDF), #15 (stats avancées / projection 507h),
-   #17 (détection auto colonnes plan tech), #20 (découper le fichier), + le calibrage heures ci-dessus.
+1. Code sur GitHub `main` (à jour, version **b56**). Fichier principal : `calendrier_3T.html` (~1 Mo, mono-fichier).
+   Autres : `sw.js`, `firebase-messaging-sw.js`, `scripts/*.js`, `.github/workflows/*.yml`, **`cloudflare/worker.js`**
+   (notif formation instantanée, déployé sur `https://formation-notif.nano66explosion.workers.dev/`).
+2. **Lire ce BACKLOG en entier** (architecture, Firebase, Cloudflare, refonte UI b56, versions, limites) avant de coder.
+3. Modifs ciblées (grep/offset), **ne pas relire tout le fichier d'un coup** (~1 Mo, logos base64).
+4. **Avant push** : vérifier la syntaxe JS — extraire le dernier `<script>` (regex `<script(?![^>]*src=)...>(.*?)</script>`,
+   prendre le dernier bloc) → `osascript -l JavaScript` + `new Function(src)`. Vérifier aussi `sw.js`/`worker.js` si touchés.
+5. **Bumper `APP_VERSION`** (≈ ligne 2116) à chaque évolution notable (visible dans Paramètres + écran connexion).
+6. Pousser : `cd "APP 3T" && git add -A && git commit -m "…" && git push origin main` (finir le message par
+   `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`). ⚠️ Token local **sans scope `workflow`** → ne pas
+   modifier `.github/workflows/*` par push (l'utilisateur le fait via l'UI web). ⚠️ Si l'utilisateur a édité un fichier
+   côté web GitHub (ex. un workflow), faire `git pull --rebase origin main` **avant** de pousser.
+7. **Tenir ce backlog à jour** à chaque évolution.
+8. **Règles Firestore requises** (sinon écriture KO) : `pushTokens`, `schedule`, `formations`, `meetingSlots`, `notes`
+   (toutes `allow read, write: if true`). À publier dans la console Firebase si une nouvelle collection est ajoutée.
+9. **Restant à faire** : #10 (accessibilité / taille police), #12 (export PDF), #15 (stats avancées / projection 507h),
+   #20 (découper le fichier), + **calibrage heures intermittence** (compléter la base ; comparer app vs paye).
+   Pistes confort : finaliser Réunion (créneau retenu, notif), notifs Notes, session persistante Cloudflare (cf. limites).
+10. **Dernier sujet en cours (avant le /clear)** : on venait de finir une grosse **refonte UI/navigation** (pages Home/Heures
+   qui glissent en entier, carrousel unifié Heures·Semaine·Mois·Année, pull-to-refresh icône flèche, bottom-nav SVG).
+   Tout est poussé et fonctionnel côté code/syntaxe, mais **non testé visuellement** → l'utilisateur doit valider sur
+   iPhone (swipe, pages, pull-to-refresh) et sur PC (mise en page 2 colonnes préservée via `display:contents`).
