@@ -2110,7 +2110,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-08 · b52 (vraie page distincte : Home/Heures glissent en entier)';
+const APP_VERSION = '2026-06-08 · b53 (swipe pages : la vue interne s\'affiche pendant l\'animation)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5289,14 +5289,15 @@ function updateBottomNav(){
   // Pré-remplit le formulaire heures (selects) pour que l'aperçu de swipe soit complet
   try{ _calPreview=true; renderHsupp(); _calPreview=false; }catch(_){}
   let sx=0, sy=0, decided=false, mode=null, w=1;     // mode: 'h' | 'scroll'
-  let curEl=null, nbEl=null, dir=0;
+  let curEl=null, nbEl=null, nbInnerEl=null, dir=0;
   const pageEl = idx => idx===0 ? document.getElementById('page-hsupp') : (idx===1 ? document.getElementById('page-home') : null);
   const pageDefView = idx => idx===0 ? 'hsupp' : (homeLastView || 'week');
+  const innerView = idx => idx===0 ? 'hsupp' : (homeLastView || 'week');
   function clearEl(el){ if(!el) return; el.style.transition=''; el.style.transform=''; el.style.position=''; el.style.top=''; el.style.left=''; el.style.right=''; el.style.zIndex=''; el.style.display=''; }
-  function cleanup(){ clearEl(curEl); clearEl(nbEl); curEl=nbEl=null; dir=0; }
+  function cleanup(){ clearEl(curEl); clearEl(nbEl); curEl=nbEl=null; nbInnerEl=null; dir=0; }
 
   gestureEl.addEventListener('touchstart', e=>{
-    decided=false; mode=null; curEl=nbEl=null;
+    decided=false; mode=null; curEl=nbEl=null; nbInnerEl=null;
     if(e.touches.length!==1){ decided=true; return; }
     sx=e.touches[0].clientX; sy=e.touches[0].clientY;
     w = pages.clientWidth || window.innerWidth || 1;
@@ -5316,6 +5317,9 @@ function updateBottomNav(){
         const np = pi+dir, nb = pageEl(np);
         if((np===0||np===1) && nb){
           nbEl = nb;
+          // Affiche la vue interne de la page entrante (sinon elle glisse vide)
+          nbInnerEl = document.getElementById('view-'+innerView(np));
+          if(nbInnerEl) nbInnerEl.style.display='';
           const top = (window.pageYOffset || document.scrollingElement.scrollTop || 0) + 'px';
           nbEl.style.display='block'; nbEl.style.position='absolute'; nbEl.style.top=top; nbEl.style.left='0'; nbEl.style.right='0'; nbEl.style.zIndex='3'; nbEl.style.transition='none'; nbEl.style.transform='translateX('+(dir*100)+'%)';
         } else { nbEl=null; }
@@ -5344,7 +5348,8 @@ function updateBottomNav(){
       } else {
         if(curEl){ curEl.style.transition=tr; curEl.style.transform='translateX(0)'; }
         if(nbEl){ nbEl.style.transition=tr; nbEl.style.transform='translateX('+(dir*100)+'%)'; }
-        setTimeout(cleanup, 240);
+        const innerToHide = nbInnerEl;
+        setTimeout(()=>{ if(innerToHide) innerToHide.style.display='none'; cleanup(); }, 240);
       }
     }
     decided=false; mode=null;
