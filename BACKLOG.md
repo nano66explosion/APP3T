@@ -35,15 +35,11 @@
   `schedule/v1` (planning à venir publié par l'app pour le cron), `formations` (date/heure/sujet/by/participants/notified),
   `sentLog` (anti-doublon envois), `stops` (STOP heures supp déjà notifiés),
   `profiles` (**1 doc par email Google** = `email/name/reg/emoji/anniv/updatedAt` → profil synchronisé multi-appareils).
-- **Règles Firestore à publier** (sinon push/formations KO) :
-  ```
-  match /pushTokens/{t} { allow read, write: if true; }
-  match /schedule/{d}   { allow read, write: if true; }
-  match /formations/{d} { allow read, write: if true; }
-  match /meetingSlots/{d} { allow read, write: if true; }
-  match /notes/{d} { allow read, write: if true; }
-  match /profiles/{e} { allow read, write: if true; }
-  ```
+- **Règles Firestore** : fichier **`firestore.rules`** (source de vérité, à publier en console).
+  Depuis b65/Phase 2, elles **exigent `request.auth != null`** (lecture + écriture) sur toutes les
+  collections + validation type/taille. L'app s'authentifie via Firebase Auth (custom token du Worker).
+  Le compte de service (cron + Worker) contourne les règles. **Ne plus utiliser les anciennes règles
+  `if true`** (elles laissaient tout ouvert au public).
 - **Notif formation INSTANTANÉE (Cloudflare Worker)** : le cron GitHub `schedule` étant non fiable (runs `*/5`
   ignorés, retards jusqu'à 1h+), la notif de formation part désormais d'un **Worker Cloudflare gratuit**
   (`cloudflare/worker.js`, voir `cloudflare/README.md`). L'app `POST { id }` au Worker à la création
@@ -87,10 +83,13 @@
     - **⚠️ Pré-requis** : **redéployer le Worker** (`cloudflare/worker.js`, nouvelle route `firebaseToken`).
     - **À TESTER sur iPhone + PC** : reconnexion OK + indicateur **vert** dans Paramètres (et user visible dans
       Console Firebase → Authentication).
-  - **Phase 2 (À FAIRE une fois la phase 1 validée)** : durcir `firestore.rules` en exigeant
-    `request.auth != null` (lecture + écriture) → bloque tout accès anonyme/REST, protège les emails de `profiles`.
-    Option : restreindre aux emails des régisseurs (allowlist). **Ne pas faire avant confirmation** que tout le
-    monde s'authentifie bien (sinon lock-out).
+  - **Phase 2 (FAIT côté code, après validation auth verte iPhone+PC)** : `firestore.rules` durci →
+    **`request.auth != null`** exigé en lecture ET écriture sur toutes les collections (+ validation type/taille).
+    Bloque l'accès anonyme/REST direct, protège les emails de `profiles`. **⚠️ À PUBLIER en console Firebase**
+    pour prendre effet (le repo n'applique rien tout seul). Le cron + le Worker (compte de service) contournent
+    les règles → notifs inchangées. Option future : allowlist d'emails (`request.auth.token.email` dispo via le
+    claim du custom token). Si lock-out un jour : republier temporairement des règles `if true` le temps de
+    diagnostiquer.
 - **Scope Drive volontairement large** (`drive`, pas `drive.file`) : l'app accède aux fichiers **par ID en
   dur** (plan tech, base, heures supp partagés) ; `drive.file` ne donnerait accès qu'aux fichiers créés/ouverts
   via le Picker → **casserait le chargement**. Ne pas réduire sans passer par le Google Picker.
@@ -486,8 +485,9 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
    modifier `.github/workflows/*` par push (l'utilisateur le fait via l'UI web). ⚠️ Si l'utilisateur a édité un fichier
    côté web GitHub (ex. un workflow), faire `git pull --rebase origin main` **avant** de pousser.
 7. **Tenir ce backlog à jour** à chaque évolution.
-8. **Règles Firestore requises** (sinon écriture KO) : `pushTokens`, `schedule`, `formations`, `meetingSlots`, `notes`,
-   **`profiles`** (toutes `allow read, write: if true`). À publier dans la console Firebase si une nouvelle collection est ajoutée.
+8. **Règles Firestore** = fichier **`firestore.rules`** (source de vérité). Depuis Phase 2 : **`request.auth != null`**
+   exigé partout (l'app s'authentifie via Firebase Auth / custom token Worker). À **publier en console** à chaque
+   modif ou nouvelle collection. Cron + Worker (compte de service) contournent les règles.
 9. **Restant à faire** : #10 (accessibilité / taille police), #12 (export PDF), #15 (stats avancées / projection 507h),
    #20 (découper le fichier), + **calibrage heures intermittence** (compléter la base ; comparer app vs paye).
    Pistes confort : finaliser Réunion (créneau retenu, notif), notifs Notes, session persistante Cloudflare (cf. limites).

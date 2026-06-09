@@ -1,54 +1,55 @@
 rules_version = '2';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Règles Firestore durcies — Calendrier 3T TECH
+// Règles Firestore — Calendrier 3T TECH (PHASE 2 : authentification requise)
 //
-// ⚠️ LIMITE IMPORTANTE : l'app n'utilise PAS Firebase Auth (le login Google ne
-// sert qu'à Google Drive). Sans identité côté base, on NE PEUT PAS restreindre
-// la lecture ni réserver l'écriture/suppression au propriétaire. Ces règles
-// apportent donc une défense « en profondeur » :
-//   • validation de TYPE et de TAILLE des champs (anti-spam, anti-payload géant) ;
-//   • blocage des collections inconnues (deny par défaut) ;
-//   • pas de documents anormalement gros.
-// Le compte de service (cron GitHub + Worker Cloudflare) utilise l'Admin SDK qui
-// CONTOURNE ces règles → les notifs/STOP/notified continuent de marcher.
+// L'app ouvre une session Firebase Auth (custom token signé par le Worker à partir
+// du login Google — voir BACKLOG « Sécurité »). Toute lecture/écriture côté client
+// exige désormais `request.auth != null` → l'accès anonyme / REST direct est bloqué,
+// et les emails de `profiles` ne sont plus lisibles publiquement.
 //
-// 🔒 Pour une vraie étanchéité (réserver l'écriture aux régisseurs identifiés),
-//    il faut ajouter Firebase Auth (connexion Google) puis exiger request.auth.
-//    Voir BACKLOG.md (sécurité).
+// Le compte de service (cron GitHub + Worker Cloudflare) utilise un jeton de service
+// (Admin/OAuth cloud-platform) qui CONTOURNE ces règles → notifs/STOP/notified/
+// lecture pushTokens continuent de marcher.
 //
-// À publier : Console Firebase → Firestore Database → Règles → Publier.
+// En plus de l'auth : validation de TYPE/TAILLE des champs, collections inconnues
+// refusées.  À publier : Console Firebase → Firestore Database → Règles → Publier.
+//
+// 🔧 Option (non activée) : restreindre l'écriture aux régisseurs via une allowlist
+//    d'emails — `request.auth.token.email` est dispo (claim du custom token).
 // ─────────────────────────────────────────────────────────────────────────────
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function authed() { return request.auth != null; }
     function str(v, n) { return v is string && v.size() <= n; }
     function optStr(d, k, n) { return !(k in d) || str(d[k], n); }
     function smallList(v, n) { return v is list && v.size() <= n; }
 
     // Jetons push : 1 doc par appareil (id = 3t_device_id ou jeton FCM).
     match /pushTokens/{id} {
-      allow read: if true;
-      allow delete: if true;
-      allow create, update: if str(request.resource.data.token, 4096)
+      allow read, delete: if authed();
+      allow create, update: if authed()
+        && str(request.resource.data.token, 4096)
         && optStr(request.resource.data, 'platform', 40)
         && optStr(request.resource.data, 'reg', 80);
     }
 
-    // Planning à venir publié par l'app pour le cron (données du planning, non sensibles).
+    // Planning à venir publié par l'app pour le cron.
     match /schedule/{id} {
-      allow read: if true;
-      allow create, update: if request.resource.data.days is list
+      allow read: if authed();
+      allow create, update: if authed()
+        && request.resource.data.days is list
         && request.resource.data.days.size() <= 400
         && optStr(request.resource.data, 'by', 80);
     }
 
     // Formations proposées par les régisseurs.
     match /formations/{id} {
-      allow read: if true;
-      allow delete: if true;
-      allow create, update: if str(request.resource.data.subject, 200)
+      allow read, delete: if authed();
+      allow create, update: if authed()
+        && str(request.resource.data.subject, 200)
         && str(request.resource.data.date, 20)
         && str(request.resource.data.by, 80)
         && optStr(request.resource.data, 'time', 10)
@@ -57,9 +58,9 @@ service cloud.firestore {
 
     // Créneaux de réunion (Framadate maison).
     match /meetingSlots/{id} {
-      allow read: if true;
-      allow delete: if true;
-      allow create, update: if str(request.resource.data.date, 20)
+      allow read, delete: if authed();
+      allow create, update: if authed()
+        && str(request.resource.data.date, 20)
         && str(request.resource.data.by, 80)
         && optStr(request.resource.data, 'time', 10)
         && smallList(request.resource.data.available, 60);
@@ -67,28 +68,27 @@ service cloud.firestore {
 
     // Notes partagées.
     match /notes/{id} {
-      allow read: if true;
-      allow delete: if true;
-      allow create, update: if str(request.resource.data.text, 2000)
+      allow read, delete: if authed();
+      allow create, update: if authed()
+        && str(request.resource.data.text, 2000)
         && str(request.resource.data.by, 80);
     }
 
-    // Profils (1 doc par email). La lecture reste ouverte (l'app lit par email sans
-    // être authentifiée côté base) → les emails restent lisibles tant qu'il n'y a
-    // pas de Firebase Auth.
+    // Profils (1 doc par email) — lecture réservée aux utilisateurs authentifiés.
     match /profiles/{email} {
-      allow read: if true;
-      allow create, update: if str(request.resource.data.email, 200)
+      allow read: if authed();
+      allow create, update: if authed()
+        && str(request.resource.data.email, 200)
         && optStr(request.resource.data, 'reg', 80)
         && optStr(request.resource.data, 'emoji', 16)
         && optStr(request.resource.data, 'anniv', 12)
         && optStr(request.resource.data, 'name', 120);
     }
 
-    // sentLog / stops : écrits UNIQUEMENT par le compte de service (Admin SDK,
-    // qui contourne les règles). Côté client : lecture seule, aucune écriture.
-    match /sentLog/{id} { allow read: if true; allow write: if false; }
-    match /stops/{id}   { allow read: if true; allow write: if false; }
+    // sentLog / stops : écrits UNIQUEMENT par le compte de service (qui contourne
+    // les règles). Côté client : lecture seule (authentifié), aucune écriture.
+    match /sentLog/{id} { allow read: if authed(); allow write: if false; }
+    match /stops/{id}   { allow read: if authed(); allow write: if false; }
 
     // Tout le reste : refusé.
     match /{document=**} { allow read, write: if false; }
