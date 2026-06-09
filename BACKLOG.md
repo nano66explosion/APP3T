@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b59`**.
+  Bumper à chaque évolution notable. Actuelle : **`b60`**.
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -33,7 +33,8 @@
   `calendrier_3T.html` (`FIREBASE_CONFIG`, `FCM_VAPID_KEY`) ET dans `firebase-messaging-sw.js` (même config).
 - **Firestore — collections** : `pushTokens` (1 doc/appareil = `3t_device_id`, champs token/reg/prefs/platform),
   `schedule/v1` (planning à venir publié par l'app pour le cron), `formations` (date/heure/sujet/by/participants/notified),
-  `sentLog` (anti-doublon envois), `stops` (STOP heures supp déjà notifiés).
+  `sentLog` (anti-doublon envois), `stops` (STOP heures supp déjà notifiés),
+  `profiles` (**1 doc par email Google** = `email/name/reg/emoji/anniv/updatedAt` → profil synchronisé multi-appareils).
 - **Règles Firestore à publier** (sinon push/formations KO) :
   ```
   match /pushTokens/{t} { allow read, write: if true; }
@@ -41,6 +42,7 @@
   match /formations/{d} { allow read, write: if true; }
   match /meetingSlots/{d} { allow read, write: if true; }
   match /notes/{d} { allow read, write: if true; }
+  match /profiles/{e} { allow read, write: if true; }
   ```
 - **Notif formation INSTANTANÉE (Cloudflare Worker)** : le cron GitHub `schedule` étant non fiable (runs `*/5`
   ignorés, retards jusqu'à 1h+), la notif de formation part désormais d'un **Worker Cloudflare gratuit**
@@ -317,6 +319,26 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   le bouton **« Mois » en surbrillance** (la Liste = l'échelle Mois en version agenda, `activeScale='grid'`). Permet de
   rebasculer vers Semaine/Année directement depuis l'agenda.
 
+### b60 (2026-06-09) — Compte par email Google : profil synchronisé + intermittence sur année anniversaire
+- **Identité par email** : à la connexion, `fetchGoogleIdentity()` lit l'email via l'API Drive `about?fields=user`
+  (scope `drive` déjà accordé → **aucun re-consentement**, pas de bump `SCOPE_VERSION`). Stocké dans `googleEmail`
+  + `localStorage 3t_google_email` (minuscules).
+- **Profil partagé** (collection Firestore **`profiles`**, clé = email) : `loadProfileForEmail(email)` (appelé dans
+  `onAuthenticated`, avant le chargement des fichiers) écrit `3t_my_reg`/`3t_my_emoji`/`3t_anniv` en localStorage →
+  **le même compte retrouve son régisseur/avatar/anniversaire sur n'importe quel appareil**. `saveProfileToCloud()`
+  (appelé dans `saveProfile`) propage le profil au cloud (`set merge`). **Règle Firestore `profiles` requise.**
+- **Onboarding** : la modale `#profile-modal` (déclenchée par `launchApp` quand `!getMyReg()`, donc à la 1ʳᵉ connexion
+  d'un email inconnu) gagne un champ **date anniversaire d'intermittence** (`#profile-anniv`, optionnel). `getMyAnniv()`
+  = `3t_anniv`.
+- **Intermittence calée sur l'anniversaire** (au lieu de la saison du plan tech) : si une date anniversaire est
+  renseignée, la jauge 507h se calcule sur **12 mois glissants à partir de la dernière date anniversaire passée**,
+  **au jour près**. `annivWindow(anniv)` → `{start, end}` (start = dernier anniversaire ≤ aujourd'hui, end = +1 an exclu).
+  `computeWindow(reg, start, end)` (calqué sur `computeSeason`, réutilise `buildDayMap`+`computeHeures`, filtre les jours
+  hors fenêtre). Heures supp fenêtrées : `loadRecapHsuppRange`/`sumHsuppHoursRange`/`hsRowDate` (mois pleins → somme
+  entière, mois de bordure → au jour près, parse la date colonne A). **Repli sur `computeSeason`/`loadRecapHsupp`
+  (toute la saison)** si pas d'anniversaire → aucune régression. En-tête de la modale : « Année intermittence
+  JJ/MM/AAAA → JJ/MM/AAAA » au lieu de « Saison … ».
+
 ### b59 (2026-06-09) — Animation au changement de mois
 - En **vue Mois**, changer de mois (flèches `‹ ›`, menu déroulant, bouton « Auj. ») fait **glisser la grille**
   `#cal-grid` : entrée depuis la droite vers le mois suivant, depuis la gauche vers le précédent
@@ -427,8 +449,8 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
    modifier `.github/workflows/*` par push (l'utilisateur le fait via l'UI web). ⚠️ Si l'utilisateur a édité un fichier
    côté web GitHub (ex. un workflow), faire `git pull --rebase origin main` **avant** de pousser.
 7. **Tenir ce backlog à jour** à chaque évolution.
-8. **Règles Firestore requises** (sinon écriture KO) : `pushTokens`, `schedule`, `formations`, `meetingSlots`, `notes`
-   (toutes `allow read, write: if true`). À publier dans la console Firebase si une nouvelle collection est ajoutée.
+8. **Règles Firestore requises** (sinon écriture KO) : `pushTokens`, `schedule`, `formations`, `meetingSlots`, `notes`,
+   **`profiles`** (toutes `allow read, write: if true`). À publier dans la console Firebase si une nouvelle collection est ajoutée.
 9. **Restant à faire** : #10 (accessibilité / taille police), #12 (export PDF), #15 (stats avancées / projection 507h),
    #20 (découper le fichier), + **calibrage heures intermittence** (compléter la base ; comparer app vs paye).
    Pistes confort : finaliser Réunion (créneau retenu, notif), notifs Notes, session persistante Cloudflare (cf. limites).
