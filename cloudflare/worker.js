@@ -23,15 +23,32 @@
 const APP_URL = 'https://nano66explosion.github.io/APP3T/calendrier_3T.html';
 const FS = 'https://firestore.googleapis.com/v1/projects/';
 
+// Origines autorisées (le site PWA). Bloque l'abus cross-site depuis un navigateur.
+// NB : un client non-navigateur (curl) peut forger l'en-tête Origin → barrière
+// légère, pas une authentification. La vraie protection = le secret du compte de
+// service (jamais exposé) + le fait que seules les formations réelles non notifiées
+// déclenchent un envoi.
+const ALLOWED_ORIGINS = [
+  'https://nano66explosion.github.io',
+  'http://localhost',
+  'http://127.0.0.1'
+];
+function originAllowed(origin) {
+  if (!origin) return true;                       // app installée / service worker : pas d'Origin → toléré
+  return ALLOWED_ORIGINS.some(o => origin === o || origin.startsWith(o));
+}
+
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
-    if (request.method !== 'POST')   return cors(json({ error: 'POST only' }, 405));
+    const origin = request.headers.get('Origin');
+    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }), origin);
+    if (request.method !== 'POST')   return cors(json({ error: 'POST only' }, 405), origin);
+    if (!originAllowed(origin))       return cors(json({ error: 'origin refusée' }, 403), origin);
 
     let body;
-    try { body = await request.json(); } catch (e) { return cors(json({ error: 'bad json' }, 400)); }
+    try { body = await request.json(); } catch (e) { return cors(json({ error: 'bad json' }, 400), origin); }
     const id = body && body.id;
-    if (!id) return cors(json({ error: 'missing id' }, 400));
+    if (!id) return cors(json({ error: 'missing id' }, 400), origin);
 
     let sa;
     try { sa = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); }
@@ -214,8 +231,11 @@ function toFields(obj) {
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
 }
-function cors(resp) {
-  resp.headers.set('Access-Control-Allow-Origin', '*');
+function cors(resp, origin) {
+  // Reflète l'origine si elle est autorisée, sinon valeur neutre.
+  const allow = (origin && originAllowed(origin)) ? origin : ALLOWED_ORIGINS[0];
+  resp.headers.set('Access-Control-Allow-Origin', allow);
+  resp.headers.set('Vary', 'Origin');
   resp.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
   resp.headers.set('Access-Control-Allow-Headers', 'Content-Type');
   return resp;

@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b60`**.
+  Bumper à chaque évolution notable. Actuelle : **`b61`**.
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -59,6 +59,28 @@
 - **scripts/** : `send-reminders.js` (régie demain, bilan soirée ~22h, notif formations, STOP — respecte les
   `prefs` par jeton via `tokensFor`), `broadcast.js` (respecte pref `info`), `package.json` (firebase-admin, googleapis, xlsx).
 
+## 🔒 Sécurité (audit 2026-06-09, b61)
+
+- **XSS stocké — CORRIGÉ** : tout contenu venant de Firestore (notes, formations `subject`/`by`,
+  participants, créneaux réunion) est désormais **échappé** au rendu (`escapeHtml`) ; les `id`
+  réutilisés dans un `onclick` sont filtrés (`safeId`). Avant, un `subject` de formation contenant
+  des balises s'exécutait chez tous (token OAuth en localStorage → vol possible).
+- **Règles Firestore durcies** : fichier **`firestore.rules`** (validation type/taille des champs,
+  collections inconnues refusées, `sentLog`/`stops` en écriture serveur seule). **À publier** dans la
+  console Firebase. Le compte de service (cron + Worker) utilise l'Admin SDK qui **contourne** ces
+  règles → notifs inchangées.
+- **Worker Cloudflare** : ajout d'un **filtre d'origine** (`ALLOWED_ORIGINS`, CORS reflété au lieu de `*`).
+  Barrière légère (Origin forgeable hors navigateur) — la vraie protection reste le secret du compte de
+  service. **Redéployer le Worker** après modif de `cloudflare/worker.js`.
+- **⚠️ Limite de fond NON résolue** : l'app n'a **pas de Firebase Auth** (le login Google ne sert qu'à
+  Drive). Sans identité côté base, la **lecture reste ouverte** (les emails de `profiles` sont lisibles)
+  et l'écriture/suppression ne peut pas être réservée au propriétaire. **Vrai correctif = ajouter Firebase
+  Auth (Google)** puis exiger `request.auth` dans les règles. Chantier à planifier.
+- **Scope Drive volontairement large** (`drive`, pas `drive.file`) : l'app accède aux fichiers **par ID en
+  dur** (plan tech, base, heures supp partagés) ; `drive.file` ne donnerait accès qu'aux fichiers créés/ouverts
+  via le Picker → **casserait le chargement**. Ne pas réduire sans passer par le Google Picker.
+- **OK** : aucune clé privée commise (compte de service = secret d'env du Worker/GitHub).
+
 ## 🔐 Divers
 
 - **Identité git** : RIZZO / nano66explosion@gmail.com. **Régisseur de l'app = Rizzo** (onglet « Théo Rizzo »).
@@ -76,7 +98,7 @@
   identifiants enregistrés dans le trousseau macOS). Une branche `dev` existe mais inutilisée pour l'instant.
 - **`.gitignore`** : exclut les `*.xlsx` (données réelles à ne pas publier), `.DS_Store`, `.claude/`.
 - **Fichiers versionnés** : `calendrier_3T.html`, `manifest.webmanifest`, `sw.js`,
-  `icon-192.png`, `icon-512.png`, `BACKLOG.md`, `.gitignore`.
+  `icon-192.png`, `icon-512.png`, `BACKLOG.md`, `.gitignore`, **`firestore.rules`** (règles à publier en console).
 - **Fichiers locaux NON versionnés** (dossier `APP 3T`, pour tests uniquement) :
   `copie plan tech.xlsx`, `Base HEURES SPECT2026 Modèle.xlsx`, `HEURES MAI 26.xlsx`,
   `HEURES JUIN 26.xlsx`, logo source PNG.

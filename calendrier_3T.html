@@ -2126,7 +2126,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-09 · b60 (compte par email : profil synchronisé + intermittence sur année anniversaire)';
+const APP_VERSION = '2026-06-09 · b61 (sécurité : échappement HTML anti-XSS + règles Firestore durcies)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3473,12 +3473,12 @@ function formationCardsHTML(iso){
     // Le créateur propose la formation : il ne se positionne pas dessus.
     const btn = isOwner
       ? `<span class="fm-owner">Vous avez proposé cette formation</span>`
-      : `<button class="fm-join${iIn?' in':''}" onclick="toggleFormation('${f.id}')">${iIn?'✓ J\'y vais':'+ Je participe'}</button>`;
-    const del = isOwner ? `<button class="fm-del" onclick="deleteFormation('${f.id}')" title="Supprimer">🗑️</button>` : '';
-    const who = parts.length ? parts.join(', ') : 'Personne pour l\'instant';
+      : `<button class="fm-join${iIn?' in':''}" onclick="toggleFormation('${safeId(f.id)}')">${iIn?'✓ J\'y vais':'+ Je participe'}</button>`;
+    const del = isOwner ? `<button class="fm-del" onclick="deleteFormation('${safeId(f.id)}')" title="Supprimer">🗑️</button>` : '';
+    const who = parts.length ? parts.map(escapeHtml).join(', ') : 'Personne pour l\'instant';
     return `<div class="fm-card">
-      <div class="fm-top"><span class="fm-title">📚 ${f.subject}</span>${f.time?`<span class="fm-time">${f.time}</span>`:''}</div>
-      <div class="fm-sub">Proposé par ${f.by||'—'} · ${parts.length} participant${parts.length>1?'s':''}</div>
+      <div class="fm-top"><span class="fm-title">📚 ${escapeHtml(f.subject)}</span>${f.time?`<span class="fm-time">${escapeHtml(f.time)}</span>`:''}</div>
+      <div class="fm-sub">Proposé par ${f.by?escapeHtml(f.by):'—'} · ${parts.length} participant${parts.length>1?'s':''}</div>
       <div class="fm-parts">${who}</div>
       <div class="fm-actions">${btn}${del}</div>
     </div>`;
@@ -3600,17 +3600,17 @@ function renderMeetingSlots(){
     const iIn = av.includes(me);
     const isBest = maxV > 0 && av.length === maxV;
     const d = s.date ? new Date(s.date+'T00:00:00') : null;
-    const dateLbl = d ? `${jourStr[d.getDay()]} ${d.getDate()} ${moisStr[d.getMonth()]}` : s.date;
-    const who = av.length ? av.join(', ') : 'Personne pour l\'instant';
-    const del = (s.by && s.by===me) ? `<button class="mt-del" onclick="deleteMeetingSlot('${s.id}')" title="Supprimer">🗑️</button>` : '';
+    const dateLbl = d ? `${jourStr[d.getDay()]} ${d.getDate()} ${moisStr[d.getMonth()]}` : escapeHtml(s.date);
+    const who = av.length ? av.map(escapeHtml).join(', ') : 'Personne pour l\'instant';
+    const del = (s.by && s.by===me) ? `<button class="mt-del" onclick="deleteMeetingSlot('${safeId(s.id)}')" title="Supprimer">🗑️</button>` : '';
     return `<div class="mt-card${isBest?' best':''}">
       <div class="mt-top">
-        <span class="mt-when">${dateLbl}${s.time?` · ${s.time}`:''}${isBest?'<span class="mt-best-badge">★ top</span>':''}</span>
+        <span class="mt-when">${dateLbl}${s.time?` · ${escapeHtml(s.time)}`:''}${isBest?'<span class="mt-best-badge">★ top</span>':''}</span>
         <span class="mt-count">✓ ${av.length}</span>
       </div>
       <div class="mt-who">${who}</div>
       <div class="mt-actions">
-        <button class="mt-join${iIn?' in':''}" onclick="toggleMeetingAvail('${s.id}')">${iIn?'✓ Je suis dispo':'+ Je suis dispo'}</button>
+        <button class="mt-join${iIn?' in':''}" onclick="toggleMeetingAvail('${safeId(s.id)}')">${iIn?'✓ Je suis dispo':'+ Je suis dispo'}</button>
         ${del}
       </div>
     </div>`;
@@ -3671,6 +3671,17 @@ async function deleteNote(id){
   catch(e){ toast('❌ '+e.message,'err'); } finally{ showBusy(false); }
 }
 
+// Échappement HTML pour tout contenu venant de Firestore (notes/formations/réunions/profils).
+// Empêche l'injection de balises (XSS stocké) au rendu en innerHTML.
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
+// Identifiant Firestore réutilisé dans un onclick='...(id)...' : on le réduit au jeu de
+// caractères des auto-id (A-Z a-z 0-9 _ -) pour éviter toute évasion de chaîne JS.
+function safeId(id){ return String(id==null?'':id).replace(/[^A-Za-z0-9_-]/g,''); }
+
 function renderNotes(){
   const box = document.getElementById('notes-list');
   if(!box) return;
@@ -3682,10 +3693,10 @@ function renderNotes(){
   box.innerHTML = _notes.map(n => {
     let when = '';
     if(n.createdAt){ const d = new Date(n.createdAt); if(!isNaN(d)) when = d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}) + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
-    const del = (n.by && n.by===me) ? `<button class="note-del" onclick="deleteNote('${n.id}')" title="Supprimer">🗑️</button>` : '';
-    const esc = String(n.text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const del = (n.by && n.by===me) ? `<button class="note-del" onclick="deleteNote('${safeId(n.id)}')" title="Supprimer">🗑️</button>` : '';
+    const esc = escapeHtml(n.text);
     return `<div class="note-card">
-      <div class="note-head"><span class="note-who">${n.by||'—'}</span><span style="display:flex;align-items:center;gap:6px"><span class="note-date">${when}</span>${del}</span></div>
+      <div class="note-head"><span class="note-who">${n.by?escapeHtml(n.by):'—'}</span><span style="display:flex;align-items:center;gap:6px"><span class="note-date">${when}</span>${del}</span></div>
       <div class="note-body">${esc}</div>
     </div>`;
   }).join('');
