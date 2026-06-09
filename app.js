@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b72 (confort : toasts au lieu d\'alert, réunion « créneau retenu » + notif, notif Notes)';
+const APP_VERSION = '2026-06-10 · b73 (Intermittence : invite à ajouter une date anniversaire si absente)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2766,6 +2766,14 @@ function openIntermittence(){
     ? `<div style="background:#fb923c12;border:1px solid #fb923c33;border-radius:8px;padding:.6rem .7rem;margin-bottom:1rem;font-size:12px;color:var(--c3tc)">⚠️ Base heures non chargée — les heures affichées sont à 0. Charge le fichier base dans ⚙️ Paramètres.</div>`
     : `<div style="font-size:11px;color:var(--muted);margin-bottom:1rem">⚠️ Estimation approximative — partie encore en développement.</div>`;
 
+  // Pas de date anniversaire → on invite à en ajouter une (sinon calcul sur toute la saison).
+  const annivPrompt = win ? '' :
+    `<div style="background:var(--surface2);border:1px solid var(--c3t);border-radius:8px;padding:.75rem .8rem;margin-bottom:1rem;font-size:12.5px;color:var(--text);line-height:1.5">
+       📅 Tu n'as pas fixé ta <b>date anniversaire d'intermittence</b> : la jauge est calculée sur toute la saison du plan.
+       Ajoute-la pour un calcul sur <b>12 mois glissants</b>.
+       <button onclick="closeIntermittence(); openProfileModal()" style="display:block;margin-top:.55rem;background:var(--c3t);color:var(--bg);border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">Ajouter ma date d'anniversaire</button>
+     </div>`;
+
   // Lignes par mois (total = heures spectacles + heures supp). Rendu initial = mois du plan ;
   // après lecture des heures supp, la liste est reconstruite (fusion plan + mois avec supp).
   _intermiMonths = s.months;
@@ -2804,6 +2812,8 @@ function openIntermittence(){
 
   document.getElementById('intermittence-body').innerHTML = `
     <div class="modal-sub" style="margin-bottom:1.25rem">${who} · ${periodKind} ${periodLabel}</div>
+
+    ${annivPrompt}
 
     <!-- Jauge 507h (spectacles + heures supp) -->
     <div class="intermi-block">
