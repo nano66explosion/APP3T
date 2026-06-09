@@ -310,8 +310,10 @@ select:focus{outline:none;border-color:var(--muted2)}
 .bnav-btn .bnav-ico svg{width:25px;height:25px;display:block}
 .bnav-btn.active .bnav-ico svg{stroke-width:2}
 /* Bascule Mois ↔ Liste (agenda) */
-.agenda-toggle-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin:.15rem 0 .35rem;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;transition:background .12s}
+.agenda-toggle-btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;margin:.15rem 0 .35rem;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:8px;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;overflow:hidden;max-height:48px;transition:background .12s,opacity .24s ease,transform .26s cubic-bezier(.22,.61,.36,1),max-height .3s ease,margin .26s ease,padding .26s ease,border-width .26s ease}
 .agenda-toggle-btn:active{background:var(--surface2)}
+/* État masqué animé (apparition / disparition du bouton « Vue liste / Vue mois ») */
+.agenda-toggle-btn.ag-hidden{opacity:0;transform:translateY(-6px) scale(.96);max-height:0;margin-top:0;margin-bottom:0;padding-top:0;padding-bottom:0;border-width:0;pointer-events:none}
 .agenda-toggle-btn svg{width:17px;height:17px;stroke:currentColor;fill:none}
 /* Pages (Home / Heures) : glissent en entier sur mobile ; sur PC, transparentes (2 colonnes) */
 #pages{position:relative}
@@ -841,7 +843,7 @@ body.page-hsupp #page-hsupp{display:block}
     </div>
   </div>
   <!-- Bascule Mois ↔ Liste (agenda), visible seulement en vue Mois/Liste -->
-  <button class="agenda-toggle-btn" id="btn-agenda-toggle" onclick="toggleAgenda()" style="display:none">
+  <button class="agenda-toggle-btn ag-hidden" id="btn-agenda-toggle" onclick="toggleAgenda()">
     <span id="agenda-toggle-ico"></span><span id="agenda-toggle-lbl">Vue liste</span>
   </button>
 
@@ -2130,7 +2132,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-09 · b65 (indicateur auth : affiche l\'email)';
+const APP_VERSION = '2026-06-10 · b66 (animation apparition/disparition du bouton Vue liste)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5579,10 +5581,10 @@ function switchView(v, skipAnim) {
   // Bouton Mois ↔ Liste : visible en vue Mois et Liste
   const agToggle = document.getElementById('btn-agenda-toggle');
   if(agToggle){
-    agToggle.style.display = (v==='grid' || v==='list') ? '' : 'none';
     const lbl=document.getElementById('agenda-toggle-lbl'), ico=document.getElementById('agenda-toggle-ico');
     if(v==='list'){ if(lbl) lbl.textContent='Vue mois'; if(ico) ico.innerHTML=ICON_MONTH; }
     else { if(lbl) lbl.textContent='Vue liste'; if(ico) ico.innerHTML=ICON_LIST; }
+    agToggle.classList.toggle('ag-hidden', !(v==='grid' || v==='list'));   // apparition/disparition animée
   }
   // Nav du mois (‹ mois › Auj.) : utile seulement sur Mois / Agenda / Résumé,
   // inutile sur Semaine (semaine en cours) et Année (tous les mois affichés).
