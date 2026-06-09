@@ -1,7 +1,9 @@
 // Service worker — Calendrier 3T (PWA)
-const CACHE = '3t-cache-v4';
+const CACHE = '3t-cache-v5';
 const ASSETS = [
   'calendrier_3T.html',
+  'app.js',
+  'style.css',
   'manifest.webmanifest',
   'icon-192.png',
   'icon-512.png',

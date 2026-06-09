@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b69`**.
+  Bumper à chaque évolution notable. Actuelle : **`b70`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -98,7 +98,8 @@
 ## 🔐 Divers
 
 - **Identité git** : RIZZO / nano66explosion@gmail.com. **Régisseur de l'app = Rizzo** (onglet « Théo Rizzo »).
-- **Vérif syntaxe avant push** : extraire le dernier `<script>` → `osascript -l JavaScript` + `new Function(src)`.
+- **Vérif syntaxe avant push** : depuis b70 le JS est dans **`app.js`** → valider directement
+  `osascript -l JavaScript` + `new Function(<contenu de app.js>)` (plus besoin d'extraire un `<script>` inline).
 - **iOS** : les notifications n'apparaissent que si l'app est **installée sur l'écran d'accueil** (iOS ≥ 16.4).
   Le « from 3T TECH » sous le titre est ajouté par iOS (non supprimable).
 
@@ -112,6 +113,7 @@
   identifiants enregistrés dans le trousseau macOS). Une branche `dev` existe mais inutilisée pour l'instant.
 - **`.gitignore`** : exclut les `*.xlsx` (données réelles à ne pas publier), `.DS_Store`, `.claude/`.
 - **Fichiers versionnés** : `calendrier_3T.html`, `manifest.webmanifest`, `sw.js`,
+  **`app.js`** (toute la logique JS), **`style.css`** (tout le CSS), `manifest.webmanifest`, `sw.js`,
   `icon-192.png`, `icon-512.png`, **`logo.png`** (logo 512² externalisé), `BACKLOG.md`, `.gitignore`,
   **`firestore.rules`** (règles à publier en console).
 - **Fichiers locaux NON versionnés** (dossier `APP 3T`, pour tests uniquement) :
@@ -120,14 +122,15 @@
 
 ## 🗂️ Architecture du fichier `calendrier_3T.html`
 
-- Un seul fichier : `<head>` (métas PWA + libs CDN), `<style>` (tout le CSS), `<body>`
-  (écran connexion + écran app + modales), `<script>` (toute la logique).
+- **Découpé depuis b70** : `calendrier_3T.html` = `<head>` (métas PWA + libs CDN + `<link style.css>`) + `<body>`
+  (écran connexion + écran app + modales) + `<script src="app.js">` en fin de body. La logique JS est dans
+  **`app.js`**, tout le CSS dans **`style.css`**. *(Le HTML est passé de ~900 Ko à ~50 Ko.)*
 - **Libs externes (CDN)** : `gapi`/`gsi` (Google), `xlsx` (SheetJS 0.18.5), `jszip` 3.10.1.
 - **Logos** : **externalisés (b69)** dans `logo.png` (512×512, ~53 Ko), référencé par les 2 `<img>`
   (login + en-tête). *(Avant : 2× base64 1600² = ~560 Ko inline → HTML passé de ~900 Ko à ~345 Ko.)*
   Pré-caché par `sw.js` (`CACHE='3t-cache-v4'`).
-- **Vérif syntaxe JS** utilisée pendant le dev : extraire le dernier `<script>` et
-  `osascript -l JavaScript` avec `new Function(src)` (pas de Node dispo).
+- **Vérif syntaxe JS** (b70+) : valider **`app.js`** directement avec `osascript -l JavaScript` +
+  `new Function(contenu)` (pas de Node dispo).
 
 ## 🔑 Configuration Google Drive (IDs en dur dans le JS)
 
@@ -429,7 +432,8 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   échoue → ne casse jamais. Vérifié : produit exactement le mapping en dur sur le fichier actuel.
 - [x] **18. Message clair quand la limite ~30 heures supp/mois est atteinte.** ✅ FAIT
 - [x] **19. Mode hors-ligne** — ✅ FAIT. Le planning parsé (plan + base + barrés/invités) est mis en cache localStorage (`3t_offline_cache`) à chaque chargement/refresh (`saveOfflineCache`). Au démarrage **sans réseau** (ou si le chargement Drive échoue), l'app s'ouvre **en lecture seule** depuis le cache (`loadOfflineCache`/`enterOfflineMode`) avec une **bannière** « 📴 Mode hors-ligne ». Écritures bloquées (`blockIfOffline` sur positionnement, heures supp, refresh). Bascule online/offline en direct. `sw.js` **v2** pré-cache aussi les libs CDN + cache réseau-d'abord. `gapi.load` protégé (libs CDN possiblement absentes hors-ligne).
-- [ ] **20. Découper le fichier** — externaliser JS/CSS/images (le HTML fait ~1 Mo, logos base64) → chargement + maintenance + coût de lecture améliorés.
+- [x] **20. Découper le fichier** — ✅ FAIT (b69+b70). Logos externalisés (`logo.png`, b69), puis **JS → `app.js`**
+  et **CSS → `style.css`** (b70). HTML passé de ~900 Ko à ~50 Ko. SW pré-cache `app.js`/`style.css`/`logo.png` (cache v5).
 - [x] **21. Refonte interface page principale** — ✅ FAIT (1ʳᵉ version). Mobile : **barre d'onglets en bas**
   (`bottom-nav` : 📆 Semaine · 📅 Mois · 📋 Agenda · ⏱️ Heures · ⋯ Plus) + **menu « Plus »** bottom-sheet
   (`more-modal` : Résumé, Intermittence, Bilan soirée, Formation, Recherche, Aide, Paramètres, Déconnexion).
@@ -475,14 +479,15 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 
 ## 🧭 Pour reprendre après un /clear
 
-1. Code sur GitHub `main` (à jour, version **b56**). Fichier principal : `calendrier_3T.html` (~1 Mo, mono-fichier).
-   Autres : `sw.js`, `firebase-messaging-sw.js`, `scripts/*.js`, `.github/workflows/*.yml`, **`cloudflare/worker.js`**
-   (notif formation instantanée, déployé sur `https://formation-notif.nano66explosion.workers.dev/`).
-2. **Lire ce BACKLOG en entier** (architecture, Firebase, Cloudflare, refonte UI b56, versions, limites) avant de coder.
-3. Modifs ciblées (grep/offset), **ne pas relire tout le fichier d'un coup** (~1 Mo, logos base64).
-4. **Avant push** : vérifier la syntaxe JS — extraire le dernier `<script>` (regex `<script(?![^>]*src=)...>(.*?)</script>`,
-   prendre le dernier bloc) → `osascript -l JavaScript` + `new Function(src)`. Vérifier aussi `sw.js`/`worker.js` si touchés.
-5. **Bumper `APP_VERSION`** (≈ ligne 2116) à chaque évolution notable (visible dans Paramètres + écran connexion).
+1. Code sur GitHub `main` (à jour, version **b70**). **Découpé (b70)** : `calendrier_3T.html` (~50 Ko, structure),
+   **`app.js`** (~246 Ko, toute la logique), **`style.css`** (~50 Ko). Autres : `sw.js`, `firebase-messaging-sw.js`,
+   `scripts/*.js`, `.github/workflows/*.yml`, **`cloudflare/worker.js`** (notif formation + auth Firebase,
+   déployé sur `https://formation-notif.nano66explosion.workers.dev/`).
+2. **Lire ce BACKLOG en entier** (architecture, Firebase, Cloudflare, sécurité, versions, limites) avant de coder.
+3. Modifs ciblées (grep/offset) dans **`app.js`** surtout, **ne pas relire tout d'un coup** (~246 Ko).
+4. **Avant push** : vérifier la syntaxe JS — valider **`app.js`** directement → `osascript -l JavaScript` +
+   `new Function(<contenu app.js>)`. Vérifier aussi `sw.js`/`worker.js` si touchés.
+5. **Bumper `APP_VERSION`** (dans **`app.js`**) à chaque évolution notable (visible dans Paramètres + écran connexion).
 6. Pousser : `cd "APP 3T" && git add -A && git commit -m "…" && git push origin main` (finir le message par
    `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`). ⚠️ Token local **sans scope `workflow`** → ne pas
    modifier `.github/workflows/*` par push (l'utilisateur le fait via l'UI web). ⚠️ Si l'utilisateur a édité un fichier
