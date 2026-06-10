@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b78 (fix mise à jour PWA : bump du service worker force le rechargement)';
+const APP_VERSION = '2026-06-10 · b79 (Intermittence : affiche la date anniversaire)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2760,6 +2760,10 @@ function openIntermittence(){
     ? `${fmtD(win.start)} → ${fmtD(new Date(win.end.getTime()-86400000))}`
     : (allMois.length ? `${allMois[0].l} → ${allMois[allMois.length-1].l}` : '');
   const periodKind = win ? 'Année intermittence' : 'Saison';
+  const md = win ? parseAnnivMD(anniv) : null;
+  const annivLine = md
+    ? `<div style="text-align:center;font-size:12.5px;color:var(--c3t);margin:-.75rem 0 1rem">🎂 Date anniversaire d'intermittence : <b>${String(md.d).padStart(2,'0')}/${String(md.m).padStart(2,'0')}</b></div>`
+    : '';
   const pct = Math.min(100, Math.round((s.hours/OBJECTIF_HEURES)*100));
   const reste = Math.max(0, Math.round((OBJECTIF_HEURES - s.hours)*100)/100);
   const gaugeColor = pct>=100 ? 'var(--c3t)' : pct>=66 ? '#facc15' : 'var(--c3tc)';
@@ -2815,6 +2819,7 @@ function openIntermittence(){
   document.getElementById('intermittence-body').innerHTML = `
     <div class="modal-sub" style="margin-bottom:1.25rem">${who} · ${periodKind} ${periodLabel}</div>
 
+    ${annivLine}
     ${annivPrompt}
 
     <!-- Jauge 507h (spectacles + heures supp) -->

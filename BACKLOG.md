@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b78`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b79`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). **⚠️ CRUCIAL** : ce déclencheur n'arrive QUE si **`sw.js` change**.
   → **TOUJOURS bumper la constante `CACHE` dans `sw.js`** (ex. `3t-cache-v6`→`v7`) à chaque release qui touche
