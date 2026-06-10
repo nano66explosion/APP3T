@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b80 (connexion auto : affiche la raison de l\'échec au lieu de rester bloqué)';
+const APP_VERSION = '2026-06-10 · b81 (diagnostic session persistante : feedback à la connexion PC)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -960,21 +960,27 @@ async function ensureFirebaseReady(){
 }
 // Échange le code d'autorisation contre une session (le refresh token reste dans le
 // Worker/KV). Renvoie true si on a obtenu un access_token.
+let _lastExchangeInfo = '';
 async function exchangeCodeForSession(code){
-  if(!FORMATION_WORKER_URL) return false;
+  _lastExchangeInfo = '';
+  if(!FORMATION_WORKER_URL){ _lastExchangeInfo='worker non configuré'; return false; }
   try{
     const r = await fetch(FORMATION_WORKER_URL, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ action:'exchangeCode', code })
     });
-    if(!r.ok) return false;
     const j = await r.json().catch(()=>null);
-    if(!j || !j.access_token) return false;
+    if(!r.ok || !j || !j.access_token){
+      _lastExchangeInfo = 'échange ' + r.status + (j && j.error ? ' (' + String(j.error).slice(0,120) + ')' : '');
+      return false;
+    }
     saveToken(j.access_token, j.expires_in);
     try{ localStorage.setItem('3t_granted_scopes', SCOPES); }catch(e){}
     localStorage.setItem('3t_has_refresh', j.has_refresh ? '1' : '0');
+    _lastExchangeInfo = j.has_refresh ? 'ok (session persistante)' : 'ok mais SANS refresh token';
+    if(!j.has_refresh) console.warn('exchangeCode: pas de refresh_token renvoyé par Google');
     return true;
-  }catch(e){ console.warn('exchangeCodeForSession:', e); return false; }
+  }catch(e){ _lastExchangeInfo=(e&&e.message)||'erreur réseau'; console.warn('exchangeCodeForSession:', e); return false; }
 }
 // Rafraîchit l'access_token Drive SANS popup via le Worker (marche en PWA iOS).
 // Nécessite une session Firebase (preuve d'identité). Renvoie true si OK.
@@ -1022,8 +1028,16 @@ function initCodeClient(){
         return;
       }
       const ok = await exchangeCodeForSession(resp.code);
-      if(ok){ onAuthenticated(); }
-      else { initTokenClient().requestAccessToken({ prompt: 'consent' }); }  // repli flux implicite
+      if(ok){
+        // Feedback diagnostic : session persistante établie ou non
+        if(_lastExchangeInfo.indexOf('SANS refresh') >= 0) toast('⚠️ Connecté, mais session NON persistante (pas de refresh token)', 'err');
+        else if(_lastExchangeInfo.indexOf('persistante') >= 0) toast('🔐 Session persistante activée', 'ok');
+        onAuthenticated();
+      }
+      else {
+        setStatus('⚠️ Échange refusé (' + _lastExchangeInfo + ') — connexion classique…');
+        initTokenClient().requestAccessToken({ prompt: 'consent' });   // repli flux implicite
+      }
     }
   });
   return codeClient;
