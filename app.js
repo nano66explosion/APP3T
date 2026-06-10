@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b84 (session longue ~7j : flux par redirection + deduplication callback iOS, option Parametres)';
+const APP_VERSION = '2026-06-10 · b85 (secours : bouton « Connexion classique » sur l\'écran de connexion)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -815,6 +815,10 @@ function updatePersistLabel(){
 document.addEventListener('DOMContentLoaded', () => {
   const lver = document.getElementById('login-version'); if(lver) lver.textContent = 'Version ' + APP_VERSION;
   const ver = document.getElementById('app-version'); if(ver) ver.textContent = 'Version ' + APP_VERSION;
+  // Secours : la « session longue » (redirection) peut bloquer la connexion si la config
+  // Google n'est pas bonne → on propose la connexion classique quand l'option est active.
+  const classic = document.getElementById('btn-connect-classic');
+  if(classic && persistEnabled()) classic.style.display = 'block';
 });
 
 // Pastille colorée selon le rôle du régisseur (titulaire/doublon/observateur/formateur)

@@ -23,7 +23,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<link rel="stylesheet" href="style.css?v=84">
+<link rel="stylesheet" href="style.css?v=85">
 </head>
 <body>
 <div id="topbar-loader"></div>
@@ -40,6 +40,12 @@
 
     <button class="go-btn" id="btn-connect" onclick="connectGoogle()" style="margin-bottom:.75rem">
       🔗 Se connecter à Google
+    </button>
+
+    <!-- Secours : si la « session longue » (redirection) bloque la connexion, ce lien
+         force le flux classique (popup implicite) en désactivant l'option. -->
+    <button id="btn-connect-classic" onclick="localStorage.setItem('3t_persist_on','0'); connectGoogle()" style="display:none;background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;font-family:inherit;text-decoration:underline;margin-bottom:.75rem">
+      Connexion classique (dépannage)
     </button>
 
     <button id="btn-disconnect" onclick="disconnectGoogle()" style="display:none;background:none;border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit;margin-bottom:.75rem">
@@ -720,6 +726,6 @@
   </div>
 </div>
 
-<script src="app.js?v=84"></script>
+<script src="app.js?v=85"></script>
 </body>
 </html>
