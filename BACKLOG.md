@@ -12,9 +12,12 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b75`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b78`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
-  (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
+  (`controllerchange` → `location.reload`). **⚠️ CRUCIAL** : ce déclencheur n'arrive QUE si **`sw.js` change**.
+  → **TOUJOURS bumper la constante `CACHE` dans `sw.js`** (ex. `3t-cache-v6`→`v7`) à chaque release qui touche
+  `app.js`/`style.css`/`calendrier_3T.html`, sinon les PWA (surtout iOS) **restent sur l'ancienne version**
+  (l'iPhone réveille l'ancienne page sans la recharger). *(Bug rencontré b71→b77 : sw.js non bumpé → MAJ jamais reçues.)*
 
 ## 🔔 Architecture des notifications (résumé)
 
@@ -518,6 +521,7 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 4. **Avant push** : vérifier la syntaxe JS — valider **`app.js`** directement → `osascript -l JavaScript` +
    `new Function(<contenu app.js>)`. Vérifier aussi `sw.js`/`worker.js` si touchés.
 5. **Bumper `APP_VERSION`** (dans **`app.js`**) à chaque évolution notable (visible dans Paramètres + écran connexion).
+   **ET bumper `CACHE` dans `sw.js`** (sinon la MAJ ne se propage pas aux PWA — cf. section « Mise à jour auto »).
 6. Pousser : `cd "APP 3T" && git add -A && git commit -m "…" && git push origin main` (finir le message par
    `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`). ⚠️ Token local **sans scope `workflow`** → ne pas
    modifier `.github/workflows/*` par push (l'utilisateur le fait via l'UI web). ⚠️ Si l'utilisateur a édité un fichier
