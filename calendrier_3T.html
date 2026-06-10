@@ -23,7 +23,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<link rel="stylesheet" href="style.css?v=87">
+<link rel="stylesheet" href="style.css?v=88">
 </head>
 <body>
 <div id="topbar-loader"></div>
@@ -136,11 +136,6 @@
       <select id="reg-select" onchange="onRegChange()" style="max-width:130px"></select>
     </div>
   </div>
-  <!-- Bascule Mois ↔ Liste (agenda), visible seulement en vue Mois/Liste -->
-  <button class="agenda-toggle-btn ag-hidden" id="btn-agenda-toggle" onclick="toggleAgenda()">
-    <span id="agenda-toggle-ico"></span><span id="agenda-toggle-lbl">Vue liste</span>
-  </button>
-
   <!-- Recherche globale (toutes vues) : bascule sur la Grille au premier caractère -->
   <div class="search-row" style="padding:.15rem 0 0">
     <span class="search-icon">🔍</span>
@@ -173,6 +168,10 @@
   </div><!-- /app-controls -->
 
   <div id="view-container" style="overflow-y:auto;flex:1">
+    <!-- Bascule Mois ↔ Liste (agenda), visible seulement en vue Mois/Liste -->
+    <button class="agenda-toggle-btn ag-hidden" id="btn-agenda-toggle" onclick="toggleAgenda()">
+      <span id="agenda-toggle-ico"></span><span id="agenda-toggle-lbl">Vue liste</span>
+    </button>
     <!-- Sélecteur d'échelle (Semaine / Mois / Année) — visible sur les vues calendrier -->
     <div class="cal-scale" id="cal-scale-switch">
       <button data-scale="week" onclick="switchView('week')">Semaine</button>
@@ -728,6 +727,6 @@
   </div>
 </div>
 
-<script src="app.js?v=87"></script>
+<script src="app.js?v=88"></script>
 </body>
 </html>
