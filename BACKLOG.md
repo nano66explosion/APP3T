@@ -18,6 +18,10 @@
   → **TOUJOURS bumper la constante `CACHE` dans `sw.js`** (ex. `3t-cache-v6`→`v7`) à chaque release qui touche
   `app.js`/`style.css`/`calendrier_3T.html`, sinon les PWA (surtout iOS) **restent sur l'ancienne version**
   (l'iPhone réveille l'ancienne page sans la recharger). *(Bug rencontré b71→b77 : sw.js non bumpé → MAJ jamais reçues.)*
+- **Anti-cache CDN (b83)** : GitHub Pages met `app.js`/`style.css` en **cache CDN ~10 min** → MAJ retardées.
+  Le HTML les charge avec **`?v=<build>`** (`app.js?v=83`, `style.css?v=83`) → nouvelle URL = pas de cache périmé.
+  **Bumper ce `?v=` à chaque release** (en plus de `APP_VERSION` et `CACHE`). Le SW fait `caches.match(.,{ignoreSearch:true})`
+  pour que le hors-ligne marche malgré le `?v=`.
 
 ## 🔔 Architecture des notifications (résumé)
 
