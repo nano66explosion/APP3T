@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b83`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b84`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). **⚠️ CRUCIAL** : ce déclencheur n'arrive QUE si **`sw.js` change**.
   → **TOUJOURS bumper la constante `CACHE` dans `sw.js`** (ex. `3t-cache-v6`→`v7`) à chaque release qui touche
@@ -435,6 +435,18 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
     **flux implicite** (fiable) sur iPhone installé ; flux code réservé à PC/navigateur. **La persistance reste
     acquise sur iPhone** via le refresh token partagé (clé `rt:g_<sub>` stockée au 1ᵉʳ login PC) : `refreshViaWorker`
     (démarrage/401) renvoie un access_token frais **sans popup** même sur iPhone.
+  - **❌ Échec b71 (popup `initCodeClient`)** : l'échange du code échouait (popup ambigu) → **double popup** + pas de
+    persistance. **Retiré en b82** (retour au flux implicite simple).
+  - **✅ REFONTE b84 — flux par REDIRECTION (pas de popup)** : `startCodeRedirect()` redirige vers
+    `accounts.google.com/o/oauth2/v2/auth` (`response_type=code`, **`access_type=offline`**, **`prompt=consent`**,
+    `redirect_uri = location.origin+pathname` = l'app). Au retour, l'app lit `?code=` (handler dans `window.load`),
+    l'échange via `exchangeCodeForSession(code, redirectUri)`. **Dédoublonnage callback iOS** : le Worker met le
+    résultat en cache KV `code:<code>` (TTL 300 s) → le 2ᵉ échange du même code (PWA + navigateur interne) renvoie
+    le cache au lieu d'`invalid_grant`. **Derrière un interrupteur** `3t_persist_on` (Paramètres → « session longue »,
+    `togglePersist`/`persistEnabled`) : OFF par défaut = flux implicite 1h fiable ; ON = redirection + refresh worker.
+    - **⚠️ Config requise** : ajouter **`https://nano66explosion.github.io/APP3T/calendrier_3T.html`** dans
+      *Authorized redirect URIs* du client OAuth (Google Cloud) + Worker redéployé (cache code) + activer l'option.
+    - **À TESTER iPhone** (le point dur) : redirection qui revient bien dans la PWA, pas dans Safari à part.
 - **Notifications push** : **formations = INSTANTANÉ** via le Worker Cloudflare (cf. section Backend). Le reste
   (STOP heures supp, « régie demain », « bilan soirée », rattrapage formations) passe par le **cron GitHub Actions
   `*/15`** (best-effort, parfois 15-40 min ; ne jamais redescendre sous ~15 min, GitHub ignore les crons rapprochés).

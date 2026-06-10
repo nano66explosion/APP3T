@@ -85,9 +85,13 @@ export default {
       }
       try {
         if (body.action === 'exchangeCode') {
-          // 1ʳᵉ connexion : on échange le code. L'identité (uid) est dérivée du jeton
-          // fraîchement obtenu (userinfo → sub) car la session Firebase n'existe pas encore.
+          // L'identité (uid) est dérivée du jeton fraîchement obtenu (userinfo → sub).
           if (!body.code) return cors(json({ error: 'missing code' }, 400), origin);
+          // Dédoublonnage du callback iOS (PWA + navigateur interne échangent le MÊME code) :
+          // si ce code a déjà été échangé, on renvoie le résultat caché au lieu d'un invalid_grant.
+          const ck = 'code:' + body.code;
+          const cached = await env.TOKENS.get(ck);
+          if (cached) return cors(json(JSON.parse(cached)), origin);
           const d = await googleToken({
             grant_type: 'authorization_code',
             code: body.code,
@@ -103,8 +107,9 @@ export default {
             const info = ui.ok ? await ui.json() : null;
             if (info && info.sub) await env.TOKENS.put('rt:g_' + info.sub, d.refresh_token);
           }
-          return cors(json({ access_token: d.access_token, expires_in: d.expires_in || 3600,
-                             has_refresh: !!d.refresh_token }), origin);
+          const result = { access_token: d.access_token, expires_in: d.expires_in || 3600, has_refresh: !!d.refresh_token };
+          await env.TOKENS.put(ck, JSON.stringify(result), { expirationTtl: 300 });   // cache 5 min (dédoublonnage)
+          return cors(json(result), origin);
         } else {
           // Rafraîchissement silencieux : protégé par le jeton d'identité Firebase.
           const uid = await verifyFirebaseIdToken(body.firebaseIdToken);

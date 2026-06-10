@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b83 (anti-cache : version dans l’URL des fichiers → MAJ plus fiables)';
+const APP_VERSION = '2026-06-10 · b84 (session longue ~7j : flux par redirection + deduplication callback iOS, option Parametres)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -766,6 +766,7 @@ function openSettingsModal() {
   updateNotifLabel();
   refreshHsuppLabel();
   updateThemeLabel();
+  updatePersistLabel();
   const ver = document.getElementById('app-version'); if(ver) ver.textContent = 'Version ' + APP_VERSION;
   const lver = document.getElementById('login-version'); if(lver) lver.textContent = 'Version ' + APP_VERSION;
   try{ initFirebase(); updateAuthStatus(_fbAuth && _fbAuth.currentUser); }catch(e){}   // état session base
@@ -795,6 +796,21 @@ function updateThemeLabel(){
 }
 applyTheme(getTheme());
 document.addEventListener('DOMContentLoaded', updateThemeLabel);
+
+// Session longue (≈7 jours) : flux "code" par redirection + refresh token côté Worker.
+function togglePersist(){
+  const on = !persistEnabled();
+  localStorage.setItem('3t_persist_on', on ? '1' : '0');
+  updatePersistLabel();
+  if(on) toast('Session longue activée — déconnecte-toi puis reconnecte-toi pour l\'appliquer', 'ok');
+  else { localStorage.removeItem('3t_has_refresh'); toast('Session longue désactivée', 'ok'); }
+}
+function updatePersistLabel(){
+  const on = persistEnabled();
+  const lbl = document.getElementById('lbl-persist'); const btn = document.getElementById('btn-persist');
+  if(lbl) lbl.textContent = on ? '✅ Activée (≈7 jours)' : '○ Désactivée (session courte ~1h)';
+  if(btn) btn.textContent = on ? 'Désactiver la session longue' : 'Activer la session longue (≈7 j)';
+}
 // Affiche la version sur l'écran de connexion (et dans les Paramètres) dès le chargement
 document.addEventListener('DOMContentLoaded', () => {
   const lver = document.getElementById('login-version'); if(lver) lver.textContent = 'Version ' + APP_VERSION;
@@ -960,14 +976,34 @@ async function ensureFirebaseReady(){
 }
 // Échange le code d'autorisation contre une session (le refresh token reste dans le
 // Worker/KV). Renvoie true si on a obtenu un access_token.
+// Adresse de redirection OAuth = l'app elle-même (doit être déclarée dans Google Cloud
+// → Authorized redirect URIs). Sans query/hash.
+function oauthRedirectUri(){ return location.origin + location.pathname; }
+// Lance le flux "code" par REDIRECTION (pas de popup → fiable en PWA iOS). access_type=offline
+// + prompt=consent garantissent un refresh token. Au retour, l'app récupère ?code= et l'échange.
+function startCodeRedirect(){
+  const state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try{ sessionStorage.setItem('3t_oauth_state', state); }catch(e){}
+  const u = 'https://accounts.google.com/o/oauth2/v2/auth?' + new URLSearchParams({
+    client_id: getClientId(),
+    redirect_uri: oauthRedirectUri(),
+    response_type: 'code',
+    scope: SCOPES,
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+    state
+  }).toString();
+  location.href = u;
+}
 let _lastExchangeInfo = '';
-async function exchangeCodeForSession(code){
+async function exchangeCodeForSession(code, redirectUri){
   _lastExchangeInfo = '';
   if(!FORMATION_WORKER_URL){ _lastExchangeInfo='worker non configuré'; return false; }
   try{
     const r = await fetch(FORMATION_WORKER_URL, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'exchangeCode', code })
+      body: JSON.stringify({ action:'exchangeCode', code, redirectUri: redirectUri || oauthRedirectUri() })
     });
     const j = await r.json().catch(()=>null);
     if(!r.ok || !j || !j.access_token){
@@ -1009,8 +1045,11 @@ async function refreshViaWorker(){
     return true;
   }catch(e){ _lastRefreshInfo = (e && e.message) || 'erreur réseau'; console.warn('refreshViaWorker:', e); return false; }
 }
-// Reconnexion silencieuse (flux implicite).
-function reauth(){ silentRefresh(); }
+// Reconnexion silencieuse : Worker si session longue activée, sinon flux implicite.
+function reauth(){
+  if(persistEnabled()){ refreshViaWorker().then(ok => { if(!ok) silentRefresh(); }); }
+  else silentRefresh();
+}
 // Client "code" (flux authorization-code) pour obtenir un refresh token persistant.
 let codeClient = null;
 function initCodeClient(){
@@ -1381,6 +1420,26 @@ window.addEventListener('load', () => {
   refreshSavedFileLabel();
   refreshBaseLabel();
 
+  // 0bis) Retour de redirection OAuth (?code=) → échange le code contre une session persistante.
+  const _qp = new URLSearchParams(location.search);
+  const _oauthCode = _qp.get('code');
+  if (_oauthCode) {
+    const redirectUri = oauthRedirectUri();
+    const st = _qp.get('state');
+    let expected = null; try { expected = sessionStorage.getItem('3t_oauth_state'); } catch(e){}
+    try { history.replaceState(null, '', location.pathname); } catch(e){}   // nettoie l'URL (évite un re-traitement)
+    // state présent côté app → doit correspondre ; sinon (contexte iOS séparé) on tolère.
+    if (!expected || expected === st) {
+      try { sessionStorage.removeItem('3t_oauth_state'); } catch(e){}
+      setStatus('⏳ Connexion…'); loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
+      exchangeCodeForSession(_oauthCode, redirectUri).then(ok => {
+        if (ok) onAuthenticated();
+        else { loginStepsShow(false); setStatus('Échec de connexion : ' + _lastExchangeInfo + ' — réessaie.'); }
+      });
+      return;
+    }
+  }
+
   // 1) Jeton encore valide en cache → on entre directement, sans Google.
   const cached = getCachedToken();
   if (cached) {
@@ -1400,7 +1459,15 @@ window.addEventListener('load', () => {
     } else {
       setStatus('⏳ Reconnexion automatique…');
       loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
-      silentRefresh();   // reconnexion silencieuse (flux implicite)
+      // Session longue activée → refresh via Worker (sans popup) ; sinon flux implicite silencieux.
+      if (persistEnabled()) {
+        refreshViaWorker().then(ok => {
+          if (ok) onAuthenticated();
+          else { loginStepsShow(false); setStatus('Session expirée — clique sur « Se connecter à Google »'); }
+        });
+      } else {
+        silentRefresh();
+      }
     }
   }
 });
@@ -1409,15 +1476,14 @@ function connectGoogle() {
   const clientId = getClientId();
   if (!clientId) return; // always has a default, this won't trigger
   loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
-  // ⚠️ iPhone en PWA installée (standalone) : le popup du flux "code" s'ouvre dans Safari
-  // et ne peut PAS renvoyer le code à l'app → connexion bloquée. On y garde donc le flux
-  // implicite (fiable). Le flux "code" (session persistante ~7j) reste pour PC / navigateur.
-  // Flux implicite (jeton ~1h), simple et fiable : UN SEUL popup, marche sur iOS.
-  // Le flux "code" (session persistante) a été retiré (b82) : l'échange du code échouait
-  // → double popup + pas de persistance. À reprendre plus tard si on trouve une méthode fiable.
+  // Option « session longue » (≈7 j) activée → flux "code" par REDIRECTION (pas de popup,
+  // fiable en PWA iOS), qui obtient un refresh token via le Worker. Sinon → flux implicite
+  // (jeton ~1h, un seul popup, ultra fiable).
+  if (persistEnabled() && FORMATION_WORKER_URL) { startCodeRedirect(); return; }
   const needConsent = localStorage.getItem('3t_scope_v') !== SCOPE_VERSION;
   initTokenClient().requestAccessToken(needConsent ? { prompt: 'consent' } : {});
 }
+function persistEnabled(){ return localStorage.getItem('3t_persist_on') === '1'; }
 
 function disconnectGoogle() {
   // Revoke the current token and clear the auto-connect flag + cached token

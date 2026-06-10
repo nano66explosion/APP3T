@@ -23,7 +23,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<link rel="stylesheet" href="style.css?v=83">
+<link rel="stylesheet" href="style.css?v=84">
 </head>
 <body>
 <div id="topbar-loader"></div>
@@ -420,6 +420,14 @@
       <button class="file-btn" id="btn-theme" onclick="toggleTheme()" style="margin-top:.4rem">Basculer clair / sombre</button>
     </div>
 
+    <!-- Session longue (≈7 jours) -->
+    <div class="settings-block">
+      <label class="file-label">🔓 Connexion</label>
+      <div class="file-name" id="lbl-persist" style="color:var(--text)"></div>
+      <button class="file-btn" id="btn-persist" onclick="togglePersist()" style="margin-top:.4rem">Activer la session longue (≈7 j)</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Reste connecté ~7 jours sans te reconnecter. <b>Nécessite une config Google Cloud</b> (l'adresse de l'app dans « Authorized redirect URIs »). Si la connexion échoue, désactive cette option pour revenir au mode simple.</div>
+    </div>
+
     <!-- Notifications -->
     <div class="settings-block">
       <label class="file-label">🔔 Notifications</label>
@@ -712,6 +720,6 @@
   </div>
 </div>
 
-<script src="app.js?v=83"></script>
+<script src="app.js?v=84"></script>
 </body>
 </html>
