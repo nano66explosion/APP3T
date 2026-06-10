@@ -698,17 +698,18 @@ function parsePlanTech(wb){
 // openid/email/profile : nécessaires pour ouvrir une session Firebase Auth (signInWithCredential)
 // avec le même jeton Google → permet de verrouiller Firestore (request.auth) sans 2ᵉ connexion.
 const SCOPES = 'openid email profile https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/spreadsheets';
-const SCOPE_VERSION = '5'; // à incrémenter si on change les scopes (force le re-consentement)
+const SCOPE_VERSION = '6'; // à incrémenter si on change les scopes OU le client OAuth (force le re-consentement)
 let accessToken = null;
 let googleEmail = (localStorage.getItem('3t_google_email') || '');  // identité du compte connecté
 let planLoaded = false;
 
-const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.googleusercontent.com';
+// Client OAuth du projet tapp-2c0a8 (compte nano66explosion) — même projet que Firebase depuis 2026-06-10.
+const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com';
 // Fichiers Drive par défaut (chargés automatiquement — plus besoin de les sélectionner)
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b85 (secours : bouton « Connexion classique » sur l\'écran de connexion)';
+const APP_VERSION = '2026-06-10 · b86 (nouveau client OAuth : tout regroupe sous le projet tapp-2c0a8)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -730,6 +731,9 @@ const FORMATION_WORKER_URL = "https://formation-notif.nano66explosion.workers.de
 // Le push est-il configuré ?
 function pushConfigured(){ return !!(FIREBASE_CONFIG.projectId && FIREBASE_CONFIG.apiKey && FCM_VAPID_KEY); }
 function getClientId() { return localStorage.getItem('3t_client_id') || DEFAULT_CLIENT_ID; }
+// Migration 2026-06-10 : si l'ANCIEN client (projet 792962540106) traîne en réglage
+// personnalisé, on le purge pour basculer sur le nouveau (projet tapp-2c0a8).
+try{ if((localStorage.getItem('3t_client_id')||'').indexOf('792962540106-') === 0) localStorage.removeItem('3t_client_id'); }catch(e){}
 function getSavedFileId() { return localStorage.getItem('3t_plan_file_id') || ''; }
 function getSavedFileName() { return localStorage.getItem('3t_plan_file_name') || ''; }
 function getSavedFileMime() { return localStorage.getItem('3t_plan_file_mime') || ''; }

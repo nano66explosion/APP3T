@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b85`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b86`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). **⚠️ CRUCIAL** : ce déclencheur n'arrive QUE si **`sw.js` change**.
   → **TOUJOURS bumper la constante `CACHE` dans `sw.js`** (ex. `3t-cache-v6`→`v7`) à chaque release qui touche
@@ -146,13 +146,20 @@
 ## 🔑 Configuration Google Drive (IDs en dur dans le JS)
 
 ```
-DEFAULT_CLIENT_ID = 792962540106-...apps.googleusercontent.com
+DEFAULT_CLIENT_ID = 960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com
 DEFAULT_PLAN_ID   = 1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_   (plan tech)
 DEFAULT_BASE_ID   = 1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a   (repli seulement)
 HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + base)
 ```
-- **Scopes OAuth** : `drive` (lecture+écriture tous fichiers) + `spreadsheets`. `SCOPE_VERSION='4'`
-  (changer la version force le re-consentement). Jeton mis en cache (~1h) + reconnexion silencieuse.
+- **Client OAuth (b86, 2026-06-10)** : recréé **dans le projet `tapp-2c0a8`** (compte **nano66explosion@gmail.com**)
+  → OAuth + Firebase regroupés sous un seul projet/compte. *(Ancien client `792962540106-…` = autre projet, abandonné ;
+  migration : `3t_client_id` purgé du localStorage s'il pointait sur l'ancien.)* Le même ID est en dur dans
+  **`cloudflare/worker.js`** (`GOOGLE_CLIENT_ID`) → **redéployer le Worker + mettre à jour le secret
+  `GOOGLE_CLIENT_SECRET`** à chaque changement de client. ⚠️ Consent screen en mode test → **test users** =
+  emails de tous les régisseurs.
+- **Scopes OAuth** : `openid email profile` + `drive` (lecture+écriture tous fichiers) + `spreadsheets`.
+  `SCOPE_VERSION='6'` (changer la version force le re-consentement — aussi bumpée quand le client change).
+  Jeton mis en cache (~1h) + reconnexion silencieuse.
 - **Plan tech** & **base heures** : chargés **automatiquement** à la connexion (`ensureDefaultFiles`).
 - **Base heures** : repérée **par NOM** dans le dossier Drive (fichier commençant par « Base HEURES »
   via `resolveBaseFile`), car l'ID peut changer ; repli sur `DEFAULT_BASE_ID`.

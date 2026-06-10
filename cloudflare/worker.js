@@ -23,7 +23,7 @@
 const APP_URL = 'https://nano66explosion.github.io/APP3T/calendrier_3T.html';
 const FS = 'https://firestore.googleapis.com/v1/projects/';
 // Identifiants publics (déjà exposés dans l'app) — pour la session Drive persistante.
-const GOOGLE_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com';
 const FIREBASE_API_KEY = 'AIzaSyDXOF7_eTKMDYp8swxmoznEfyxY8_4ArP0';
 
 // Origines autorisées (le site PWA). Bloque l'abus cross-site depuis un navigateur.
