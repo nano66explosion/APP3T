@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b74 (animations globales : modales, cartes, retour tactile boutons)';
+const APP_VERSION = '2026-06-10 · b75 (fix connexion iPhone : flux implicite en PWA standalone)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1394,13 +1394,15 @@ function connectGoogle() {
   const clientId = getClientId();
   if (!clientId) return; // always has a default, this won't trigger
   loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
-  // Flux "code" (session persistante ~7j via le Worker) si le Worker est configuré.
-  // En cas d'échec d'échange (Worker non configuré), repli automatique sur le flux implicite.
-  if (FORMATION_WORKER_URL && window.google && google.accounts && google.accounts.oauth2 && google.accounts.oauth2.initCodeClient) {
+  // ⚠️ iPhone en PWA installée (standalone) : le popup du flux "code" s'ouvre dans Safari
+  // et ne peut PAS renvoyer le code à l'app → connexion bloquée. On y garde donc le flux
+  // implicite (fiable). Le flux "code" (session persistante ~7j) reste pour PC / navigateur.
+  const iosStandalone = isIOS() && isStandalone();
+  if (!iosStandalone && FORMATION_WORKER_URL && window.google && google.accounts && google.accounts.oauth2 && google.accounts.oauth2.initCodeClient) {
     try { initCodeClient().requestCode(); return; }
     catch (e) { console.warn('initCodeClient:', e); }
   }
-  // Flux implicite (jeton 1h). Si les scopes ont changé, on force le consentement.
+  // Flux implicite (jeton ~1h). Si les scopes ont changé, on force le consentement.
   const needConsent = localStorage.getItem('3t_scope_v') !== SCOPE_VERSION;
   initTokenClient().requestAccessToken(needConsent ? { prompt: 'consent' } : {});
 }

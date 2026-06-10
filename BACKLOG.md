@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b74`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b75`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). Plus de versions bloquées en cache après un déploiement.
 
@@ -423,6 +423,11 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
     OAuth client) + **KV namespace bindé `TOKENS`** + Worker redéployé. *Authorized JS origins* du client OAuth =
     `https://nano66explosion.github.io`. *(En cas de réinstall/rotation : si pas de refresh token rendu car
     consentement déjà accordé → révoquer une fois l'accès sur myaccount.google.com/permissions puis reconnexion.)*
+  - **⚠️ FIX iPhone (b75)** : le popup du flux **code** ne revient pas en **PWA iOS standalone** (s'ouvre dans Safari,
+    ne peut pas postMessage le code → connexion bloquée). `connectGoogle` détecte `isIOS() && isStandalone()` →
+    **flux implicite** (fiable) sur iPhone installé ; flux code réservé à PC/navigateur. **La persistance reste
+    acquise sur iPhone** via le refresh token partagé (clé `rt:g_<sub>` stockée au 1ᵉʳ login PC) : `refreshViaWorker`
+    (démarrage/401) renvoie un access_token frais **sans popup** même sur iPhone.
 - **Notifications push** : **formations = INSTANTANÉ** via le Worker Cloudflare (cf. section Backend). Le reste
   (STOP heures supp, « régie demain », « bilan soirée », rattrapage formations) passe par le **cron GitHub Actions
   `*/15`** (best-effort, parfois 15-40 min ; ne jamais redescendre sous ~15 min, GitHub ignore les crons rapprochés).
