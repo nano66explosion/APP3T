@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b81 (diagnostic session persistante : feedback à la connexion PC)';
+const APP_VERSION = '2026-06-10 · b82 (connexion : retour au flux simple fiable, un seul popup ; persistance retirée)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1009,10 +1009,8 @@ async function refreshViaWorker(){
     return true;
   }catch(e){ _lastRefreshInfo = (e && e.message) || 'erreur réseau'; console.warn('refreshViaWorker:', e); return false; }
 }
-// Reconnexion silencieuse : Worker d'abord (sans popup), sinon ancien flux implicite.
-function reauth(){
-  refreshViaWorker().then(ok => { if(!ok) silentRefresh(); });
-}
+// Reconnexion silencieuse (flux implicite).
+function reauth(){ silentRefresh(); }
 // Client "code" (flux authorization-code) pour obtenir un refresh token persistant.
 let codeClient = null;
 function initCodeClient(){
@@ -1402,15 +1400,7 @@ window.addEventListener('load', () => {
     } else {
       setStatus('⏳ Reconnexion automatique…');
       loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
-      // Session persistante : on tente d'abord le Worker (sans popup, marche sur iOS) ;
-      // sinon ancien flux silencieux, puis on invite à se reconnecter si rien ne marche.
-      (async () => {
-        if (await refreshViaWorker()) { onAuthenticated(); return; }
-        loginStepsShow(false);
-        setStatus('Session expirée — clique sur « Se connecter à Google »'
-          + (_lastRefreshInfo && _lastRefreshInfo !== 'ok' ? '  ·  (auto : ' + _lastRefreshInfo + ')' : ''));
-        silentRefresh();   // tentative silencieuse en dernier recours (PC/navigateur)
-      })();
+      silentRefresh();   // reconnexion silencieuse (flux implicite)
     }
   }
 });
@@ -1422,12 +1412,9 @@ function connectGoogle() {
   // ⚠️ iPhone en PWA installée (standalone) : le popup du flux "code" s'ouvre dans Safari
   // et ne peut PAS renvoyer le code à l'app → connexion bloquée. On y garde donc le flux
   // implicite (fiable). Le flux "code" (session persistante ~7j) reste pour PC / navigateur.
-  const iosStandalone = isIOS() && isStandalone();
-  if (!iosStandalone && FORMATION_WORKER_URL && window.google && google.accounts && google.accounts.oauth2 && google.accounts.oauth2.initCodeClient) {
-    try { initCodeClient().requestCode(); return; }
-    catch (e) { console.warn('initCodeClient:', e); }
-  }
-  // Flux implicite (jeton ~1h). Si les scopes ont changé, on force le consentement.
+  // Flux implicite (jeton ~1h), simple et fiable : UN SEUL popup, marche sur iOS.
+  // Le flux "code" (session persistante) a été retiré (b82) : l'échange du code échouait
+  // → double popup + pas de persistance. À reprendre plus tard si on trouve une méthode fiable.
   const needConsent = localStorage.getItem('3t_scope_v') !== SCOPE_VERSION;
   initTokenClient().requestAccessToken(needConsent ? { prompt: 'consent' } : {});
 }
