@@ -156,7 +156,9 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   migration : `3t_client_id` purgé du localStorage s'il pointait sur l'ancien.)* Le même ID est en dur dans
   **`cloudflare/worker.js`** (`GOOGLE_CLIENT_ID`) → **redéployer le Worker + mettre à jour le secret
   `GOOGLE_CLIENT_SECRET`** à chaque changement de client. ⚠️ Consent screen en mode test → **test users** =
-  emails de tous les régisseurs.
+  emails de tous les régisseurs. **✅ Config validée le 2026-06-10** (connexion + session longue par redirection OK ;
+  diagnostic à distance : POST `exchangeCode` avec un faux code → `invalid_grant` = couple ID/secret valide,
+  `invalid_client` = secret/ID désynchronisés).
 - **Scopes OAuth** : `openid email profile` + `drive` (lecture+écriture tous fichiers) + `spreadsheets`.
   `SCOPE_VERSION='6'` (changer la version force le re-consentement — aussi bumpée quand le client change).
   Jeton mis en cache (~1h) + reconnexion silencieuse.
