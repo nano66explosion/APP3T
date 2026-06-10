@@ -708,7 +708,7 @@ const DEFAULT_CLIENT_ID = '792962540106-mmfieb41b0911cd04im9l63091tk6gcb.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b79 (Intermittence : affiche la date anniversaire)';
+const APP_VERSION = '2026-06-10 · b80 (connexion auto : affiche la raison de l\'échec au lieu de rester bloqué)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -978,22 +978,30 @@ async function exchangeCodeForSession(code){
 }
 // Rafraîchit l'access_token Drive SANS popup via le Worker (marche en PWA iOS).
 // Nécessite une session Firebase (preuve d'identité). Renvoie true si OK.
+let _lastRefreshInfo = '';
 async function refreshViaWorker(){
-  if(!FORMATION_WORKER_URL) return false;
+  _lastRefreshInfo = '';
+  if(!FORMATION_WORKER_URL){ _lastRefreshInfo = 'worker non configuré'; return false; }
   try{
     const user = await ensureFirebaseReady();
-    if(!user) return false;
+    if(!user){ _lastRefreshInfo = 'pas de session Firebase'; return false; }
     const idToken = await user.getIdToken();
     const r = await fetch(FORMATION_WORKER_URL, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ action:'refreshToken', firebaseIdToken: idToken })
     });
-    if(!r.ok) return false;                      // 404 no_refresh / 501 non configuré → repli
+    if(!r.ok){
+      const j = await r.json().catch(()=>null);
+      // 404 no_refresh = aucun refresh token stocké ; 501 = KV/secret non configuré
+      _lastRefreshInfo = 'worker ' + r.status + (j && j.error ? ' (' + j.error + ')' : '');
+      return false;
+    }
     const j = await r.json().catch(()=>null);
-    if(!j || !j.access_token) return false;
+    if(!j || !j.access_token){ _lastRefreshInfo = 'pas de jeton renvoyé'; return false; }
     saveToken(j.access_token, j.expires_in);
+    _lastRefreshInfo = 'ok';
     return true;
-  }catch(e){ console.warn('refreshViaWorker:', e); return false; }
+  }catch(e){ _lastRefreshInfo = (e && e.message) || 'erreur réseau'; console.warn('refreshViaWorker:', e); return false; }
 }
 // Reconnexion silencieuse : Worker d'abord (sans popup), sinon ancien flux implicite.
 function reauth(){
@@ -1381,10 +1389,13 @@ window.addEventListener('load', () => {
       setStatus('⏳ Reconnexion automatique…');
       loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
       // Session persistante : on tente d'abord le Worker (sans popup, marche sur iOS) ;
-      // sinon ancien flux silencieux.
+      // sinon ancien flux silencieux, puis on invite à se reconnecter si rien ne marche.
       (async () => {
-        if (await refreshViaWorker()) { onAuthenticated(); }
-        else silentRefresh();
+        if (await refreshViaWorker()) { onAuthenticated(); return; }
+        loginStepsShow(false);
+        setStatus('Session expirée — clique sur « Se connecter à Google »'
+          + (_lastRefreshInfo && _lastRefreshInfo !== 'ok' ? '  ·  (auto : ' + _lastRefreshInfo + ')' : ''));
+        silentRefresh();   // tentative silencieuse en dernier recours (PC/navigateur)
       })();
     }
   }
