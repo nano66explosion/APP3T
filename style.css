@@ -470,8 +470,7 @@ body.page-hsupp #page-hsupp{display:block}
 @keyframes slideup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 /* ── Animations globales (apparition cartes + retour tactile) ── */
 @keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.event-card,.fm-card,.mt-card,.note-card{animation:cardIn .26s cubic-bezier(.22,.61,.36,1) both}
-.today-card{animation:cardIn .3s cubic-bezier(.22,.61,.36,1) both}
+.fm-card,.mt-card,.note-card{animation:cardIn .26s cubic-bezier(.22,.61,.36,1) both}
 .intermi-block{animation:cardIn .3s ease both}
 /* Retour tactile : tous les boutons réagissent au clic/appui */
 button{transition:transform .12s ease, opacity .12s ease}
