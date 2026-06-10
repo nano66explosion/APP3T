@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b86`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b87`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). **⚠️ CRUCIAL** : ce déclencheur n'arrive QUE si **`sw.js` change**.
   → **TOUJOURS bumper la constante `CACHE` dans `sw.js`** (ex. `3t-cache-v6`→`v7`) à chaque release qui touche
@@ -32,9 +32,15 @@
   nouvelle note…) — `notifyAll(title, body, {url,tag,pref,excludeReg})` côté app, **protégée par le jeton
   d'identité Firebase**. Le Worker gère aussi `firebaseToken` (session Firebase), `exchangeCode`/`refreshToken`
   (session Drive persistante).
-- **Cron GitHub `*/15` = FILET DE SECOURS** (toutes les 15 min, best-effort). Gère le **STOP heures supp**, « régie
-  demain », « bilan soirée », et **rattrape** une formation seulement si le Worker a échoué (`notified` encore `false`).
-  ⚠️ Les crons rapprochés (`*/5`) sont **ignorés par GitHub** → ne jamais redescendre sous ~15 min.
+- **Bilan soirée → CRON CLOUDFLARE (b87)** : le cron GitHub tourne en réalité **toutes les 5-12 h** (vérifié sur
+  les runs : 10/06 11:56, 09/06 23:05, 18:29, 10:42…) → la fenêtre 22h-minuit était presque toujours ratée.
+  Le Worker a maintenant un **gestionnaire `scheduled`** (`soireeReminder`) : lit `schedule/v1` + `pushTokens`
+  (pref `soiree`), envoie « 💬 Bilan de soirée » ; anti-doublon **même clé `sentLog/soiree-<date>`** que le cron
+  GitHub (pas de double envoi). **⚠️ Config Cloudflare requise** : Worker → Settings → **Triggers → Cron Triggers**
+  → ajouter **`15 20 * * *`** ET **`15 21 * * *`** (UTC ; couvre été/hiver — le contrôle "≥22h Paris" + dedup gèrent).
+- **Cron GitHub `*/15` = FILET DE SECOURS** (en pratique toutes les 5-12 h, best-effort). Gère le **STOP heures
+  supp**, « régie demain », « bilan soirée » (rattrapage), et **rattrape** une formation si le Worker a échoué
+  (`notified` encore `false`). ⚠️ Les crons rapprochés sont **ignorés par GitHub**.
 - **Clic sur une notif** → les deux service workers (`sw.js` + `firebase-messaging-sw.js`) focus la fenêtre et
   naviguent vers `#f-<date>`/`#today`/`#soiree` (URL passée dans `data.url`).
 
@@ -474,6 +480,14 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **4. Bouton « Aujourd'hui »** (« Auj. ») dans la nav du mois → revient au mois courant. ✅ FAIT
 - [x] **5. Élargir la colonne en paysage** téléphone (760px). ✅ FAIT
 - [x] **6. Recherche accessible partout** — bouton loupe 🔍 dans l'en-tête (`openSearch`) : bascule sur la Grille et place le focus dans le champ de recherche spectacle, depuis n'importe quelle vue. ✅ FAIT
+  **+ b87 : champs de recherche GLOBAUX** — les 2 `.search-row` (spectacle + date) sont sortis de `#view-grid` et
+  placés dans `.app-controls` **au-dessus de la légende** → visibles dans toutes les vues. `searchBySpec`/`searchByDate`
+  font `switchView('grid')` automatiquement (les résultats `#view-search` restent dans la Grille ; `searchByDate`
+  restaure la valeur de l'input que `switchView` efface).
+  **+ b87 : regroupement des noms proches** — `searchBySpec` fusionne les spectacles dont les noms normalisés
+  (ponctuation ignorée, `cn()`) sont **préfixes l'un de l'autre (≥4 lettres)** ou à **1 coquille** (`_osa≤1`, ≥5 lettres) :
+  « Crime », « Crime F. », « Crime Farpait » = une seule carte (nom le plus complet affiché, occurrences fusionnées,
+  la recherche matche sur toutes les variantes).
 - [x] **7. Filtres dans l'agenda** — puces (`agenda-filters`) : Toutes / Mes régies / Non attribuées / par salle (3T, 3T Côté, GT, Tournée) **+ 📚 Formations**. Marche en agenda perso, équipe mobile ET tableau équipe PC. **Filtre Formations** (`agendaFilter==='formation'`) : affiche uniquement les jours avec formation (cartes `formationCardsHTML`), bypasse le tableau équipe PC ; les formations apparaissent aussi dans « Toutes ». ✅ FAIT
 - [x] **8. Pastilles colorées pour les rôles** — point couleur par rôle (titulaire vert / doublon bleu / observateur anneau gris / formateur ambre) au lieu des tags texte `(obs.)`/`(form.)`. Helper `roleDot()`, légende mise à jour. ✅ FAIT
 - [x] **9. Thème clair** — variables CSS claires (`:root[data-theme="light"]`), bouton bascule **dès la page de connexion** ET dans ⚙️ Paramètres, mémorisé en localStorage (`3t_theme`), `theme-color` synchronisé. Boutons inversés corrigés (`color:var(--bg)` au lieu de `#0f0f0f`). ✅ FAIT

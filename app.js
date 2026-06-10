@@ -709,7 +709,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b86 (nouveau client OAuth : tout regroupe sous le projet tapp-2c0a8)';
+const APP_VERSION = '2026-06-10 · b87 (recherche globale regroupant les noms proches + message Standing + bilan soiree via cron Cloudflare)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1471,7 +1471,11 @@ window.addEventListener('load', () => {
       if (persistEnabled()) {
         refreshViaWorker().then(ok => {
           if (ok) onAuthenticated();
-          else { loginStepsShow(false); setStatus('Session expirée — clique sur « Se connecter à Google »'); }
+          else {
+            loginStepsShow(false);
+            setStatus('Session expirée — clique sur « Se connecter à Google »'
+              + (_lastRefreshInfo ? ' · (auto : ' + _lastRefreshInfo + ')' : ''));
+          }
         });
       } else {
         silentRefresh();
@@ -2137,6 +2141,7 @@ function soireeMessages(spec){
   return [
     `Bonne soirée pour ${spec}!`,
     `Carton pour ${spec}!`,
+    `Standing pour ${spec}!`,
     `Très bonne soirée pour ${spec}!`,
     `Belle soirée pour ${spec}!`,
     `Excellente soirée pour ${spec}!`,
@@ -4716,6 +4721,12 @@ function openSearch() {
 function searchByDate() {
   const val = document.getElementById('search-date').value; // YYYY-MM-DD
   if (!val) { clearSearch(); return; }
+  // Recherche accessible depuis toutes les vues → bascule sur la Grille pour
+  // afficher les résultats (switchView remet l'input à zéro → on le restaure).
+  if (currentView !== 'grid') {
+    switchView('grid');
+    document.getElementById('search-date').value = val;
+  }
   document.getElementById('search-clear').style.display = 'block';
 
   // Inside the grid tab: hide the calendar body, show the results
@@ -4807,6 +4818,8 @@ function searchBySpec() {
   const raw = document.getElementById('search-spec').value.trim();
   const q = norm(raw);
   if (!q) { clearSpecSearch(); return; }
+  // Recherche accessible depuis toutes les vues → bascule sur la Grille (résultats là-bas)
+  if (currentView !== 'grid') switchView('grid');
   document.getElementById('search-spec-clear').style.display = 'block';
   // On désactive la recherche par date pendant ce temps
   document.getElementById('search-date').value = '';
@@ -4832,7 +4845,33 @@ function searchBySpec() {
     });
   });
 
-  let list = [...map.values()].filter(s => norm(s.display).includes(q));
+  // Fusionne les spectacles au nom proche (« Crime », « Crime F. », « Crime Farpait »
+  // = même pièce) : l'un préfixe de l'autre (≥4 lettres, ponctuation ignorée) ou 1 coquille.
+  const cn = s => norm(s).replace(/[^a-z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+  const clusters = [];
+  [...map.values()].sort((a,b)=>a.display.length-b.display.length).forEach(s => {
+    const k = cn(s.display);
+    let host = null;
+    for (const c of clusters) {
+      const matched = c.names.some(nm => {
+        const shorter = k.length < nm.length ? k : nm;
+        if (shorter.length >= 4 && (k.startsWith(nm) || nm.startsWith(k))) return true;
+        return Math.min(k.length, nm.length) >= 5 && _osa(k, nm) <= 1;   // coquille
+      });
+      if (matched) { host = c; break; }
+    }
+    if (host) {
+      host.occ.push(...s.occ);
+      host.names.push(k);
+      if (s.display.length > host.display.length) host.display = s.display;  // garde le nom le plus complet
+      host.guest = host.guest || s.guest;
+      host.tournee = host.tournee || s.tournee;
+    } else {
+      clusters.push({ display: s.display, guest: s.guest, tournee: s.tournee, occ: s.occ.slice(), names: [k] });
+    }
+  });
+
+  let list = clusters.filter(s => s.names.some(nm => nm.includes(cn(raw))) || norm(s.display).includes(q));
   list.sort((a,b) => a.display.localeCompare(b.display,'fr'));
 
   if (!list.length) {

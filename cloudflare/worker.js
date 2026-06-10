@@ -228,8 +228,56 @@ export default {
     } catch (e) {
       return cors(json({ error: String(e && e.message || e) }, 500));
     }
+  },
+
+  // ── CRON Cloudflare (fiable, contrairement au cron GitHub qui tourne avec des
+  // heures de retard) : rappel « bilan de soirée » ~22h Paris.
+  // Configurer 2 Cron Triggers (couvre été/hiver) : "15 20 * * *" et "15 21 * * *".
+  // Le contrôle d'heure Paris + l'anti-doublon sentLog évitent tout double envoi.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(soireeReminder(env));
   }
 };
+
+/* ── Rappel bilan de soirée (porté de scripts/send-reminders.js) ─────────────── */
+async function soireeReminder(env) {
+  let sa;
+  try { sa = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); } catch (e) { return; }
+  const pid = sa.project_id;
+  const paris = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+  if (paris.getHours() < 22) return;                       // fin de soirée seulement
+  const today = `${paris.getFullYear()}-${String(paris.getMonth() + 1).padStart(2, '0')}-${String(paris.getDate()).padStart(2, '0')}`;
+  const token = await getAccessToken(sa);
+  // Anti-doublon (même clé que le cron GitHub → pas de double envoi entre les deux)
+  const sent = await firestoreGet(pid, token, `sentLog/soiree-${today}`);
+  if (sent) return;
+  const sdoc = await firestoreGet(pid, token, 'schedule/v1');
+  if (!sdoc) return;
+  const days = (parseFields(sdoc.fields) || {}).days || {};
+  const entries = days[today] || [];
+  if (!entries.length) return;
+  // Jetons par régisseur (préférence « soiree » respectée)
+  const docs = await firestoreList(pid, token, 'pushTokens');
+  const tokensByReg = {};
+  for (const d of docs) {
+    const v = parseFields(d.fields || {});
+    if (!v.token || !v.reg) continue;
+    if ((v.prefs || {}).soiree === false) continue;
+    (tokensByReg[v.reg] = tokensByReg[v.reg] || new Set()).add(v.token);
+  }
+  const perReg = {};
+  entries.forEach(e => (e.regs || []).forEach(reg => { (perReg[reg] = perReg[reg] || []).push(e.spec); }));
+  let total = 0;
+  for (const reg in perReg) {
+    const toks = [...(tokensByReg[reg] || [])];
+    const body = `N'oublie pas de donner le bilan sur WhatsApp 🎭 (${[...new Set(perReg[reg])].join(', ')})`;
+    for (const tk of toks) {
+      const r = await fcmSend(pid, token, tk, '💬 Bilan de soirée', body, APP_URL + '#soiree', 'soiree-' + today);
+      if (r.ok) total++;
+    }
+  }
+  await firestorePatch(pid, token, `sentLog/soiree-${today}`, { at: new Date().toISOString(), count: total, by: 'cf-cron' });
+}
 
 /* ── Vérifie un jeton d'identité Firebase → renvoie l'uid (ou null) ────────────
    Via Identity Toolkit accounts:lookup (clé API publique). Protège les routes

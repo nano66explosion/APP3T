@@ -23,7 +23,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<link rel="stylesheet" href="style.css?v=86">
+<link rel="stylesheet" href="style.css?v=87">
 </head>
 <body>
 <div id="topbar-loader"></div>
@@ -141,6 +141,18 @@
     <span id="agenda-toggle-ico"></span><span id="agenda-toggle-lbl">Vue liste</span>
   </button>
 
+  <!-- Recherche globale (toutes vues) : bascule sur la Grille au premier caractère -->
+  <div class="search-row" style="padding:.15rem 0 0">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="search-spec" placeholder="Rechercher un spectacle / artiste…" oninput="searchBySpec()" autocomplete="off">
+    <button class="search-clear" id="search-spec-clear" onclick="clearSpecSearch()" style="display:none">✕</button>
+  </div>
+  <div class="search-row" style="padding:.3rem 0 .35rem">
+    <span class="search-icon">📅</span>
+    <input type="date" id="search-date" onchange="searchByDate()">
+    <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">✕</button>
+  </div>
+
   <div class="legend">
     <div class="leg"><div class="leg-dot" style="background:var(--c3t)"></div>3T</div>
     <div class="leg"><div class="leg-dot" style="background:var(--c3tc)"></div>3T Côté</div>
@@ -177,17 +189,7 @@
     </div>
     <!-- Grid view -->
     <div id="view-grid">
-      <div class="search-row">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="search-spec" placeholder="Rechercher un spectacle / artiste…" oninput="searchBySpec()" autocomplete="off">
-        <button class="search-clear" id="search-spec-clear" onclick="clearSpecSearch()" style="display:none">✕</button>
-      </div>
-      <div class="search-row" style="padding-top:0">
-        <span class="search-icon">📅</span>
-        <input type="date" id="search-date" onchange="searchByDate()">
-        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">✕</button>
-      </div>
-      <!-- Search results (shown inside the grid tab when a date is searched) -->
+      <!-- Search results (shown inside the grid tab when a search is active) -->
       <div id="view-search" style="display:none"></div>
       <!-- Normal calendar body (hidden while a search is active) -->
       <div id="grid-body">
@@ -726,6 +728,6 @@
   </div>
 </div>
 
-<script src="app.js?v=86"></script>
+<script src="app.js?v=87"></script>
 </body>
 </html>
