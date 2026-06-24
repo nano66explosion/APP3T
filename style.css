@@ -506,6 +506,11 @@ button:active{transform:scale(.96)}
 .bdg-cancel{background:#f8717122;color:#f87171}
 /* Heure supp : formulaire + liste */
 .hsupp-page{padding:calc(1rem + env(safe-area-inset-top)) 1rem 1.2rem;max-width:480px;margin:0 auto;box-sizing:border-box}
+/* Mobile : laisse de la place sous le dernier contenu pour qu'il passe au-dessus de
+   la bottom-nav fixe (sinon impossible de scroller jusqu'en bas de la page Heures). */
+@media (max-width:767px),(max-height:499px){
+  .hsupp-page{padding-bottom:calc(78px + env(safe-area-inset-bottom) + 1rem)}
+}
 .hsupp-page *{box-sizing:border-box}
 .hsupp-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:1rem}
 #view-hsupp #hs-reg,.hs-input{display:block;width:100%;max-width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--text);font-family:inherit;margin-bottom:.8rem;-webkit-appearance:none;appearance:none}
