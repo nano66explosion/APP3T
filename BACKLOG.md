@@ -12,7 +12,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b89`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b90`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). **⚠️ CRUCIAL** : ce déclencheur n'arrive QUE si **`sw.js` change**.
   → **TOUJOURS bumper la constante `CACHE` dans `sw.js`** (ex. `3t-cache-v6`→`v7`) à chaque release qui touche
@@ -43,6 +43,11 @@
   (`notified` encore `false`). ⚠️ Les crons rapprochés sont **ignorés par GitHub**.
 - **Clic sur une notif** → les deux service workers (`sw.js` + `firebase-messaging-sw.js`) focus la fenêtre et
   naviguent vers `#f-<date>`/`#today`/`#soiree` (URL passée dans `data.url`).
+- **Push app FERMÉE — FIX b90 (messages DATA-ONLY)** : avant, charge `notification` (auto-affichage), **peu fiable
+  en arrière-plan / PWA iOS**. Désormais **data-only** (`{title,body,url,tag}` dans `data`, `webpush.fcmOptions.link`
+  conservé) + **`firebase-messaging-sw.js` affiche via `onBackgroundMessage`** → fiable app fermée. Aligné partout :
+  Worker `fcmSend`, cron `send-reminders.js`, `broadcast.js`. Premier plan : `onMessage` lit `data` ;
+  `showNotif(title,body,tag,url)` porte l'URL. ⚠️ **Redéployer le Worker** (le cron se déploie via push).
 
 ## ☁️ Backend Firebase (push, planning partagé, formations)
 

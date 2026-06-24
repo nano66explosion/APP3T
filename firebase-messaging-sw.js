@@ -58,9 +58,17 @@ if (FIREBASE_CONFIG.projectId) {
   firebase.initializeApp(FIREBASE_CONFIG);
   const messaging = firebase.messaging();
 
-  // Message en arrière-plan / app fermée.
-  // Les messages avec une charge "notification" sont affichés automatiquement
-  // par Firebase, et le clic ouvre le lien défini dans webpush.fcmOptions.link
-  // (ex. .../calendrier_3T.html#today). On ne définit donc PAS de gestionnaire
-  // notificationclick ici : Firebase s'en charge et respecte ce lien.
+  // Message en arrière-plan / app fermée. On envoie des messages DATA-ONLY
+  // (title/body/url/tag dans `data`) et on AFFICHE nous-mêmes la notif → fiable
+  // y compris en PWA iOS (pas de dépendance à l'auto-affichage, pas de doublon).
+  messaging.onBackgroundMessage((payload) => {
+    const d = (payload && payload.data) || {};
+    return self.registration.showNotification(d.title || '🎭 3T TECH', {
+      body: d.body || '',
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      tag: d.tag || '3t',
+      data: { url: d.url || '' }
+    });
+  });
 }

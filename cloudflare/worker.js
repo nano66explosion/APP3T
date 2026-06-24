@@ -399,14 +399,13 @@ async function firestorePatch(pid, token, path, obj) {
 
 /* ── FCM HTTP v1 ───────────────────────────────────────────────────────────── */
 async function fcmSend(pid, token, deviceToken, title, body, link, tag) {
+  // DATA-ONLY : title/body/url/tag dans `data` → le service worker affiche lui-même
+  // la notif (onBackgroundMessage) → fiable app fermée, y compris en PWA iOS.
   const msg = {
     message: {
       token: deviceToken,
-      data: { url: link },
-      webpush: {
-        notification: { title, body, icon: 'icon-192.png', badge: 'icon-192.png', tag: tag || '3t' },
-        fcmOptions: { link }
-      }
+      data: { title: title || '', body: body || '', url: link || '', tag: tag || '3t' },
+      webpush: { fcmOptions: { link } }
     }
   };
   const r = await fetch(`https://fcm.googleapis.com/v1/projects/${pid}/messages:send`, {

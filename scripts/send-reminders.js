@@ -64,13 +64,12 @@ function tokensFor(tokensByReg, reg, type) {
 // `tag` : notifications de même tag → fusionnées par l'OS (pas de doublon).
 async function sendTo(tokens, title, body, link, tag) {
   if (!tokens.length) return 0;
+  // DATA-ONLY (title/body/url/tag dans data) : le SW affiche lui-même la notif
+  // (onBackgroundMessage) → fiable app fermée, y compris PWA iOS, sans doublon.
   const res = await messaging.sendEachForMulticast({
     tokens,
-    data: { url: link || APP_URL },   // lu par le SW au clic (focus + navigation fiable vers la date)
-    webpush: {
-      notification: { title, body, icon: 'icon-192.png', badge: 'icon-192.png', tag: tag || '3t' },
-      fcmOptions: { link: link || APP_URL }
-    }
+    data: { title: title || '', body: body || '', url: link || APP_URL, tag: tag || '3t' },
+    webpush: { fcmOptions: { link: link || APP_URL } }
   });
   res.responses.forEach((r, i) => {
     if (!r.success) {

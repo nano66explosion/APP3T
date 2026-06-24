@@ -31,10 +31,9 @@ const body = (process.env.BODY || '').trim();
     const batch = tokens.slice(i, i + 500);
     const res = await messaging.sendEachForMulticast({
       tokens: batch,
-      webpush: {
-        notification: { title, body, icon: 'icon-192.png', badge: 'icon-192.png', tag },
-        fcmOptions: { link: APP_URL }
-      }
+      // DATA-ONLY : affichage par le SW (onBackgroundMessage) → fiable app fermée / iOS.
+      data: { title: title || '', body: body || '', url: APP_URL, tag },
+      webpush: { fcmOptions: { link: APP_URL } }
     });
     sent += res.successCount;
     res.responses.forEach((r, j) => {
