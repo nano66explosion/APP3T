@@ -23,7 +23,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<link rel="stylesheet" href="style.css?v=90">
+<link rel="stylesheet" href="style.css?v=91">
 </head>
 <body>
 <div id="topbar-loader"></div>
@@ -137,12 +137,12 @@
     </div>
   </div>
   <!-- Recherche globale (toutes vues) : bascule sur la Grille au premier caractère -->
-  <div class="search-row" style="padding:.15rem 0 0">
+  <div class="search-row" style="padding:.45rem 1rem .1rem">
     <span class="search-icon">🔍</span>
     <input type="text" id="search-spec" placeholder="Rechercher un spectacle / artiste…" oninput="searchBySpec()" autocomplete="off">
     <button class="search-clear" id="search-spec-clear" onclick="clearSpecSearch()" style="display:none">✕</button>
   </div>
-  <div class="search-row" style="padding:.3rem 0 .35rem">
+  <div class="search-row" style="padding:.1rem 1rem .4rem">
     <span class="search-icon">📅</span>
     <input type="date" id="search-date" onchange="searchByDate()">
     <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none">✕</button>
@@ -727,6 +727,6 @@
   </div>
 </div>
 
-<script src="app.js?v=90"></script>
+<script src="app.js?v=91"></script>
 </body>
 </html>
