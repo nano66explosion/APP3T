@@ -709,7 +709,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b92 (ouverture instantanee depuis le cache + rafraichissement en arriere-plan)';
+const APP_VERSION = '2026-06-10 · b93 (Notes et Reunions : affichage instantane depuis cache local + refresh en fond)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2346,7 +2346,7 @@ function openFormationModal(iso){
 function closeFormationModal(){ document.getElementById('formation-modal').style.display = 'none'; }
 
 // ─── RÉUNION PLANNING (Framadate : créneaux partagés + dispos) ───────────────
-let _meetingSlots = [];
+let _meetingSlots = (()=>{ try{ return JSON.parse(localStorage.getItem('3t_meetings_cache')||'[]'); }catch(e){ return []; } })();
 async function loadMeetingSlots(){
   if(!pushConfigured()) return;
   initFirebase();
@@ -2359,6 +2359,7 @@ async function loadMeetingSlots(){
       _meetingSlots.push({ id:doc.id, date:d.date||'', time:d.time||'', by:d.by||'', available:d.available||[], chosen:d.chosen===true });
     });
     _meetingSlots.sort((a,b)=> (a.date+a.time).localeCompare(b.date+b.time));
+    try{ localStorage.setItem('3t_meetings_cache', JSON.stringify(_meetingSlots)); }catch(e){}
     renderMeetingSlots();
   }catch(e){ console.warn('loadMeetingSlots:', e); }
 }
@@ -2370,7 +2371,9 @@ function openMeeting(){
   mSel.innerHTML = '<option value="">-- min --</option>' + ['00','15','30','45'].map(m=>`<option value="${m}">${m}</option>`).join('');
   document.getElementById('mt-date').value = isoToday();
   document.getElementById('mt-error').textContent = '';
-  document.getElementById('meeting-list').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1rem">Chargement…</div>';
+  // Affichage instantané depuis le cache, puis actualisation Firestore en fond.
+  if(_meetingSlots && _meetingSlots.length) renderMeetingSlots();
+  else document.getElementById('meeting-list').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1rem">Chargement…</div>';
   document.getElementById('meeting-modal').style.display = 'flex';
   loadMeetingSlots();
 }
@@ -2515,7 +2518,7 @@ function renderMeetingSlots(){
 }
 
 // ─── NOTES PARTAGÉES (chaque régisseur écrit, tout le monde voit · Firestore) ───
-let _notes = [];
+let _notes = (()=>{ try{ return JSON.parse(localStorage.getItem('3t_notes_cache')||'[]'); }catch(e){ return []; } })();
 async function loadNotes(){
   if(!pushConfigured()) return;
   initFirebase();
@@ -2528,13 +2531,16 @@ async function loadNotes(){
       _notes.push({ id:doc.id, text:d.text||'', by:d.by||'', createdAt:d.createdAt||'' });
     });
     _notes.sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||''));   // plus récente en haut
+    try{ localStorage.setItem('3t_notes_cache', JSON.stringify(_notes)); }catch(e){}
     renderNotes();
   }catch(e){ console.warn('loadNotes:', e); }
 }
 function openNotes(){
   document.getElementById('note-text').value = '';
   document.getElementById('note-error').textContent = '';
-  document.getElementById('notes-list').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1rem">Chargement…</div>';
+  // Affichage instantané depuis le cache, puis actualisation Firestore en fond.
+  if(_notes && _notes.length) renderNotes();
+  else document.getElementById('notes-list').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1rem">Chargement…</div>';
   document.getElementById('notes-modal').style.display = 'flex';
   loadNotes();
 }
