@@ -709,7 +709,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b91 (fix affichage recherche : marges alignees sur la legende)';
+const APP_VERSION = '2026-06-10 · b92 (ouverture instantanee depuis le cache + rafraichissement en arriere-plan)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1454,10 +1454,17 @@ window.addEventListener('load', () => {
   const cached = getCachedToken();
   if (cached) {
     accessToken = cached;
-    setStatus('⏳ Chargement…');
-    loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
     markConnectedUI();
-    onAuthenticated();
+    // ⚡ Ouverture INSTANTANÉE depuis le cache local (planning déjà parsé) si dispo,
+    // puis rafraîchissement Drive EN ARRIÈRE-PLAN (afterPlanLoaded re-rend sans écran d'attente).
+    if (offlineCacheInfo() && loadOfflineCache()) {
+      launchApp();
+      onAuthenticated();   // refresh silencieux : l'app est déjà ouverte → simple re-render à la fin
+    } else {
+      setStatus('⏳ Chargement…');
+      loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
+      onAuthenticated();
+    }
     return;
   }
   // 2) Sinon, si déjà connecté auparavant…
@@ -1963,6 +1970,10 @@ async function afterPlanLoaded() {
     refreshBaseLabel(); refreshSavedFileLabel();
     populateSelects();
     renderCalendar();
+    // Ouverture instantanée depuis le cache : les formations ont pu échouer (auth Firebase
+    // pas encore prête) → on les recharge maintenant que la session est établie.
+    if (typeof loadFormations === 'function') loadFormations();
+    saveOfflineCache();   // met à jour le cache avec les données fraîches
     return;
   }
   const baseId = getSavedBaseId();
