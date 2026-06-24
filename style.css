@@ -521,6 +521,12 @@ button:active{transform:scale(.96)}
 #view-hsupp input[type=date]::-webkit-calendar-picker-indicator,
 #view-hsupp input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.6}
 .hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1rem}
+/* Raccourcis motifs (chips) */
+.hs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:-.4rem 0 .7rem}
+.hs-chip{background:var(--surface3);border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit;white-space:nowrap;transition:transform .1s,border-color .12s}
+.hs-chip:active{transform:scale(.94)}
+.hs-chip.spec{color:var(--c3t);border-color:var(--c3t)}
+.hs-suggest-btn{background:var(--c3t);color:var(--bg);border:none;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;margin-left:4px}
 .hs-form > div[style*="flex"]{min-width:0}
 .hs-form > div[style*="flex"] > div{min-width:0}
 .hs-listwrap{margin-top:.5rem}

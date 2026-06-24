@@ -709,7 +709,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-06-10 · b93 (Notes et Reunions : affichage instantane depuis cache local + refresh en fond)';
+const APP_VERSION = '2026-06-10 · b94 (heures supp : suggestion planning + raccourcis motifs + garde-fous saisie)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3261,6 +3261,7 @@ function renderHsupp(){
   hsFillTimeSelects('hs-debut'); hsFillTimeSelects('hs-fin');
   const d = document.getElementById('hs-date');
   if(d && !d.value){ const t=new Date(); d.value = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`; }
+  hsBuildMotifChips(); hsDateSuggest();
   if(_calPreview) return;          // aperçu de swipe → pas de chargement Drive
   loadHsuppFile();
 }
@@ -3291,6 +3292,49 @@ function hsUpdateDuree(){
     const h = Math.round((mins/60)*4)/4;
     el.textContent = `Durée : ${h} h`;
   } else el.textContent = '';
+}
+
+// ── Motifs : raccourcis (chips) + autocomplétion (datalist) ──────────────────
+const HS_BASE_MOTIFS = ['montage','démontage','filage','raccord','répétition','service','réglages','rangement'];
+function hsRecentMotifs(){
+  const seen = new Set(), out = [];
+  (hsEntries||[]).slice().reverse().forEach(e => {
+    const m = (e.motif||'').trim();
+    if(m && !seen.has(m.toLowerCase())){ seen.add(m.toLowerCase()); out.push(m); }
+  });
+  return out;
+}
+// Tap sur un raccourci → ajoute le mot au motif (composable : « montage » + « Crime »).
+function hsPickMotif(t){
+  const inp = document.getElementById('hs-motif'); if(!inp) return;
+  const cur = inp.value.trim();
+  inp.value = cur ? (cur + ' ' + t) : t;
+  inp.focus();
+}
+function hsBuildMotifChips(){
+  const wrap = document.getElementById('hs-motif-chips');
+  if(wrap) wrap.innerHTML = HS_BASE_MOTIFS.map(m =>
+    `<span class="hs-chip" onclick="hsPickMotif('${m.replace(/'/g,"\\'")}')">${m}</span>`).join('');
+  const dl = document.getElementById('hs-motif-list');
+  if(dl){
+    const opts = [...new Set([...hsRecentMotifs(), ...HS_BASE_MOTIFS])];
+    dl.innerHTML = opts.map(o => `<option value="${String(o).replace(/"/g,'&quot;')}">`).join('');
+  }
+}
+// #2 Suggestion depuis le planning : régies du régisseur sélectionné ce jour-là.
+function hsDateSuggest(){
+  const box = document.getElementById('hs-suggest'); if(!box) return;
+  const iso = document.getElementById('hs-date')?.value;
+  const reg = document.getElementById('hs-reg')?.value;
+  if(!iso || !reg || !allDays || !allDays.length){ box.style.display='none'; return; }
+  const day = allDays.find(x => x.date.toISOString().slice(0,10) === iso);
+  const specs = day ? [...new Set((day.entries||[])
+    .filter(e => e.salle!=='Tournée' && !e.cancelled && (e.regies||[]).some(r => r.reg===reg))
+    .map(e => e.spec).filter(Boolean))] : [];
+  if(!specs.length){ box.style.display='none'; return; }
+  box.style.display = 'block';
+  box.innerHTML = `💡 Régie ce jour : `
+    + specs.map(s => `<span class="hs-chip spec" onclick="hsPickMotif('${String(s).replace(/'/g,"\\'")}')">+ ${escapeHtml(s)}</span>`).join(' ');
 }
 
 // Heures calculées depuis Début/Fin (arrondi au quart d'heure), en décimal (1.5 = 1h30)
@@ -3329,6 +3373,8 @@ async function hsReloadList(){
     }
     const total = entries.reduce((s,e)=>s+(e.heures||0),0);
     tot.textContent = `${Math.round(total*100)/100} h${stop?' · clôturé':''}`;
+    hsBuildMotifChips();   // les motifs récents alimentent l'autocomplétion
+    hsDateSuggest();       // suggestion planning pour la date affichée
   }catch(e){
     list.innerHTML = `<div style="color:#f87171;font-size:12px;padding:.5rem 0">❌ ${e.message}</div>`;
   }
@@ -3345,6 +3391,7 @@ function hsEdit(rowNum){
   document.getElementById('hs-submit').textContent = 'Enregistrer';
   document.getElementById('hs-cancel').style.display = 'block';
   hsUpdateDuree();
+  hsDateSuggest();
   document.getElementById('hs-form-title')?.scrollIntoView({behavior:'smooth', block:'center'});
 }
 function hsCancelEdit(){
@@ -3368,6 +3415,12 @@ async function submitHeureSupp(){
   if(!accessToken){ err.textContent = "Reconnecte-toi à Google."; return; }
   if(!iso || !deb || !fin || !motif){ err.textContent = "Remplis date, début, fin et motif."; return; }
   if(timeFracFromHM(fin) <= timeFracFromHM(deb)){ err.textContent = "La fin doit être après le début."; return; }
+  // #5 Garde-fous : durée inhabituelle + chevauchement avec un créneau déjà déclaré ce jour.
+  const dur = hsComputeHours(deb, fin);
+  if(dur && dur > 10 && !confirm(`Durée inhabituelle (${dur} h) le ${hsDateLabel(iso)}.\nConfirmer cette saisie ?`)){ return; }
+  const overlap = (hsEntries||[]).some(e => e.iso===iso && e.rowNum!==hsEditRow && e.debut && e.fin
+    && timeFracFromHM(deb) < timeFracFromHM(e.fin) && timeFracFromHM(fin) > timeFracFromHM(e.debut));
+  if(overlap && !confirm(`Ce créneau chevauche une heure supp déjà déclarée le ${hsDateLabel(iso)}.\nL'ajouter quand même ?`)){ return; }
   const btn = document.getElementById('hs-submit'); const orig = btn.textContent;
   btn.disabled = true; btn.textContent = '⏳…'; err.textContent = '';
   showBusy(true);

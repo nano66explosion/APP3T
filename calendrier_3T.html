@@ -23,7 +23,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<link rel="stylesheet" href="style.css?v=93">
+<link rel="stylesheet" href="style.css?v=94">
 </head>
 <body>
 <div id="topbar-loader"></div>
@@ -220,7 +220,9 @@
         <div class="hs-form">
           <div id="hs-form-title" style="font-size:12px;font-weight:600;color:var(--c3t);margin-bottom:.6rem">➕ Nouvelle heure supp</div>
           <label class="file-label">Date</label>
-          <input id="hs-date" type="date" class="hs-input">
+          <input id="hs-date" type="date" class="hs-input" onchange="hsDateSuggest()">
+          <!-- Suggestion depuis le planning : régies du régisseur ce jour-là -->
+          <div id="hs-suggest" style="display:none;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.5rem .6rem;margin:-.3rem 0 .8rem;line-height:1.6"></div>
           <div class="hs-timerow">
             <span class="hs-tlabel">Début</span>
             <select id="hs-debut-h" class="hs-tsel" onchange="hsUpdateDuree()"></select>
@@ -235,7 +237,10 @@
           </div>
           <div id="hs-duree" style="font-size:12px;color:var(--c3t);margin:.4rem 0 .8rem;min-height:16px"></div>
           <label class="file-label">Motif</label>
-          <input id="hs-motif" type="text" class="hs-input" placeholder="ex. montage + filage faux british">
+          <input id="hs-motif" type="text" class="hs-input" placeholder="ex. montage + filage faux british" list="hs-motif-list" autocomplete="off">
+          <datalist id="hs-motif-list"></datalist>
+          <!-- Raccourcis : tap pour remplir le motif (motifs fréquents + récents) -->
+          <div id="hs-motif-chips" class="hs-chips"></div>
           <div id="hs-error" style="font-size:12px;color:#f87171;margin-bottom:.5rem;min-height:16px"></div>
           <div style="display:flex;gap:8px">
             <button class="go-btn" id="hs-submit" onclick="submitHeureSupp()" style="flex:1">Ajouter</button>
@@ -727,6 +732,6 @@
   </div>
 </div>
 
-<script src="app.js?v=93"></script>
+<script src="app.js?v=94"></script>
 </body>
 </html>
