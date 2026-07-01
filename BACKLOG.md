@@ -575,15 +575,19 @@ Demande utilisateur — rendre l'app plus réactive + réparer les notifs. Trois
 1. **✅ Notifs push app fermée (iPhone) — FAIT b95** — cf. « ⚠️ BUG MAJEUR » dans *À surveiller*. Les 3 envois
    passent en `webpush.notification` (au lieu de data-only). Fichiers : `send-reminders.js`, `broadcast.js`,
    `worker.js`, `firebase-messaging-sw.js`. **Reste à faire côté utilisateur** : redéployer le Worker + tester iPhone.
-2. **Démarrage quasi-instantané** — l'ouverture est déjà cache-first *tant que le token Google est valide* (< 1h).
-   **Passé 1h**, le `window.load` de `app.js` retombe sur l'écran « Reconnexion… » qui **attend le réseau** avant
-   d'ouvrir. FIX : dès qu'un `3t_offline_cache` existe, `launchApp()` **immédiatement** (lecture), puis reconnecter
-   + rafraîchir en arrière-plan. 1 modif ciblée dans le bloc `window.addEventListener('load', …)` (~ligne 1420).
-3. **Sync régie quasi-instantanée entre téléphones** — aujourd'hui, un positionnement écrit dans le xlsx Drive et
-   n'est relu **qu'en local** (`reloadPlanSilent`) ; les autres ne voient rien sans refresh manuel. `publishSchedule()`
-   écrit déjà `schedule/v1` dans Firestore à chaque positionnement → FIX : ajouter chez les autres un **`onSnapshot`**
-   sur `schedule/v1` qui déclenche `reloadPlanSilent()` (débounce, ignorer ses propres écritures). Source de vérité
-   inchangée (xlsx Drive), Firestore ne sert que de signal temps réel.
+2. **✅ Démarrage quasi-instantané — FAIT b96** — l'ouverture était déjà cache-first *tant que le token Google
+   était valide* (< 1h) ; **passé 1h** le `window.load` retombait sur l'écran « Reconnexion… » bloquant sur le
+   réseau. Désormais, branche « déjà connecté » : si `3t_offline_cache` existe → `markConnectedUI()` + `launchApp()`
+   **immédiatement** (lecture), reconnexion (Worker ou flux implicite) **en arrière-plan** sans écran d'attente ;
+   au succès `onAuthenticated()` recharge et re-rend en silence (afterPlanLoaded → appIsOpen). Écritures possibles
+   dès que le token frais arrive (1-2 s). Modif dans `window.addEventListener('load', …)`.
+3. **✅ Sync régie quasi-instantanée entre téléphones — FAIT b96** — un positionnement écrit dans le xlsx Drive et
+   n'était relu **qu'en local** ; les autres ne voyaient rien sans refresh manuel. `publishSchedule()` écrit déjà
+   `schedule/v1` à chaque positionnement → ajout de `subscribeScheduleSync()` : **`onSnapshot`** sur `schedule/v1`
+   (appelé après `firebaseSignIn` dans `onAuthenticated`, idempotent, coupé à la déconnexion) qui déclenche
+   `reloadPlanSilent()` en silence (débounce 1,5 s, toast « 🔄 Planning mis à jour »). Anti-écho : `hasPendingWrites`
+   + comparaison de `updatedAt` (`_myLastPublishAt`, 1er snapshot ignoré). Pas de boucle (`reloadPlanSilent` ne
+   republie pas). Source de vérité inchangée (xlsx Drive), Firestore = simple signal temps réel.
 
 ## 🧭 Pour reprendre après un /clear
 

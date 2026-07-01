@@ -709,7 +709,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-01 · b95 (notifs push : bloc notification visible → réception app fermée iPhone)';
+const APP_VERSION = '2026-07-01 · b96 (démarrage instantané token expiré + sync régie temps réel entre téléphones)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -921,6 +921,7 @@ async function onAuthenticated() {
       await loadProfileForEmail(id.email);
     }
   } catch(e){ console.warn('identity:', e); }
+  subscribeScheduleSync();   // #sync — écoute temps réel des positionnements (auth Firestore prête ici)
   // Configure automatiquement plan tech + base depuis les IDs par défaut
   try { setStatus('⏳ Préparation des fichiers…'); await ensureDefaultFiles(); }
   catch(e){ console.warn('ensureDefaultFiles:', e); }
@@ -1240,6 +1241,8 @@ async function firebaseSignIn(token){
 // Toutes les dates ≥ aujourd'hui, avec pour chaque régie ses régisseurs (hors
 // observateurs), tournées et annulés exclus. Tourné à chaque ouverture / refresh.
 let _lastPublish = 0;
+// #sync — synchro temps réel des positionnements entre téléphones (écouteur sur schedule/v1).
+let _scheduleUnsub = null, _scheduleFirstSnap = true, _lastSyncAt = null, _myLastPublishAt = null, _syncReloadTimer = null;
 async function publishSchedule(){
   if(!pushConfigured() || !allDays.length) return;
   initFirebase();
@@ -1260,12 +1263,40 @@ async function publishSchedule(){
     });
   });
   try{
+    const _at = new Date().toISOString();
     await _fbDb.collection('schedule').doc('v1').set({
-      updatedAt: new Date().toISOString(),
+      updatedAt: _at,
       by: getMyReg() || '',
       days
     });
+    _myLastPublishAt = _at;   // #sync — pour ignorer l'écho de notre propre écriture
   }catch(e){ console.warn('publishSchedule:', e); }
+}
+
+// #sync — Écoute schedule/v1 : quand un AUTRE téléphone modifie le planning (positionnement),
+// on recharge le plan depuis Drive en silence → propagation en quelques secondes, sans refresh
+// manuel. Source de vérité inchangée (xlsx Drive) ; Firestore ne sert que de signal temps réel.
+// Idempotent (un seul abonnement) ; auth Firestore requise → appelé après firebaseSignIn.
+function subscribeScheduleSync(){
+  if(!pushConfigured() || _scheduleUnsub) return;
+  initFirebase();
+  if(!_fbDb) return;
+  try{
+    _scheduleUnsub = _fbDb.collection('schedule').doc('v1').onSnapshot(snap => {
+      if(!snap.exists) return;
+      if(snap.metadata && snap.metadata.hasPendingWrites) return;   // écho local de notre écriture
+      const at = (snap.data() || {}).updatedAt || '';
+      if(_scheduleFirstSnap){ _scheduleFirstSnap = false; _lastSyncAt = at; return; }  // état initial
+      if(!at || at === _myLastPublishAt || at === _lastSyncAt) return;   // rien de neuf / c'est nous
+      _lastSyncAt = at;
+      // Un autre appareil a changé le planning → recharge Drive en silence (débounce 1,5 s).
+      clearTimeout(_syncReloadTimer);
+      _syncReloadTimer = setTimeout(() => {
+        if(!appIsOpen() || offlineMode || !accessToken) return;
+        reloadPlanSilent().then(() => toast('🔄 Planning mis à jour', 'ok')).catch(e => console.warn('sync reload:', e));
+      }, 1500);
+    }, err => { console.warn('subscribeScheduleSync:', err); _scheduleUnsub = null; });  // permet une re-souscription
+  }catch(e){ console.warn('subscribeScheduleSync:', e); }
 }
 // Récupère un jeton FCM pour cet appareil et l'enregistre dans Firestore
 async function enablePush(){
@@ -1469,18 +1500,31 @@ window.addEventListener('load', () => {
   }
   // 2) Sinon, si déjà connecté auparavant…
   if (localStorage.getItem('3t_connected') === '1') {
+    // ⚡ Ouverture INSTANTANÉE depuis le cache local même si le token Google a expiré
+    // (> 1h) : on affiche l'app tout de suite (lecture) et on reconnecte EN ARRIÈRE-PLAN,
+    // sans écran d'attente. Au succès, onAuthenticated() recharge et re-rend en silence
+    // (afterPlanLoaded → appIsOpen). Même schéma que la branche « token en cache » ci-dessus.
+    const openedFromCache = offlineCacheInfo() && loadOfflineCache();
+    if (openedFromCache) { markConnectedUI(); launchApp(); }
+
     if (localStorage.getItem('3t_scope_v') !== SCOPE_VERSION) {
       // Les autorisations ont changé : la reconnexion silencieuse ne donnerait
       // que les anciennes. Il faut un consentement interactif (clic utilisateur).
-      setStatus('🔐 Nouvelle autorisation Google requise (écriture du planning). Clique sur « Se connecter à Google ».');
+      // (Si on a ouvert depuis le cache, la lecture marche déjà ; le message n'est
+      // utile que sur l'écran de connexion → on ne l'affiche pas par-dessus l'app.)
+      if (!openedFromCache) {
+        setStatus('🔐 Nouvelle autorisation Google requise (écriture du planning). Clique sur « Se connecter à Google ».');
+      }
     } else {
-      setStatus('⏳ Reconnexion automatique…');
-      loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
+      if (!openedFromCache) {
+        setStatus('⏳ Reconnexion automatique…');
+        loginStepsShow(true); loginStepsReset(); setStep('auth','loading');
+      }
       // Session longue activée → refresh via Worker (sans popup) ; sinon flux implicite silencieux.
       if (persistEnabled()) {
         refreshViaWorker().then(ok => {
           if (ok) onAuthenticated();
-          else {
+          else if (!openedFromCache) {
             loginStepsShow(false);
             setStatus('Session expirée — clique sur « Se connecter à Google »'
               + (_lastRefreshInfo ? ' · (auto : ' + _lastRefreshInfo + ')' : ''));
@@ -1512,6 +1556,7 @@ function disconnectGoogle() {
     try { google.accounts.oauth2.revoke(accessToken, () => {}); } catch (e) {}
   }
   try { if(_fbAuth && _fbAuth.currentUser) _fbAuth.signOut(); } catch(e) {}   // ferme la session Firebase Auth
+  try { if(_scheduleUnsub){ _scheduleUnsub(); _scheduleUnsub = null; _scheduleFirstSnap = true; } } catch(e) {}  // #sync — coupe l'écouteur temps réel
   clearToken();
   localStorage.removeItem('3t_connected');
   localStorage.removeItem('3t_has_refresh');   // (le refresh token en KV expirera seul côté Worker)
