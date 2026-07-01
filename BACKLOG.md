@@ -3,7 +3,7 @@
 > Application web mono-fichier (`calendrier_3T.html`) pour gérer le planning des régies
 > d'un théâtre (3T), les heures, les heures supplémentaires et l'intermittence.
 > Déployée en PWA sur GitHub Pages.
-> **Dernière mise à jour : 2026-06-09**
+> **Dernière mise à jour : 2026-07-01** — version courante **b94**.
 
 ---
 
@@ -471,6 +471,16 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   (STOP heures supp, « régie demain », « bilan soirée », rattrapage formations) passe par le **cron GitHub Actions
   `*/15`** (best-effort, parfois 15-40 min ; ne jamais redescendre sous ~15 min, GitHub ignore les crons rapprochés).
   Pas de Cloud Functions (Spark gratuit). iOS : app installée sur l'écran d'accueil requise.
+  - **⚠️ BUG MAJEUR identifié 2026-07-01 (notifs jamais reçues app fermée sur iPhone)** : les 3 envois
+    (`scripts/send-reminders.js`, `scripts/broadcast.js`, `cloudflare/worker.js` → `fcmSend`) envoyaient des
+    messages **DATA-ONLY** (title/body dans `data`, affichage délégué au SW via `onBackgroundMessage`).
+    **Faux « fiable iOS »** : iOS **ne réveille pas** le SW pour un push **sans bloc `notification` visible** →
+    les push restent en file APNs et **se vident tous d'un coup à la réouverture de l'app** (symptôme exact remonté).
+    **FIX prévu** : ajouter `webpush.notification` (title/body/icon/tag) dans les 3 envois pour un push
+    user-visible affiché par iOS app fermée ; anti-doublon via `tag`. Adapter `firebase-messaging-sw.js`.
+    **Actions manuelles associées** : redéployer le Worker Cloudflare (copier `worker.js` dans le dashboard) ;
+    sur chaque iPhone : app installée sur l'écran d'accueil + notifs autorisées + réouvrir (off/on des notifs
+    pour régénérer un jeton propre). Cron GitHub : nouveau code pris automatiquement au prochain run.
 - **Fichiers Drive** doivent être des **.xlsx** pour l'écriture (heures supp, plan tech xlsx).
 - **Colonnes du plan tech en dur** : un changement de structure du fichier casserait le parsing.
 
@@ -554,9 +564,26 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 > ⚠️ Le **2ᵉ bloc de colonnes T-Z** (« Matin/Après-midi » = Faux British/heures supp, répétitions, montages,
 > auditions, SOCOTEC…) reste **NON lu** volontairement (fourre-tout, pas des paires Spectacle/Régie).
 
+## 🎯 Chantiers en cours (ouverts le 2026-07-01, depuis b94)
+
+Demande utilisateur — rendre l'app plus réactive + réparer les notifs. Trois sujets :
+
+1. **Notifs push app fermée (iPhone)** — cf. « ⚠️ BUG MAJEUR » dans *À surveiller*. Passer les 3 envois en
+   `webpush.notification` (au lieu de data-only). Fichiers : `send-reminders.js`, `broadcast.js`, `worker.js`,
+   `firebase-messaging-sw.js`. Nécessite redéploiement Worker + test iPhone réel.
+2. **Démarrage quasi-instantané** — l'ouverture est déjà cache-first *tant que le token Google est valide* (< 1h).
+   **Passé 1h**, le `window.load` de `app.js` retombe sur l'écran « Reconnexion… » qui **attend le réseau** avant
+   d'ouvrir. FIX : dès qu'un `3t_offline_cache` existe, `launchApp()` **immédiatement** (lecture), puis reconnecter
+   + rafraîchir en arrière-plan. 1 modif ciblée dans le bloc `window.addEventListener('load', …)` (~ligne 1420).
+3. **Sync régie quasi-instantanée entre téléphones** — aujourd'hui, un positionnement écrit dans le xlsx Drive et
+   n'est relu **qu'en local** (`reloadPlanSilent`) ; les autres ne voient rien sans refresh manuel. `publishSchedule()`
+   écrit déjà `schedule/v1` dans Firestore à chaque positionnement → FIX : ajouter chez les autres un **`onSnapshot`**
+   sur `schedule/v1` qui déclenche `reloadPlanSilent()` (débounce, ignorer ses propres écritures). Source de vérité
+   inchangée (xlsx Drive), Firestore ne sert que de signal temps réel.
+
 ## 🧭 Pour reprendre après un /clear
 
-1. Code sur GitHub `main` (à jour, version **b70**). **Découpé (b70)** : `calendrier_3T.html` (~50 Ko, structure),
+1. Code sur GitHub `main` (à jour, version **b94**). **Découpé (b70)** : `calendrier_3T.html` (~50 Ko, structure),
    **`app.js`** (~246 Ko, toute la logique), **`style.css`** (~50 Ko). Autres : `sw.js`, `firebase-messaging-sw.js`,
    `scripts/*.js`, `.github/workflows/*.yml`, **`cloudflare/worker.js`** (notif formation + auth Firebase,
    déployé sur `https://formation-notif.nano66explosion.workers.dev/`).
@@ -577,7 +604,9 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 9. **Restant à faire** : #10 (accessibilité / taille police), #12 (export PDF), #15 (stats avancées / projection 507h),
    #20 (découper le fichier), + **calibrage heures intermittence** (compléter la base ; comparer app vs paye).
    Pistes confort : finaliser Réunion (créneau retenu, notif), notifs Notes, session persistante Cloudflare (cf. limites).
-10. **Dernier sujet en cours (avant le /clear)** : on venait de finir une grosse **refonte UI/navigation** (pages Home/Heures
-   qui glissent en entier, carrousel unifié Heures·Semaine·Mois·Année, pull-to-refresh icône flèche, bottom-nav SVG).
-   Tout est poussé et fonctionnel côté code/syntaxe, mais **non testé visuellement** → l'utilisateur doit valider sur
-   iPhone (swipe, pages, pull-to-refresh) et sur PC (mise en page 2 colonnes préservée via `display:contents`).
+10. **Dernier sujet en cours (2026-07-01, à partir de b94)** : voir la section **« 🎯 Chantiers en cours »** ci-dessus
+   — (1) réparer les notifs push app fermée iPhone (data-only → `webpush.notification`), (2) démarrage instantané
+   même token expiré, (3) sync régie temps réel entre téléphones via `onSnapshot` sur `schedule/v1`. Rien encore codé
+   au moment de l'écriture de cette note ; commencer par les notifs (priorité utilisateur).
+11. **Historique — refonte UI/navigation** (faite avant b94) : pages Home/Heures qui glissent, carrousel unifié
+   Heures·Semaine·Mois·Année, pull-to-refresh icône flèche, bottom-nav SVG. Poussée et fonctionnelle.
