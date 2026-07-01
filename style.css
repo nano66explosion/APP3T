@@ -364,6 +364,14 @@ body.page-hsupp #page-hsupp{display:block}
 .rep-day-date{font-size:12px;font-weight:700;color:#2dd4bf;margin-bottom:.35rem}
 #repet-modal .modal-card,#repet-list-modal .modal-card{box-sizing:border-box;overflow-x:hidden;width:100%}
 #repet-modal *,#repet-list-modal *{box-sizing:border-box;max-width:100%}
+/* Bloc regroupé « Répétitions & formations » dans le détail du jour */
+.extra-block{border:1px solid var(--border);border-radius:12px;padding:.65rem .75rem;margin:.5rem 0;background:var(--surface2)}
+.extra-part + .extra-part{margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--border)}
+.extra-label{font-size:12.5px;font-weight:700;margin-bottom:.45rem}
+.extra-label.rep-label{color:#2dd4bf}
+.extra-label.fm-label{color:#a78bfa}
+.extra-part .fm-card:first-of-type{margin-top:0}
+.extra-part .fm-propose,.extra-part .rep-add{margin-top:.5rem}
 
 /* ── BOUTON BILAN SOIRÉE (sous la régie du jour) ── */
 #btn-soiree-card{margin:.25rem 1rem .75rem;width:calc(100% - 2rem);background:#25D36618;border:1px solid #25D36655;color:var(--text);border-radius:12px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}

@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-01 · b98 (régie à 2 depuis l\'app : rejoindre en doublon « / » ou en observateur « ( ) »)';
+const APP_VERSION = '2026-07-02 · b99 (détail du jour : bloc regroupé Répétitions & Formations ; emoji répét 🪑)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -4412,7 +4412,7 @@ function renderCalendar() {
     const specials = [...new Set(entries.filter(e => e.special && !e.cancelled).map(e => e.special))];
     const specialMark = specials.length ? `<div class="cal-special">${specials.map(s=>`<span title="${s}">${s}</span>`).join('')}</div>` : '';
     const fmMark = (_formations[isoKey] && _formations[isoKey].length) ? '<span class="cal-formation" title="Formation">📚</span>' : '';
-    const repMark = (repetIndex[isoKey] && repetIndex[isoKey].length) ? '<span class="cal-repet" title="Répétition en salle">🔁</span>' : '';
+    const repMark = (repetIndex[isoKey] && repetIndex[isoKey].length) ? '<span class="cal-repet" title="Répétition en salle">🪑</span>' : '';
 
     cells += `<div class="cal-cell${hasEvents?' has-events':''}${isToday?' is-today':''}${isSelected?' selected':''}" onclick="selectDay(${d})">
       <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}${conflictMark}${fmMark}${repMark}</div>
@@ -4515,13 +4515,10 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
   }
 
   const iso = `${y}-${String(m).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
-  const fmHTML = formationCardsHTML(iso);
   panel.innerHTML = `<div class="detail-panel">
     <div class="detail-date">${dateLabel}</div>
     ${cardsHTML}
-    ${repetSectionHTML(iso)}
-    ${fmHTML}
-    <button class="fm-propose" onclick="openFormationModal('${iso}')">📚 Proposer une formation ce jour</button>
+    ${dayExtrasHTML(iso)}
   </div>`;
 }
 
@@ -4533,27 +4530,40 @@ function dayRepets(iso){
 function repetSalleLabel(s){ return s === '3TC' ? '3T Côté' : s === 'GT' ? 'Grand Théâtre' : s; }
 function repetSalleCls(s){ return s === '3TC' ? 'rep-3tc' : s === 'GT' ? 'rep-gt' : 'rep-3t'; }
 
-// Section « Répétitions » du détail du jour : liste par salle + bouton d'ajout/édition.
-function repetSectionHTML(iso){
-  const reps = dayRepets(iso);
+// Bloc regroupé « Répétitions & formations » du détail du jour : les répétitions en salle
+// (liste par salle + ajout) ET les formations (cartes + proposer) réunies dans un seul cadre.
+function dayExtrasHTML(iso){
   const order = { '3T':0, '3TC':1, 'GT':2 };
-  let inner = '';
-  reps.slice()
+  // — Répétitions en salle —
+  let repRows = '';
+  dayRepets(iso).slice()
     .sort((a,b) => (order[a.salle]-order[b.salle]) || (a.slot < b.slot ? -1 : 1))
     .forEach(r => {
-      inner += `<div class="rep-row">
+      repRows += `<div class="rep-row">
         <span class="rep-salle ${repetSalleCls(r.salle)}">${repetSalleLabel(r.salle)}</span>
         <span class="rep-slot">${r.slot}</span>
         <span class="rep-text">${escapeHtml(r.text)}</span>
       </div>`;
     });
-  // L'ajout écrit dans le plan tech (Drive) → indisponible hors-ligne.
-  const addBtn = offlineMode ? ''
+  // L'ajout/proposition écrit sur Drive/Firestore → boutons masqués hors-ligne.
+  const repAdd = offlineMode ? ''
     : `<button class="rep-add" onclick="openRepetModal('${iso}')">➕ Ajouter / modifier une répétition</button>`;
-  return `<div class="rep-block">
-    <div class="rep-head">🔁 Répétitions en salle</div>
-    ${inner || '<div class="rep-empty">Aucune répétition ce jour</div>'}
-    ${addBtn}
+  // — Formations —
+  const fmHTML = formationCardsHTML(iso);
+  const fmPropose = offlineMode ? ''
+    : `<button class="fm-propose" onclick="openFormationModal('${iso}')">📚 Proposer une formation ce jour</button>`;
+
+  return `<div class="extra-block">
+    <div class="extra-part">
+      <div class="extra-label rep-label">🪑 Répétitions en salle</div>
+      ${repRows || '<div class="rep-empty">Aucune répétition ce jour</div>'}
+      ${repAdd}
+    </div>
+    <div class="extra-part">
+      <div class="extra-label fm-label">📚 Formations</div>
+      ${fmHTML || '<div class="rep-empty">Aucune formation ce jour</div>'}
+      ${fmPropose}
+    </div>
   </div>`;
 }
 

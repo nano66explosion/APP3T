@@ -547,8 +547,9 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **25. Répétitions en salle** — ✅ FAIT (b97). Lecture du bloc **PLANNING REPETITIONS** (colonnes T-Y : 3T/3TC/GT
   × Matin/Après-midi, texte libre) via `detectRepetCols()` (en-têtes « Salle X ») + repli en dur `REPET_SLOTS`.
   `parsePlanTech` renvoie `day.repets` + `day.rowRef` + un index `dateRows` (iso→{sheet,row0,repCols}) exposé en
-  `_dateRowIndex`. **Affichage** : marqueur **🔁** sur le calendrier (légende MAJ) + section « 🔁 Répétitions en salle »
-  dans le détail du jour (`repetSectionHTML`, par salle/créneau). **Ajout/édition** (`openRepetModal`/`submitRepet`) :
+  `_dateRowIndex`. **Affichage** : marqueur **🪑** sur le calendrier (légende MAJ) + les répétitions dans le détail
+  du jour, **regroupées avec les formations** dans un seul bloc `dayExtrasHTML` (b99 : « 🪑 Répétitions en salle »
+  + « 📚 Formations », styles `.extra-block`/`.extra-part`). *(Emoji passé de 🔁 à 🪑 en b99.)* **Ajout/édition** (`openRepetModal`/`submitRepet`) :
   écrit dans la cellule T-Y de la ligne date via `writeXlsxCell`/`writeSheetCell` (comme un positionnement), garde-fous
   offline + `hasWriteScope`, puis `reloadPlanSilent` + `publishSchedule` (→ sync temps réel des répét vers les autres).
   **Liste dédiée** (`openRepetList`/`renderRepetList`) : répét à venir groupées par date, clic → ouvre le jour

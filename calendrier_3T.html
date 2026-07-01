@@ -155,7 +155,7 @@
     <div class="leg"><div class="leg-dot" style="background:var(--ctour)"></div>Tournée</div>
     <div class="leg"><div class="leg-dot" style="background:var(--cobs)"></div>Observation</div>
     <div class="leg"><span style="font-size:12px">🎤</span>Artiste invité</div>
-    <div class="leg"><span style="font-size:12px">🔁</span>Répétition</div>
+    <div class="leg"><span style="font-size:12px">🪑</span>Répétition</div>
     <div class="leg"><span class="role-dot rd-doub"></span>Doublon</div>
     <div class="leg"><span class="role-dot rd-obs"></span>Observateur</div>
     <div class="leg"><span class="role-dot rd-form"></span>Formateur</div>
@@ -276,7 +276,7 @@
         <button onclick="closeMoreMenu();openIntermittence()"><span class="mg-ico">📈</span>Intermittence</button>
         <button onclick="closeMoreMenu();openSoiree()"><span class="mg-ico">💬</span>Bilan soirée</button>
         <button onclick="closeMoreMenu();openFormationModal()"><span class="mg-ico">📚</span>Formation</button>
-        <button onclick="closeMoreMenu();openRepetList()"><span class="mg-ico">🔁</span>Répétitions</button>
+        <button onclick="closeMoreMenu();openRepetList()"><span class="mg-ico">🪑</span>Répétitions</button>
         <button onclick="closeMoreMenu();openMeeting()"><span class="mg-ico">🗓️</span>Réunion</button>
         <button onclick="closeMoreMenu();openNotes()"><span class="mg-ico">📝</span>Notes</button>
         <button onclick="closeMoreMenu();openSearch()"><span class="mg-ico">🔍</span>Recherche</button>
@@ -325,7 +325,7 @@
   <div id="repet-list-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeRepetList()">
     <div class="modal-card" style="text-align:left;max-width:460px;max-height:80vh;display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
-        <div class="modal-title">🔁 Répétitions à venir</div>
+        <div class="modal-title">🪑 Répétitions à venir</div>
         <button onclick="closeRepetList()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
       </div>
       <div class="modal-sub">Toutes les répétitions en salle à partir d'aujourd'hui. Touche une ligne pour ouvrir le jour.</div>
@@ -337,7 +337,7 @@
   <div id="repet-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeRepetModal()">
     <div class="modal-card" style="text-align:left;max-width:400px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
-        <div class="modal-title">🔁 Répétition en salle</div>
+        <div class="modal-title">🪑 Répétition en salle</div>
         <button onclick="closeRepetModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
       </div>
       <div class="modal-sub" id="rep-date-label">—</div>
