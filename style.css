@@ -572,6 +572,19 @@ button:active{transform:scale(.96)}
 .hs-ic{background:var(--surface3);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;flex-shrink:0;cursor:pointer;font-size:14px}
 .hs-ic:hover{border-color:var(--muted)}
 .hs-pend{color:var(--c3tc);font-weight:600;white-space:nowrap}
+/* Chrono heures supp */
+.hs-timer{margin-bottom:1rem}
+.hs-timer-startbtn{width:100%;padding:12px;border-radius:12px;background:#4ade8018;border:1px solid #4ade8055;color:var(--c3t);font-weight:700;font-size:14px;cursor:pointer;font-family:inherit}
+.hs-timer-startbtn:hover{background:#4ade8028}
+.hs-timer-run{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface2);border:1px solid var(--c3t);border-radius:12px;padding:.7rem .85rem}
+.hs-timer-info{display:flex;align-items:center;gap:11px;min-width:0}
+.hs-timer-time{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);line-height:1.05}
+.hs-timer-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.hs-timer-stop{background:#f87171;color:#fff;border:none;border-radius:10px;padding:9px 15px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;flex-shrink:0}
+.hs-timer-dot{width:11px;height:11px;border-radius:50%;background:#4ade80;flex-shrink:0;animation:hspulse 1.4s ease-in-out infinite}
+@keyframes hspulse{0%{box-shadow:0 0 0 0 #4ade8099}70%{box-shadow:0 0 0 8px #4ade8000}100%{box-shadow:0 0 0 0 #4ade8000}}
+.hs-timer-float{position:fixed;right:14px;bottom:80px;z-index:50;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--c3t);color:var(--text);border-radius:22px;padding:8px 14px;font-family:'DM Mono',monospace;font-weight:700;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer}
+@media (min-width:768px){ .hs-timer-float{bottom:20px} }
 /* Heures supp : formulaire + liste */
 .hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1.1rem}
 .hs-item{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:10px;padding:.6rem .7rem;margin-bottom:5px}

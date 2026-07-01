@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b101 (heures supp : routage auto mois suivant si STOP, consultation lecture seule, saisie en attente)';
+const APP_VERSION = '2026-07-02 · b102 (chrono heures supp : start/stop, arrondi quart d\'heure sup., préremplissage)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2122,6 +2122,8 @@ function launchApp() {
   saveOfflineCache();
   // HS — écoule en arrière-plan les heures supp en attente si leur fichier existe désormais
   setTimeout(() => { if(accessToken && !offlineMode) hsFlushPending(false).catch(()=>{}); }, 5000);
+  // Chrono heures supp : reprend l'affichage (pastille flottante) si un chrono tournait
+  hsTimerRenderAll(); hsTimerEnsureInterval();
   // #16 — si on arrive via le clic d'une notif (#today), aller à la régie du jour
   handleNotifNav();
 }
@@ -3461,8 +3463,101 @@ function renderHsupp(){
   const d = document.getElementById('hs-date');
   if(d && !d.value){ const t=new Date(); d.value = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`; }
   hsBuildMotifChips(); hsDateSuggest();
+  hsTimerRenderAll(); hsTimerEnsureInterval();   // chrono (affichage + tick si en cours)
   if(_calPreview) return;          // aperçu de swipe → pas de chargement Drive
   hsInit();
+}
+
+// ─── CHRONO HEURES SUPP ──────────────────────────────────────────────────────
+// Démarre au début de l'heure supp, s'arrête à la fin → préremplit le formulaire
+// (durée arrondie au quart d'heure SUPÉRIEUR). État persistant (survit à la
+// fermeture de l'app). Visible dans la vue + pastille flottante sur toutes les vues.
+// ⚠️ iOS : impossible d'avoir un "Live Activity" façon Uber (réservé aux apps natives) ;
+// on montre une notification simple "en cours" (non animée) à titre de rappel.
+let _hsTimerInt = null;
+function hsTimerState(){ try{ return JSON.parse(localStorage.getItem('3t_hs_timer')||'null'); }catch(e){ return null; } }
+function hsFmtElapsed(ms){
+  const s = Math.max(0, Math.floor(ms/1000)), h = Math.floor(s/3600), m = Math.floor((s%3600)/60), ss = s%60;
+  return (h>0 ? h+':' : '') + String(m).padStart(2,'0') + ':' + String(ss).padStart(2,'0');
+}
+function hsTimerStart(){
+  if(hsTimerState()) return;
+  const reg = (document.getElementById('hs-reg')||{}).value || getMyReg() || '';
+  localStorage.setItem('3t_hs_timer', JSON.stringify({ startedAt: Date.now(), reg }));
+  hsTimerRenderAll(); hsTimerEnsureInterval();
+  // Notification "en cours" (best-effort ; ne tique pas quand l'app est fermée)
+  if(typeof notifActive==='function' && notifActive()){
+    const t = new Date();
+    showNotif('⏱️ Heure supp en cours', `Démarrée à ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')} — pense à arrêter le chrono en fin de service.`, 'hs-timer', 'calendrier_3T.html#hsupp');
+  }
+  toast('⏱️ Chrono démarré', 'ok');
+}
+function hsTimerCloseNotif(){
+  try{ navigator.serviceWorker?.ready.then(reg => reg.getNotifications({tag:'hs-timer'}).then(ns => ns.forEach(n=>n.close()))); }catch(e){}
+}
+function hsTimerStop(){
+  const st = hsTimerState(); if(!st) return;
+  const start = new Date(st.startedAt), stop = new Date();
+  const durH = Math.max(0, (stop - start)/3600000);
+  const rounded = Math.max(0.25, Math.ceil(durH/0.25)*0.25);   // arrondi au quart d'heure SUPÉRIEUR
+  localStorage.removeItem('3t_hs_timer');
+  if(_hsTimerInt){ clearInterval(_hsTimerInt); _hsTimerInt = null; }
+  hsTimerCloseNotif(); hsTimerRenderAll();
+  const deb = hsRoundToQuarter(start);
+  const fin = hsAddQuarterHours(deb, rounded);
+  const iso = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
+  if(currentView !== 'hsupp'){ switchView('hsupp'); } else { renderHsupp(); }
+  // Après le rendu (qui réinitialise les selects), on préremplit le formulaire.
+  // hsInit sélectionne le mois actif (écrivable) → nos valeurs de formulaire restent en place.
+  setTimeout(() => {
+    const d = document.getElementById('hs-date'); if(d) d.value = iso;
+    hsFillTimeSelects('hs-debut', deb); hsFillTimeSelects('hs-fin', fin);
+    const mo = document.getElementById('hs-motif'); if(mo){ mo.value=''; }
+    hsUpdateDuree(); hsDateSuggest();
+    document.getElementById('hs-form-title')?.scrollIntoView({ behavior:'smooth', block:'center' });
+    if(mo) mo.focus();
+    toast(`⏱️ ${rounded} h — ajoute le motif puis valide`, 'ok');
+  }, 80);
+}
+// Arrondit une Date à l'heure "HH:MM" au quart d'heure le plus proche
+function hsRoundToQuarter(date){
+  let h = date.getHours(), q = Math.round(date.getMinutes()/15)*15;
+  if(q===60){ q=0; h=(h+1)%24; }
+  return `${String(h).padStart(2,'0')}:${String(q).padStart(2,'0')}`;
+}
+// Ajoute un nombre d'heures (multiple de 0.25) à "HH:MM"
+function hsAddQuarterHours(hhmm, hours){
+  const [H,M] = hhmm.split(':').map(Number);
+  let total = (((H*60 + M + Math.round(hours*60)) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+}
+function hsTimerRenderAll(){
+  const st = hsTimerState();
+  const el = document.getElementById('hs-timer');
+  if(el){
+    el.innerHTML = st
+      ? `<div class="hs-timer-run">
+           <div class="hs-timer-info"><span class="hs-timer-dot"></span>
+             <div><div class="hs-timer-time">${hsFmtElapsed(Date.now()-st.startedAt)}</div>
+             <div class="hs-timer-sub">Heure supp en cours${st.reg?' · '+st.reg:''}</div></div>
+           </div>
+           <button class="hs-timer-stop" onclick="hsTimerStop()">◼ Arrêter</button>
+         </div>`
+      : `<button class="hs-timer-startbtn" onclick="hsTimerStart()">▶︎ Démarrer le chrono d'heure supp</button>`;
+  }
+  const fl = document.getElementById('hs-timer-float');
+  if(fl){
+    if(st){ fl.style.display='flex'; fl.innerHTML = `<span class="hs-timer-dot"></span><span>${hsFmtElapsed(Date.now()-st.startedAt)}</span>`; }
+    else { fl.style.display='none'; fl.innerHTML=''; }
+  }
+}
+function hsTimerEnsureInterval(){
+  if(_hsTimerInt) return;
+  if(!hsTimerState()) return;
+  _hsTimerInt = setInterval(() => {
+    if(!hsTimerState()){ clearInterval(_hsTimerInt); _hsTimerInt=null; hsTimerRenderAll(); return; }
+    hsTimerRenderAll();
+  }, 1000);
 }
 
 // Initialise la vue : liste les mois du Drive, écoule l'attente, résout le mois actif d'écriture.

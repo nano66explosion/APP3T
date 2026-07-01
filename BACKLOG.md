@@ -537,6 +537,14 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   `localStorage 3t_notif_prefs` + champ `prefs` du doc Firestore ; le cron filtre (`tokensFor`).
 - [x] **24. Formations** — ✅ FAIT (voir section Firebase). Proposer/positionner/supprimer, affichage calendrier
   (📚) + détail/régie du jour/semaine, notif aux autres via cron. Horaire au quart d'heure. Champs `.fm-input`.
+- [x] **28. Chrono heures supp** — ✅ FAIT (b102). Bouton **▶︎ Démarrer** au début de l'heure supp, **◼ Arrêter**
+  à la fin → préremplit le formulaire (date + début + fin), il ne reste qu'à saisir le motif et valider. Durée
+  **arrondie au quart d'heure SUPÉRIEUR** (`Math.ceil(dur/0.25)*0.25`, min 0,25 h). État persistant
+  (`3t_hs_timer` : startedAt+reg → survit à la fermeture de l'app), tick chaque seconde (`hsTimerEnsureInterval`).
+  Visible dans la vue heures **et** via une **pastille flottante** (`#hs-timer-float`) sur toutes les vues (point
+  vert pulsant, clic → vue heures). Notification « ⏱️ en cours » au démarrage (best-effort).
+  **⚠️ Limite iOS** : pas de « Live Activity » façon Uber Eats (réservé aux apps natives via ActivityKit ;
+  impossible en PWA/web) → la notif est un simple rappel statique, elle ne tique pas quand l'app est fermée.
 - [x] **27. Heures supp : STOP → mois suivant, consultation, saisie en attente** — ✅ FAIT (b101). Avant, le module
   travaillait toujours sur le fichier du mois courant et **bloquait** si un STOP était présent. Désormais :
   **(a) Routage auto** — `hsResolveActive(reg)` part du mois courant et renvoie le **1er mois non clôturé** (saute les
