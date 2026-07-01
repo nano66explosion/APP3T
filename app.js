@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b99 (détail du jour : bloc regroupé Répétitions & Formations ; emoji répét 🪑)';
+const APP_VERSION = '2026-07-02 · b100 (détail du jour : un seul bouton Répétition/Formation, listes affichées si présentes)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -4545,26 +4545,29 @@ function dayExtrasHTML(iso){
         <span class="rep-text">${escapeHtml(r.text)}</span>
       </div>`;
     });
-  // L'ajout/proposition écrit sur Drive/Firestore → boutons masqués hors-ligne.
-  const repAdd = offlineMode ? ''
-    : `<button class="rep-add" onclick="openRepetModal('${iso}')">➕ Ajouter / modifier une répétition</button>`;
   // — Formations —
   const fmHTML = formationCardsHTML(iso);
-  const fmPropose = offlineMode ? ''
-    : `<button class="fm-propose" onclick="openFormationModal('${iso}')">📚 Proposer une formation ce jour</button>`;
+  // Un SEUL bouton compact → petit menu de choix (répétition / formation). Masqué hors-ligne.
+  const addBtn = offlineMode ? ''
+    : `<button class="extra-add" onclick="openExtraChoose('${iso}')">➕ Ajouter répétition / formation</button>`;
 
-  return `<div class="extra-block">
-    <div class="extra-part">
-      <div class="extra-label rep-label">🪑 Répétitions en salle</div>
-      ${repRows || '<div class="rep-empty">Aucune répétition ce jour</div>'}
-      ${repAdd}
-    </div>
-    <div class="extra-part">
-      <div class="extra-label fm-label">📚 Formations</div>
-      ${fmHTML || '<div class="rep-empty">Aucune formation ce jour</div>'}
-      ${fmPropose}
-    </div>
-  </div>`;
+  // On n'affiche QUE ce qui existe ce jour (pas de placeholder « aucune… ») pour gagner de la place.
+  let inner = '';
+  if(repRows) inner += `<div class="extra-label rep-label">🪑 Répétitions en salle</div>${repRows}`;
+  if(fmHTML)  inner += `<div class="extra-label fm-label"${repRows?' style="margin-top:.65rem"':''}>📚 Formations</div>${fmHTML}`;
+  if(!inner) return addBtn;   // rien ce jour → juste le bouton unique (compact)
+  return `<div class="extra-block">${inner}${addBtn}</div>`;
+}
+
+// Petit sélecteur (bottom-sheet) : après le bouton unique, on choisit répétition ou formation.
+let _extraIso = null;
+function openExtraChoose(iso){ _extraIso = iso; document.getElementById('extra-choose-modal').style.display = 'flex'; }
+function closeExtraChoose(){ document.getElementById('extra-choose-modal').style.display = 'none'; }
+function chooseExtra(kind){
+  const iso = _extraIso;
+  closeExtraChoose();
+  if(kind === 'repet') openRepetModal(iso);
+  else openFormationModal(iso);
 }
 
 // #4 — Ma prochaine régie (jour strictement après aujourd'hui où JE suis positionné)

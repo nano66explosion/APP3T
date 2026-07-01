@@ -321,6 +321,17 @@
     </div>
   </div>
 
+  <!-- Choix « répétition ou formation » (après le bouton unique du détail du jour) -->
+  <div id="extra-choose-modal" class="modal-overlay" style="display:none;align-items:flex-end;padding:0;z-index:60" onclick="if(event.target===this)closeExtraChoose()">
+    <div class="more-sheet">
+      <div class="more-handle"></div>
+      <div class="more-grid" style="grid-template-columns:1fr 1fr">
+        <button onclick="chooseExtra('repet')"><span class="mg-ico">🪑</span>Répétition</button>
+        <button onclick="chooseExtra('formation')"><span class="mg-ico">📚</span>Formation</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Liste des répétitions à venir -->
   <div id="repet-list-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeRepetList()">
     <div class="modal-card" style="text-align:left;max-width:460px;max-height:80vh;display:flex;flex-direction:column">

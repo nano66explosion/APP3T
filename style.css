@@ -372,6 +372,10 @@ body.page-hsupp #page-hsupp{display:block}
 .extra-label.fm-label{color:#a78bfa}
 .extra-part .fm-card:first-of-type{margin-top:0}
 .extra-part .fm-propose,.extra-part .rep-add{margin-top:.5rem}
+.extra-block .fm-card:first-of-type{margin-top:.25rem}
+/* Bouton unique « Ajouter répétition / formation » */
+.extra-add{width:100%;margin-top:.5rem;background:var(--surface3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:border-color .15s}
+.extra-add:hover{border-color:var(--c3t)}
 
 /* ── BOUTON BILAN SOIRÉE (sous la régie du jour) ── */
 #btn-soiree-card{margin:.25rem 1rem .75rem;width:calc(100% - 2rem);background:#25D36618;border:1px solid #25D36655;color:var(--text);border-radius:12px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
