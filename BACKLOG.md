@@ -476,11 +476,15 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
     messages **DATA-ONLY** (title/body dans `data`, affichage délégué au SW via `onBackgroundMessage`).
     **Faux « fiable iOS »** : iOS **ne réveille pas** le SW pour un push **sans bloc `notification` visible** →
     les push restent en file APNs et **se vident tous d'un coup à la réouverture de l'app** (symptôme exact remonté).
-    **FIX prévu** : ajouter `webpush.notification` (title/body/icon/tag) dans les 3 envois pour un push
-    user-visible affiché par iOS app fermée ; anti-doublon via `tag`. Adapter `firebase-messaging-sw.js`.
-    **Actions manuelles associées** : redéployer le Worker Cloudflare (copier `worker.js` dans le dashboard) ;
-    sur chaque iPhone : app installée sur l'écran d'accueil + notifs autorisées + réouvrir (off/on des notifs
-    pour régénérer un jeton propre). Cron GitHub : nouveau code pris automatiquement au prochain run.
+    **✅ FIX b95** : ajout de `webpush.notification` (title/body/icon/tag) dans les 3 envois
+    (`send-reminders.js`, `broadcast.js`, `worker.js` → `fcmSend`) → push user-visible affiché par iOS app fermée.
+    `firebase-messaging-sw.js` : `onBackgroundMessage` **ne s'affiche plus lui-même quand un bloc `notification`
+    est présent** (le SDK l'affiche → pas de doublon) ; repli d'affichage conservé pour d'anciens messages
+    data-only en file. Anti-doublon inter-versions garanti par le `tag` (même tag → l'OS fusionne).
+    **Actions manuelles associées (utilisateur)** : ⚠️ redéployer le Worker Cloudflare (copier `worker.js` dans
+    le dashboard, sinon les notifs de formation restent en data-only) ; sur chaque iPhone : app installée sur
+    l'écran d'accueil + notifs autorisées + réouvrir (off/on des notifs pour régénérer un jeton propre).
+    Cron GitHub : nouveau code pris automatiquement au prochain run (rien à faire). **À TESTER iPhone réel.**
 - **Fichiers Drive** doivent être des **.xlsx** pour l'écriture (heures supp, plan tech xlsx).
 - **Colonnes du plan tech en dur** : un changement de structure du fichier casserait le parsing.
 
@@ -568,9 +572,9 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 
 Demande utilisateur — rendre l'app plus réactive + réparer les notifs. Trois sujets :
 
-1. **Notifs push app fermée (iPhone)** — cf. « ⚠️ BUG MAJEUR » dans *À surveiller*. Passer les 3 envois en
-   `webpush.notification` (au lieu de data-only). Fichiers : `send-reminders.js`, `broadcast.js`, `worker.js`,
-   `firebase-messaging-sw.js`. Nécessite redéploiement Worker + test iPhone réel.
+1. **✅ Notifs push app fermée (iPhone) — FAIT b95** — cf. « ⚠️ BUG MAJEUR » dans *À surveiller*. Les 3 envois
+   passent en `webpush.notification` (au lieu de data-only). Fichiers : `send-reminders.js`, `broadcast.js`,
+   `worker.js`, `firebase-messaging-sw.js`. **Reste à faire côté utilisateur** : redéployer le Worker + tester iPhone.
 2. **Démarrage quasi-instantané** — l'ouverture est déjà cache-first *tant que le token Google est valide* (< 1h).
    **Passé 1h**, le `window.load` de `app.js` retombe sur l'écran « Reconnexion… » qui **attend le réseau** avant
    d'ouvrir. FIX : dès qu'un `3t_offline_cache` existe, `launchApp()` **immédiatement** (lecture), puis reconnecter

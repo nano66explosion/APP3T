@@ -31,9 +31,13 @@ const body = (process.env.BODY || '').trim();
     const batch = tokens.slice(i, i + 500);
     const res = await messaging.sendEachForMulticast({
       tokens: batch,
-      // DATA-ONLY : affichage par le SW (onBackgroundMessage) → fiable app fermée / iOS.
+      // Bloc `notification` (webpush) = push user-visible → affiché par iOS app fermée
+      // (le data-only ne réveillait pas le SW iPhone). `data` gardé pour clic + premier plan.
       data: { title: title || '', body: body || '', url: APP_URL, tag },
-      webpush: { fcmOptions: { link: APP_URL } }
+      webpush: {
+        notification: { title: title || '📣 3T TECH', body: body || '', icon: 'icon-192.png', tag },
+        fcmOptions: { link: APP_URL }
+      }
     });
     sent += res.successCount;
     res.responses.forEach((r, j) => {

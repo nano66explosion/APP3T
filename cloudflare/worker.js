@@ -399,13 +399,17 @@ async function firestorePatch(pid, token, path, obj) {
 
 /* ── FCM HTTP v1 ───────────────────────────────────────────────────────────── */
 async function fcmSend(pid, token, deviceToken, title, body, link, tag) {
-  // DATA-ONLY : title/body/url/tag dans `data` → le service worker affiche lui-même
-  // la notif (onBackgroundMessage) → fiable app fermée, y compris en PWA iOS.
+  // Bloc `notification` (webpush) = push USER-VISIBLE → iOS l'affiche app fermée.
+  // ⚠️ Le data-only ne réveille pas le SW sur iPhone → notifs vidées à la réouverture.
+  // On garde `data` pour le routage du clic + l'affichage au premier plan. Anti-doublon = `tag`.
   const msg = {
     message: {
       token: deviceToken,
       data: { title: title || '', body: body || '', url: link || '', tag: tag || '3t' },
-      webpush: { fcmOptions: { link } }
+      webpush: {
+        notification: { title: title || '🎭 3T TECH', body: body || '', icon: 'icon-192.png', tag: tag || '3t' },
+        fcmOptions: { link }
+      }
     }
   };
   const r = await fetch(`https://fcm.googleapis.com/v1/projects/${pid}/messages:send`, {

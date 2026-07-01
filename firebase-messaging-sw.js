@@ -58,10 +58,13 @@ if (FIREBASE_CONFIG.projectId) {
   firebase.initializeApp(FIREBASE_CONFIG);
   const messaging = firebase.messaging();
 
-  // Message en arrière-plan / app fermée. On envoie des messages DATA-ONLY
-  // (title/body/url/tag dans `data`) et on AFFICHE nous-mêmes la notif → fiable
-  // y compris en PWA iOS (pas de dépendance à l'auto-affichage, pas de doublon).
+  // Message en arrière-plan / app fermée. Les envois portent désormais un bloc
+  // `notification` (webpush) → REQUIS sur iOS pour un push user-visible affiché app
+  // fermée. Quand ce bloc est présent, le SDK Firebase affiche LUI-MÊME la notif :
+  // on ne fait donc RIEN ici (sinon doublon). On ne s'affiche soi-même qu'en repli
+  // pour d'éventuels anciens messages DATA-ONLY encore en file (sans `notification`).
   messaging.onBackgroundMessage((payload) => {
+    if (payload && payload.notification) return;   // le SDK l'affiche → pas de doublon
     const d = (payload && payload.data) || {};
     return self.registration.showNotification(d.title || '🎭 3T TECH', {
       body: d.body || '',
