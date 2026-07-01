@@ -217,8 +217,11 @@
       <div class="hsupp-page">
         <div class="hsupp-title">⏱️ Heures supplémentaires</div>
         <label class="file-label">Régisseur</label>
-        <select id="hs-reg" onchange="hsReloadList()" style="width:100%;margin-bottom:1rem"></select>
-        <div class="hs-form">
+        <select id="hs-reg" onchange="hsOnRegChange()" style="width:100%;margin-bottom:.7rem"></select>
+        <label class="file-label">Mois</label>
+        <select id="hs-month" onchange="hsOnMonthChange()" style="width:100%;margin-bottom:.8rem"></select>
+        <div id="hs-banner" style="display:none;font-size:12px;border-radius:8px;padding:.55rem .7rem;margin-bottom:.8rem;line-height:1.5"></div>
+        <div class="hs-form" id="hs-form">
           <div id="hs-form-title" style="font-size:12px;font-weight:600;color:var(--c3t);margin-bottom:.6rem">➕ Nouvelle heure supp</div>
           <label class="file-label">Date</label>
           <input id="hs-date" type="date" class="hs-input" onchange="hsDateSuggest()">

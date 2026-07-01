@@ -537,6 +537,17 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   `localStorage 3t_notif_prefs` + champ `prefs` du doc Firestore ; le cron filtre (`tokensFor`).
 - [x] **24. Formations** — ✅ FAIT (voir section Firebase). Proposer/positionner/supprimer, affichage calendrier
   (📚) + détail/régie du jour/semaine, notif aux autres via cron. Horaire au quart d'heure. Champs `.fm-input`.
+- [x] **27. Heures supp : STOP → mois suivant, consultation, saisie en attente** — ✅ FAIT (b101). Avant, le module
+  travaillait toujours sur le fichier du mois courant et **bloquait** si un STOP était présent. Désormais :
+  **(a) Routage auto** — `hsResolveActive(reg)` part du mois courant et renvoie le **1er mois non clôturé** (saute les
+  mois avec STOP) ; on écrit toujours dans le bon fichier sans se poser de question. **(b) Consultation** — sélecteur
+  `#hs-month` listant **tous les mois du Drive** (dossier + archives, `hsListMonths`) ; les mois clôturés/passés
+  s'ouvrent en **lecture seule** (formulaire masqué, pas d'édition/suppression, bannière 🔒). **(c) En attente** — si le
+  fichier du mois cible n'existe pas encore : bannière ⏳, saisie **mémorisée localement** (`3t_hsupp_pending`) et
+  **écrite automatiquement** dès que le fichier apparaît (`hsFlushPending`, appelé à l'ouverture de la vue + 5 s après
+  le lancement ; ré-route au mois suivant si le fichier apparaît déjà clôturé). Refactor : `readHeuresSuppFrom(fileId,
+  mime,reg)`, `hsInit`/`hsLoadMonth`/`hsRenderList`, écriture ciblée via bascule temporaire du fichier enregistré.
+  **NB** : la notif « 🔒 Heures supp clôturées » (cron) est conservée mais informative seulement.
 - [x] **26. Régie à 2 depuis l'app** — ✅ FAIT (b98). Avant : quand une régie avait déjà quelqu'un, l'app ne
   proposait **aucun** bouton (on ne pouvait pas rejoindre). Désormais `posActionHTML` propose, sur une régie occupée,
   **« ➕ Me mettre à 2 (/) »** (doublon → `A/moi`) et **« 👁️ Observateur »** (→ `A(moi)`). Écriture via le helper

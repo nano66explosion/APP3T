@@ -571,6 +571,7 @@ button:active{transform:scale(.96)}
 .hs-item-sub{font-size:11px;color:var(--muted2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hs-ic{background:var(--surface3);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;flex-shrink:0;cursor:pointer;font-size:14px}
 .hs-ic:hover{border-color:var(--muted)}
+.hs-pend{color:var(--c3tc);font-weight:600;white-space:nowrap}
 /* Heures supp : formulaire + liste */
 .hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1.1rem}
 .hs-item{display:flex;align-items:center;gap:6px;background:var(--surface);border-radius:10px;padding:.6rem .7rem;margin-bottom:5px}

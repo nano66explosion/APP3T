@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b100 (détail du jour : un seul bouton Répétition/Formation, listes affichées si présentes)';
+const APP_VERSION = '2026-07-02 · b101 (heures supp : routage auto mois suivant si STOP, consultation lecture seule, saisie en attente)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2120,6 +2120,8 @@ function launchApp() {
   loadFormations();
   // #19 — met en cache le planning pour la consultation hors-ligne
   saveOfflineCache();
+  // HS — écoule en arrière-plan les heures supp en attente si leur fichier existe désormais
+  setTimeout(() => { if(accessToken && !offlineMode) hsFlushPending(false).catch(()=>{}); }, 5000);
   // #16 — si on arrive via le clic d'une notif (#today), aller à la régie du jour
   handleNotifNav();
 }
@@ -3460,24 +3462,137 @@ function renderHsupp(){
   if(d && !d.value){ const t=new Date(); d.value = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`; }
   hsBuildMotifChips(); hsDateSuggest();
   if(_calPreview) return;          // aperçu de swipe → pas de chargement Drive
-  loadHsuppFile();
+  hsInit();
 }
-async function loadHsuppFile(){
+
+// Initialise la vue : liste les mois du Drive, écoule l'attente, résout le mois actif d'écriture.
+async function hsInit(){
   const list = document.getElementById('hs-list');
   if(!list) return;
-  if(offlineMode){ list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">📴 Hors-ligne — reconnecte-toi pour gérer les heures supp.</div>'; return; }
+  if(offlineMode){ list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">📴 Hors-ligne — reconnecte-toi pour gérer les heures supp.</div>'; hsSetBanner('', null); return; }
   if(!accessToken){ list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Reconnecte-toi à Google pour gérer les heures supp.</div>'; return; }
-  list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">⏳ Recherche du fichier du mois…</div>';
-  try {
-    const f = await resolveHsuppForMonth();
-    localStorage.setItem('3t_hsupp_file_id', f.id);
-    localStorage.setItem('3t_hsupp_file_name', f.name);
-    localStorage.setItem('3t_hsupp_file_mime', f.mimeType);
-  } catch(e){
-    list.innerHTML = `<div style="color:#f87171;font-size:12px;padding:.5rem 0">❌ ${e.message}</div>`;
-    return;
+  list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">⏳ Recherche des fichiers…</div>';
+  try{
+    await hsListMonths(true);
+    if(await hsFlushPending(true)) await hsListMonths(true);   // écoule d'éventuelles heures en attente
+    const reg = document.getElementById('hs-reg').value;
+    const active = await hsResolveActive(reg);
+    _hsActiveKey = active.key;
+    if(active.fileId){
+      localStorage.setItem('3t_hsupp_file_id', active.fileId);
+      localStorage.setItem('3t_hsupp_file_mime', active.mime);
+      localStorage.setItem('3t_hsupp_file_name', active.name || '');
+    }
+    hsPopulateMonthSelect(active);
+    const sel = document.getElementById('hs-month'); if(sel) sel.value = active.key;
+    await hsLoadMonth(active.key);
+  }catch(e){ list.innerHTML = `<div style="color:#f87171;font-size:12px;padding:.5rem 0">❌ ${e.message}</div>`; }
+}
+
+function hsFindMonthByKey(key){ return (_hsMonths||[]).find(m => m.key===key) || null; }
+function hsKeyLabel(key){ const [y,mm]=String(key).split('-').map(Number); return hsMonthLabelFor(y, (mm||1)-1); }
+
+// Remplit le sélecteur de mois (tous les mois du Drive, + le mois actif en attente si son fichier manque).
+function hsPopulateMonthSelect(active){
+  const sel = document.getElementById('hs-month'); if(!sel) return;
+  const items = (_hsMonths||[]).slice().sort((a,b)=> b.year-a.year || b.monthIndex-a.monthIndex);
+  const opts = items.map(m => `<option value="${m.key}">${m.label}${m.key===_hsActiveKey?' • en cours':''}</option>`);
+  if(active.pending && !(_hsMonths||[]).some(m => m.key===active.key)){
+    opts.unshift(`<option value="${active.key}">${active.label} • en attente</option>`);
   }
-  hsReloadList();
+  sel.innerHTML = opts.join('');
+}
+
+// Charge un mois : actif (éditable, Drive), en attente (éditable local), ou passé/clôturé (lecture seule).
+async function hsLoadMonth(key){
+  _hsViewKey = key;
+  const reg = document.getElementById('hs-reg').value;
+  const m = hsFindMonthByKey(key);
+  const isActive = key === _hsActiveKey;
+  _hsViewPending = isActive && !m;      // mois actif sans fichier Drive → saisie mémorisée
+  _hsViewReadOnly = !isActive;          // seul le mois actif est modifiable
+  hsUpdateFormState();
+  const list = document.getElementById('hs-list'), tot = document.getElementById('hs-total');
+  if(list) list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Chargement…</div>';
+  if(tot) tot.textContent = '';
+  try{
+    if(_hsViewPending){
+      hsEntries = hsPendingFor(key, reg).map((p,i) => ({ rowNum:'p'+i, iso:p.iso, debut:p.debut, fin:p.fin, motif:p.motif, pending:true, heures:hsComputeHours(p.debut,p.fin) }));
+      hsRenderList(hsEntries, null);
+    } else if(m){
+      if(isActive){ localStorage.setItem('3t_hsupp_file_id', m.fileId); localStorage.setItem('3t_hsupp_file_mime', m.mime); localStorage.setItem('3t_hsupp_file_name', m.name); }
+      const { entries, stop } = await readHeuresSuppFrom(m.fileId, m.mime, reg);
+      hsEntries = entries;
+      hsRenderList(entries, stop);
+    } else {
+      hsEntries = []; hsRenderList([], null);
+    }
+  }catch(e){ if(list) list.innerHTML = `<div style="color:#f87171;font-size:12px;padding:.5rem 0">❌ ${e.message}</div>`; }
+}
+
+// Bannière d'état (mois clôturé / fichier en attente)
+function hsSetBanner(text, kind){
+  const b = document.getElementById('hs-banner'); if(!b) return;
+  if(!text){ b.style.display='none'; b.textContent=''; return; }
+  b.style.display = 'block'; b.textContent = text;
+  if(kind==='lock'){ b.style.background='#f8717118'; b.style.border='1px solid #f8717140'; b.style.color='#f87171'; }
+  else { b.style.background='#fb923c18'; b.style.border='1px solid #fb923c40'; b.style.color='var(--c3tc)'; }
+}
+// Affiche/masque le formulaire et la bannière selon l'état du mois affiché
+function hsUpdateFormState(){
+  const form = document.getElementById('hs-form');
+  if(_hsViewReadOnly){
+    if(form) form.style.display = 'none';
+    hsSetBanner('🔒 Mois clôturé ou archivé — consultation seule (pas de modification).', 'lock');
+  } else if(_hsViewPending){
+    if(form) form.style.display = 'block';
+    hsSetBanner(`⏳ Le fichier heures supp de ${hsKeyLabel(_hsActiveKey)} n'existe pas encore dans Drive. Tes heures sont mémorisées ici et ajoutées automatiquement dès qu'il apparaît.`, 'wait');
+  } else {
+    if(form) form.style.display = 'block';
+    hsSetBanner('', null);
+  }
+}
+
+function hsOnRegChange(){ hsCancelEdit(); hsInit(); }
+function hsOnMonthChange(){ const sel=document.getElementById('hs-month'); hsCancelEdit(); if(sel) hsLoadMonth(sel.value); }
+
+// Rendu de la liste (respecte lecture seule / attente pour les boutons d'action)
+function hsRenderList(entries, stop){
+  const list = document.getElementById('hs-list'), tot = document.getElementById('hs-total');
+  if(!list) return;
+  if(!entries.length){
+    list.innerHTML = `<div style="color:var(--muted);font-size:13px;padding:.5rem 0">${_hsViewPending?'Aucune heure en attente.':(_hsViewReadOnly?'Aucune heure supp ce mois.':'Aucune heure supp déclarée.')}</div>`;
+  } else {
+    list.innerHTML = entries.map(e => {
+      const actions = _hsViewReadOnly ? ''
+        : (_hsViewPending
+            ? `<button class="hs-ic" onclick="hsDeletePending('${e.rowNum}')" title="Supprimer">🗑️</button>`
+            : `<button class="hs-ic" onclick="hsEdit(${e.rowNum})" title="Modifier">✏️</button><button class="hs-ic" onclick="hsDelete(${e.rowNum})" title="Supprimer">🗑️</button>`);
+      const pend = e.pending ? ' <span class="hs-pend">⏳ en attente</span>' : '';
+      return `<div class="hs-item">
+        <div class="hs-item-main">
+          <div class="hs-item-top"><span class="hs-item-date">${hsDateLabel(e.iso)}</span><span class="hs-item-h">${e.heures!=null?e.heures+' h':''}</span></div>
+          <div class="hs-item-sub">${e.debut||'—'} → ${e.fin||'—'} · ${escapeHtml(e.motif||'—')}${pend}</div>
+        </div>
+        ${actions}
+      </div>`;
+    }).join('');
+  }
+  const total = entries.reduce((s,e)=>s+(e.heures||0),0);
+  if(tot) tot.textContent = `${Math.round(total*100)/100} h${stop?' · clôturé':(_hsViewPending?' · en attente':'')}`;
+  hsBuildMotifChips(); hsDateSuggest();
+}
+
+// Supprime une heure EN ATTENTE (locale, pas encore écrite dans Drive)
+function hsDeletePending(rowNum){
+  const key = _hsViewKey, reg = document.getElementById('hs-reg').value;
+  const i = parseInt(String(rowNum).replace('p',''), 10);
+  const target = hsPendingFor(key, reg)[i]; if(!target) return;
+  if(!confirm(`Supprimer l'heure en attente du ${hsDateLabel(target.iso)} (${target.motif}) ?`)) return;
+  const all = hsGetPending();
+  const idx = all.findIndex(p => p.monthKey===key && p.reg===reg && p.iso===target.iso && p.debut===target.debut && p.fin===target.fin && p.motif===target.motif && p.addedAt===target.addedAt);
+  if(idx>=0){ all.splice(idx,1); hsSetPending(all); }
+  hsLoadMonth(key); toast('🗑️ Heure en attente supprimée', 'ok');
 }
 
 function hsUpdateDuree(){
@@ -3546,38 +3661,11 @@ function hsDateLabel(iso){
   if(!iso) return '—'; const [y,m,d]=iso.split('-').map(Number);
   return `${d} ${HS_MOIS[m-1]}`;
 }
-async function hsReloadList(){
-  const reg = document.getElementById('hs-reg').value;
-  const list = document.getElementById('hs-list');
-  const tot = document.getElementById('hs-total');
-  list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Chargement…</div>';
-  tot.textContent = '';
-  try{
-    const { entries, stop } = await readHeuresSupp(reg);
-    hsEntries = entries;
-    if(!entries.length){
-      list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Aucune heure supp déclarée.</div>';
-    } else {
-      list.innerHTML = entries.map(e=>`
-        <div class="hs-item">
-          <div class="hs-item-main">
-            <div class="hs-item-top"><span class="hs-item-date">${hsDateLabel(e.iso)}</span><span class="hs-item-h">${e.heures!=null?e.heures+' h':''}</span></div>
-            <div class="hs-item-sub">${e.debut||'—'} → ${e.fin||'—'} · ${e.motif||'—'}</div>
-          </div>
-          <button class="hs-ic" onclick="hsEdit(${e.rowNum})" title="Modifier">✏️</button>
-          <button class="hs-ic" onclick="hsDelete(${e.rowNum})" title="Supprimer">🗑️</button>
-        </div>`).join('');
-    }
-    const total = entries.reduce((s,e)=>s+(e.heures||0),0);
-    tot.textContent = `${Math.round(total*100)/100} h${stop?' · clôturé':''}`;
-    hsBuildMotifChips();   // les motifs récents alimentent l'autocomplétion
-    hsDateSuggest();       // suggestion planning pour la date affichée
-  }catch(e){
-    list.innerHTML = `<div style="color:#f87171;font-size:12px;padding:.5rem 0">❌ ${e.message}</div>`;
-  }
-}
+// Recharge la vue courante (mois affiché). Le rendu réel est dans hsLoadMonth/hsRenderList.
+async function hsReloadList(){ return hsLoadMonth(_hsViewKey || _hsActiveKey); }
 
 function hsEdit(rowNum){
+  if(_hsViewReadOnly || _hsViewPending) return;   // pas d'édition Drive sur un mois clôturé / en attente
   const e = hsEntries.find(x=>x.rowNum===rowNum); if(!e) return;
   hsEditRow = rowNum;
   document.getElementById('hs-date').value = e.iso;
@@ -3610,6 +3698,7 @@ async function submitHeureSupp(){
   const motif = document.getElementById('hs-motif').value.trim();
   const err = document.getElementById('hs-error');
   if(!accessToken){ err.textContent = "Reconnecte-toi à Google."; return; }
+  if(_hsViewReadOnly){ err.textContent = "Mois clôturé — consultation seule."; return; }
   if(!iso || !deb || !fin || !motif){ err.textContent = "Remplis date, début, fin et motif."; return; }
   if(timeFracFromHM(fin) <= timeFracFromHM(deb)){ err.textContent = "La fin doit être après le début."; return; }
   // #5 Garde-fous : durée inhabituelle + chevauchement avec un créneau déjà déclaré ce jour.
@@ -3622,6 +3711,15 @@ async function submitHeureSupp(){
   btn.disabled = true; btn.textContent = '⏳…'; err.textContent = '';
   showBusy(true);
   try{
+    // Mois actif dont le fichier n'existe pas encore → on mémorise localement (ajout auto plus tard).
+    if(_hsViewPending){
+      hsAddPending({ reg, monthKey:_hsActiveKey, iso, debut:deb, fin, motif });
+      hsCancelEdit();
+      await hsLoadMonth(_hsActiveKey);
+      btn.disabled = false;
+      toast('⏳ Mémorisé — ajouté quand le fichier du mois existera', 'ok');
+      return;
+    }
     const editing = !!hsEditRow;
     if(editing){ await editHeureSupp(reg, hsEditRow, iso, deb, fin, motif); }
     else { await addHeureSupp(reg, iso, deb, fin, motif); }
@@ -3636,6 +3734,7 @@ async function submitHeureSupp(){
 }
 
 async function hsDelete(rowNum){
+  if(_hsViewReadOnly) return;
   const e = hsEntries.find(x=>x.rowNum===rowNum); if(!e) return;
   if(!confirm(`Supprimer l'heure supp du ${hsDateLabel(e.iso)} (${e.motif}) ?`)) return;
   const reg = document.getElementById('hs-reg').value;
@@ -3939,11 +4038,14 @@ async function deleteHeureSupp(reg, rowNum){
   const { entries } = await readHeuresSupp(reg);
   await rewriteHeuresSupp(reg, entries.filter(x=>x.rowNum!==rowNum));
 }
-// LECTURE des heures supp d'un régisseur (pour le récap)
+// LECTURE des heures supp d'un régisseur, depuis le fichier ENREGISTRÉ (mois actif).
 async function readHeuresSupp(reg){
-  const fileId = getSavedHsuppId();
+  return readHeuresSuppFrom(getSavedHsuppId(), getSavedHsuppMime(), reg);
+}
+// LECTURE depuis un fichier précis (mois actif OU mois consulté en lecture seule).
+async function readHeuresSuppFrom(fileId, mime, reg){
   if(!fileId) return { entries:[], stop:null };
-  const ab = await fetchDriveWorkbook(fileId, getSavedHsuppMime());
+  const ab = await fetchDriveWorkbook(fileId, mime);
   const wb = XLSX.read(ab, { type:'array' });
   const sheetName = heuresSheetForReg(reg, wb.SheetNames);
   if(!sheetName) return { entries:[], stop:null };
@@ -3970,6 +4072,94 @@ async function readHeuresSupp(reg){
     });
   }
   return { entries, stop };
+}
+
+// ─── HEURES SUPP : mois multiples, routage (STOP → mois suivant), consultation, attente ───
+let _hsMonths = null;   // cache : [{fileId,name,mime,monthIndex,year,key,label}] trié chrono
+let _hsActiveKey = null, _hsViewKey = null, _hsViewReadOnly = false, _hsViewPending = false;
+
+function hsMonthKey(y, mIdx){ return `${y}-${String(mIdx+1).padStart(2,'0')}`; }
+function hsMonthLabelFor(y, mIdx){ return `${HS_MOIS_FULL[mIdx]} ${String(y).slice(2)}`; }
+
+// Liste tous les mois disponibles dans le dossier Drive (principal + archives), dédoublonnés.
+async function hsListMonths(force){
+  if(_hsMonths && !force) return _hsMonths;
+  const files = await listHsuppFiles();
+  const seen = new Set(), months = [];
+  files.forEach(f => {
+    const my = hsParseMonthYear(f.name);
+    if(!my || !my.year) return;
+    const key = hsMonthKey(my.year, my.monthIndex);
+    if(seen.has(key)) return;
+    seen.add(key);
+    months.push({ fileId:f.id, name:f.name, mime:f.mimeType, monthIndex:my.monthIndex, year:my.year, key, label:my.label });
+  });
+  months.sort((a,b)=> a.year-b.year || a.monthIndex-b.monthIndex);
+  _hsMonths = months;
+  return months;
+}
+function hsFindMonth(y, mIdx){ return (_hsMonths||[]).find(m => m.year===y && m.monthIndex===mIdx) || null; }
+
+// Détermine le mois ACTIF d'écriture : le 1er mois non clôturé à partir du mois courant.
+// Un mois « clôturé » = fichier présent + ligne STOP. Un mois sans fichier = actif « en attente ».
+async function hsResolveActive(reg){
+  await hsListMonths();
+  let y = new Date().getFullYear(), mIdx = new Date().getMonth();
+  for(let i=0;i<24;i++){
+    const f = hsFindMonth(y, mIdx);
+    if(!f) return { key:hsMonthKey(y,mIdx), label:hsMonthLabelFor(y,mIdx), fileId:null, mime:null, name:null, pending:true };
+    const { stop } = await readHeuresSuppFrom(f.fileId, f.mime, reg);
+    if(!stop) return { key:f.key, label:f.label, fileId:f.fileId, mime:f.mime, name:f.name, pending:false };
+    mIdx++; if(mIdx>11){ mIdx=0; y++; }
+  }
+  return { key:hsMonthKey(y,mIdx), label:hsMonthLabelFor(y,mIdx), fileId:null, mime:null, name:null, pending:true };
+}
+
+// ── Stockage LOCAL des heures en attente (fichier du mois cible pas encore créé) ──
+function hsGetPending(){ try{ return JSON.parse(localStorage.getItem('3t_hsupp_pending')||'[]'); }catch(e){ return []; } }
+function hsSetPending(a){ try{ localStorage.setItem('3t_hsupp_pending', JSON.stringify(a)); }catch(e){} }
+function hsPendingFor(key, reg){ return hsGetPending().filter(p => p.monthKey===key && (!reg || p.reg===reg)); }
+function hsAddPending(e){ const a = hsGetPending(); a.push({ ...e, addedAt:Date.now() }); hsSetPending(a); }
+
+// Écoule les heures en attente dès que leur fichier de mois existe (et n'est pas clôturé).
+// Si le fichier apparaît clôturé, on ré-route vers le mois suivant. `silent` = pas de toast si rien.
+async function hsFlushPending(silent){
+  if(!accessToken || offlineMode) return 0;
+  const pend = hsGetPending();
+  if(!pend.length){ return 0; }
+  await hsListMonths(true);   // recharge la liste des fichiers Drive
+  const groups = {};
+  pend.forEach(p => { (groups[p.monthKey+'|'+p.reg] = groups[p.monthKey+'|'+p.reg] || []).push(p); });
+  const remaining = []; let flushed = 0;
+  const savedId=getSavedHsuppId(), savedMime=getSavedHsuppMime(), savedName=getSavedHsuppName();
+  for(const gk in groups){
+    const grp = groups[gk];
+    const [monthKey, reg] = gk.split('|');
+    const [yy, mm] = monthKey.split('-').map(Number);
+    const f = hsFindMonth(yy, mm-1);
+    if(!f){ remaining.push(...grp); continue; }               // fichier toujours absent → on garde
+    try{
+      const cur = await readHeuresSuppFrom(f.fileId, f.mime, reg);
+      if(cur.stop){                                            // clôturé entre-temps → ré-route au mois suivant
+        const ny = mm===12 ? yy+1 : yy, nm = mm===12 ? 1 : mm+1;
+        grp.forEach(p => remaining.push({ ...p, monthKey:`${ny}-${String(nm).padStart(2,'0')}` }));
+        continue;
+      }
+      // Bascule temporairement le fichier enregistré sur le fichier cible, écrit, restaure.
+      localStorage.setItem('3t_hsupp_file_id', f.fileId);
+      localStorage.setItem('3t_hsupp_file_mime', f.mime);
+      localStorage.setItem('3t_hsupp_file_name', f.name);
+      const all = cur.entries.concat(grp.map(p => ({ iso:p.iso, debut:p.debut, fin:p.fin, motif:p.motif })));
+      await rewriteHeuresSupp(reg, all);
+      flushed += grp.length;
+    }catch(e){ console.warn('hsFlushPending:', e); remaining.push(...grp); }
+  }
+  localStorage.setItem('3t_hsupp_file_id', savedId);
+  localStorage.setItem('3t_hsupp_file_mime', savedMime);
+  localStorage.setItem('3t_hsupp_file_name', savedName);
+  hsSetPending(remaining);
+  if(flushed && !silent) toast(`✅ ${flushed} heure(s) supp en attente ajoutée(s) au fichier du mois`, 'ok');
+  return flushed;
 }
 
 // Recharge le plan depuis Drive sans réinitialiser la vue (garde mois + jour ouverts)
