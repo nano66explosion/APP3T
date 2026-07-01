@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-01 · b97 (répétitions en salle : consultation calendrier + ajout dans le plan tech)';
+const APP_VERSION = '2026-07-01 · b98 (régie à 2 depuis l\'app : rejoindre en doublon « / » ou en observateur « ( ) »)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -4031,6 +4031,31 @@ function myRegName(){ return getMyReg() || getCurrentReg() || ''; }
 // Actions de positionnement listées au rendu du détail
 let dayActions = [];
 
+// Édite le contenu d'une cellule Régie en préservant la notation du plan tech :
+//   « A/B » = deux régisseurs (doublon) ; « A(B) » = A titulaire + B observateur.
+// op : 'add-slash' (me rejoint à 2), 'add-paren' (me en observateur), 'remove' (me retirer).
+function editRegieCell(raw, me, op){
+  raw = String(raw || '').trim();
+  const m = raw.match(/^(.*?)\(([^)]*)\)(.*)$/);          // sépare groupe principal / parenthèses
+  let main = m ? (m[1] + (m[3] || '')) : raw;
+  let obs  = m ? m[2] : '';
+  const split = s => s.split(/[\/,]/).map(x => x.trim()).filter(Boolean);
+  let mainArr = split(main), obsArr = split(obs);
+  const isMe = t => normReg(t) === me;
+  if(op === 'remove'){
+    mainArr = mainArr.filter(t => !isMe(t));
+    obsArr  = obsArr.filter(t => !isMe(t));
+  } else if(op === 'add-slash'){
+    obsArr = obsArr.filter(t => !isMe(t));               // si j'étais observateur → je passe titulaire
+    if(!mainArr.some(isMe)) mainArr.push(me);
+  } else if(op === 'add-paren'){
+    if(!mainArr.some(isMe) && !obsArr.some(isMe)) obsArr.push(me);
+  }
+  let out = mainArr.join('/');
+  if(obsArr.length) out += '(' + obsArr.join('/') + ')';
+  return out;
+}
+
 async function doPosition(i){
   if(blockIfOffline()) return;
   const a = dayActions[i];
@@ -4047,18 +4072,12 @@ async function doPosition(i){
     toast('Droit d\'écriture Google non accordé — reconnecte-toi en acceptant toutes les autorisations', 'err');
     return;
   }
-  let newVal, msg;
-  if(a.type === 'add'){
-    const cur = (a.src.rawReg||'').trim();
-    newVal = cur ? `${cur}/${me}` : me;
-    msg = `Te positionner sur "${a.spec}" (${a.salleLabel}) le ${a.dateLabel} ?`;
-  } else {
-    // retirer "me" du contenu de la cellule
-    const tokens = String(a.src.rawReg||'').split(/[\/,]/).map(s=>s.trim()).filter(Boolean);
-    const kept = tokens.filter(t => normReg(t) !== me);
-    newVal = kept.join('/');
-    msg = `Te retirer de "${a.spec}" (${a.salleLabel}) le ${a.dateLabel} ?`;
-  }
+  const newVal = editRegieCell(a.src.rawReg, me, a.op);
+  const isRemove = a.op === 'remove';
+  let msg;
+  if(a.op === 'add-slash')      msg = `Te positionner sur "${a.spec}" (${a.salleLabel}) le ${a.dateLabel} ?`;
+  else if(a.op === 'add-paren') msg = `T'ajouter en observateur sur "${a.spec}" (${a.salleLabel}) le ${a.dateLabel} ?`;
+  else                          msg = `Te retirer de "${a.spec}" (${a.salleLabel}) le ${a.dateLabel} ?`;
   if(!confirm(msg)) return;
   try{
     showBusy(true);
@@ -4067,11 +4086,11 @@ async function doPosition(i){
     if(isSheet){
       await writeSheetCell(a.src.sheet, a.src.row0, a.src.col0, newVal);
     } else {
-      await writeXlsxCell(getSavedFileId(), a.src.sheet, a.src.row0, a.src.col0, newVal, a.type==='remove' && !newVal);
+      await writeXlsxCell(getSavedFileId(), a.src.sheet, a.src.row0, a.src.col0, newVal, isRemove && !newVal);
     }
     await reloadPlanSilent();
     publishSchedule();   // #16 — republie le planning après (dé)positionnement
-    toast(a.type==='add' ? '✅ Tu es positionné' : '✅ Tu es retiré', 'ok');
+    toast(isRemove ? '✅ Tu es retiré' : (a.op==='add-paren' ? '✅ Ajouté en observateur' : '✅ Tu es positionné'), 'ok');
   }catch(err){
     toast('❌ ' + err.message, 'err');
     console.error(err);
@@ -5256,21 +5275,34 @@ function buildDayMap(reg, y, m) {
 function posActionHTML(e, y, m, dateLabel){
   const me = myRegName();
   if(!(me && e.src && e.salle !== 'Tournée')) return '';
+  if(e.cancelled) return '';                          // pas de positionnement sur un spectacle annulé
   const salleLabel = e.salle==='3TC'?'3T Côté':e.salle==='GT'?'Grand Théâtre':e.salle;
-  if(e.unassigned){
-    const i = dayActions.push({type:'add', src:e.src, spec:e.spec||'—', me, salleLabel, dateLabel}) - 1;
+  const now = new Date();
+  const isPast = (y < now.getFullYear()) || (y === now.getFullYear() && m < now.getMonth()+1);
+  const regies = e.regies || [];
+  const amTitulaire = regies.some(r => r.reg === me && r.role !== 'observateur');
+  const amObs       = regies.some(r => r.reg === me && r.role === 'observateur');
+  const someoneElse = regies.some(r => r.reg !== me);
+  const mk = (op) => dayActions.push({op, src:e.src, spec:e.spec||'—', me, salleLabel, dateLabel}) - 1;
+
+  // Déjà présent (titulaire/doublon OU observateur) → me retirer (sauf mois passé)
+  if(amTitulaire || amObs){
+    if(isPast) return '';
+    const i = mk('remove');
+    const lbl = amObs ? '➖ Retirer mon observation' : '➖ Me retirer';
+    return `<button id="act-${i}" class="pos-btn remove" onclick="doPosition(${i})">${lbl}</button>`;
+  }
+  // Personne sur la régie → simple positionnement
+  if(!someoneElse){
+    const i = mk('add-slash');
     return `<button id="act-${i}" class="pos-btn add" onclick="doPosition(${i})">➕ Me positionner</button>`;
   }
-  const iAmIn = (e.regies||[]).some(r => r.reg === me && r.role !== 'observateur');
-  if(iAmIn){
-    const now = new Date();
-    const isPast = (y < now.getFullYear()) || (y === now.getFullYear() && m < now.getMonth()+1);
-    if(!isPast){
-      const i = dayActions.push({type:'remove', src:e.src, spec:e.spec||'—', me, salleLabel, dateLabel}) - 1;
-      return `<button id="act-${i}" class="pos-btn remove" onclick="doPosition(${i})">➖ Me retirer</button>`;
-    }
-  }
-  return '';
+  // Quelqu'un est déjà là → rejoindre en régie à 2 (« / ») OU en observateur (« ( ) »)
+  const i1 = mk('add-slash'), i2 = mk('add-paren');
+  return `<div class="pos-join">
+    <button id="act-${i1}" class="pos-btn add" onclick="doPosition(${i1})">➕ Me mettre à 2 (/)</button>
+    <button id="act-${i2}" class="pos-btn obs" onclick="doPosition(${i2})">👁️ Observateur</button>
+  </div>`;
 }
 
 function eventCardHTML(e, reg, teamMode, posCtx) {

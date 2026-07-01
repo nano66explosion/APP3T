@@ -537,6 +537,13 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   `localStorage 3t_notif_prefs` + champ `prefs` du doc Firestore ; le cron filtre (`tokensFor`).
 - [x] **24. Formations** — ✅ FAIT (voir section Firebase). Proposer/positionner/supprimer, affichage calendrier
   (📚) + détail/régie du jour/semaine, notif aux autres via cron. Horaire au quart d'heure. Champs `.fm-input`.
+- [x] **26. Régie à 2 depuis l'app** — ✅ FAIT (b98). Avant : quand une régie avait déjà quelqu'un, l'app ne
+  proposait **aucun** bouton (on ne pouvait pas rejoindre). Désormais `posActionHTML` propose, sur une régie occupée,
+  **« ➕ Me mettre à 2 (/) »** (doublon → `A/moi`) et **« 👁️ Observateur »** (→ `A(moi)`). Écriture via le helper
+  `editRegieCell(raw, me, op)` (op = add-slash / add-paren / remove) qui **préserve la notation** du plan tech
+  (`A/B` = doublon, `A(B)` = B observateur) : ajoute/retire uniquement `moi`, gère parenthèses, passage obs→titulaire,
+  nettoyage des `()` vides. `doPosition` refactoré (champ `op` au lieu de `type`). Retrait aussi possible quand on est
+  observateur. Styles `.pos-join` / `.pos-btn.obs`.
 - [x] **25. Répétitions en salle** — ✅ FAIT (b97). Lecture du bloc **PLANNING REPETITIONS** (colonnes T-Y : 3T/3TC/GT
   × Matin/Après-midi, texte libre) via `detectRepetCols()` (en-têtes « Salle X ») + repli en dur `REPET_SLOTS`.
   `parsePlanTech` renvoie `day.repets` + `day.rowRef` + un index `dateRows` (iso→{sheet,row0,repCols}) exposé en
