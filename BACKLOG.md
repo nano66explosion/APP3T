@@ -537,6 +537,15 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   `localStorage 3t_notif_prefs` + champ `prefs` du doc Firestore ; le cron filtre (`tokensFor`).
 - [x] **24. Formations** — ✅ FAIT (voir section Firebase). Proposer/positionner/supprimer, affichage calendrier
   (📚) + détail/régie du jour/semaine, notif aux autres via cron. Horaire au quart d'heure. Champs `.fm-input`.
+- [x] **25. Répétitions en salle** — ✅ FAIT (b97). Lecture du bloc **PLANNING REPETITIONS** (colonnes T-Y : 3T/3TC/GT
+  × Matin/Après-midi, texte libre) via `detectRepetCols()` (en-têtes « Salle X ») + repli en dur `REPET_SLOTS`.
+  `parsePlanTech` renvoie `day.repets` + `day.rowRef` + un index `dateRows` (iso→{sheet,row0,repCols}) exposé en
+  `_dateRowIndex`. **Affichage** : marqueur **🔁** sur le calendrier (légende MAJ) + section « 🔁 Répétitions en salle »
+  dans le détail du jour (`repetSectionHTML`, par salle/créneau). **Ajout/édition** (`openRepetModal`/`submitRepet`) :
+  écrit dans la cellule T-Y de la ligne date via `writeXlsxCell`/`writeSheetCell` (comme un positionnement), garde-fous
+  offline + `hasWriteScope`, puis `reloadPlanSilent` + `publishSchedule` (→ sync temps réel des répét vers les autres).
+  **Liste dédiée** (`openRepetList`/`renderRepetList`) : répét à venir groupées par date, clic → ouvre le jour
+  (`gotoRepetDay`), accessible via menu Plus. Inclus dans le cache hors-ligne (`repets`). Styles `.rep-*` (teal #2dd4bf).
 
 ---
 
@@ -565,8 +574,8 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 > créneaux **18h45 / 21h / 23h** (l'heure dans la colonne 18h45, le spectacle+régie dans la colonne 21h).
 > `parsePlanTech` gère les **lignes de continuation** (ligne sans date mais avec contenu spectacle → rattachée à
 > la date précédente ; cellules d'heure seules ignorées). Vérifié : seul le réveillon utilise ce format.
-> ⚠️ Le **2ᵉ bloc de colonnes T-Z** (« Matin/Après-midi » = Faux British/heures supp, répétitions, montages,
-> auditions, SOCOTEC…) reste **NON lu** volontairement (fourre-tout, pas des paires Spectacle/Régie).
+> ⚠️ Le **2ᵉ bloc de colonnes T-Y** (« PLANNING REPETITIONS » : 3 salles × Matin/Après-midi) est **désormais LU
+> depuis b97** (cf. #25 Répétitions). La colonne Z (« Montage matin / Demont… », fourre-tout ponctuel) reste ignorée.
 
 ## 🎯 Chantiers en cours (ouverts le 2026-07-01, depuis b94)
 

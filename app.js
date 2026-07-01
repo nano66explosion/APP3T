@@ -363,9 +363,22 @@ const SLOTS_SEM = [
   {salle:'GT',  cS:14, cR:15, h:'20h'},
 ];
 
+// Bloc « PLANNING REPETITIONS » (à droite de la Tournée) : 3 salles × Matin/Après-midi,
+// contenu texte libre (ex. « Faux British 09h-16h », « Audition 10h-17h », « SOCOTEC »).
+// Colonnes EN DUR (repli) : 3T=T/U (19-20), 3TC=V/W (21-22), GT=X/Y (23-24).
+const REPET_SLOTS = [
+  {salle:'3T',  slot:'Matin',      c:19},
+  {salle:'3T',  slot:'Après-midi', c:20},
+  {salle:'3TC', slot:'Matin',      c:21},
+  {salle:'3TC', slot:'Après-midi', c:22},
+  {salle:'GT',  slot:'Matin',      c:23},
+  {salle:'GT',  slot:'Après-midi', c:24},
+];
+
 const JOURS_V=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
 
 let allDays=[], allMois=[], allRegs=[];
+let _dateRowIndex={};   // iso → {sheet,row0,repCols} pour écrire les répétitions (rempli au chargement Drive)
 // Cellules "barrées" (spectacles annulés) et "orange" (artistes invités) : "Feuille!REF"
 let struckCells = new Set();
 let guestCells = new Set();
@@ -534,9 +547,33 @@ function detectPlanColumns(rows){
   }catch(e){ console.warn('detectPlanColumns:', e); return null; }
 }
 
+// Détection auto des colonnes du bloc répétitions via les en-têtes « Salle 3T / 3TC / GT »
+// (à droite de la Tournée, col ≥ 18). Chaque salle → Matin = sa colonne, Après-midi = +1.
+// Repli sur REPET_SLOTS (T-Y en dur) si l'analyse échoue.
+function detectRepetCols(rows){
+  try{
+    const out = [];
+    for(let r=0;r<Math.min(rows.length,4);r++){
+      (rows[r]||[]).forEach((cell,c)=>{
+        if(c<18) return;                        // bloc répét à droite de la Tournée (col 17)
+        const s = norm(cell);                   // minuscules sans accents
+        if(!s.includes('salle')) return;
+        let salle=null;
+        if(s.includes('3tc')||s.includes('cote')||/3t\s*c/.test(s)) salle='3TC';
+        else if(/\bgt\b/.test(s)||s.includes('grand')) salle='GT';
+        else if(s.includes('3t')) salle='3T';
+        if(salle && !out.some(o=>o.salle===salle)) out.push({salle, matin:c, aprem:c+1});
+      });
+    }
+    if(out.length<2) return null;
+    return out.flatMap(o=>[{salle:o.salle,slot:'Matin',c:o.matin},{salle:o.salle,slot:'Après-midi',c:o.aprem}]);
+  }catch(e){ console.warn('detectRepetCols:', e); return null; }
+}
+
 function parsePlanTech(wb){
   const days=[];
   const regSet=new Set();
+  const dateRows={};   // iso → {sheet,row0,repCols} : ligne primaire d'une date (écriture des répét)
 
   wb.SheetNames.forEach(sheetName=>{
     if(/modèle|copie/i.test(sheetName)) return;
@@ -567,6 +604,9 @@ function parsePlanTech(wb){
     const det = detectPlanColumns(rows);
     const SAM = (det && det.slotsSam.length) ? det.slotsSam : SLOTS_SAM;
     const SEM = (det && det.slotsSem.length) ? det.slotsSem : SLOTS_SEM;
+
+    // Bloc répétitions : colonnes détectées par en-tête, sinon colonnes en dur (T-Y)
+    const REP = detectRepetCols(rows) || REPET_SLOTS;
 
     // Colonne Tournée : détectée par en-tête, sinon scan ligne 3, sinon 17
     let tourCol = (det && det.tourCol!=null) ? det.tourCol : 17;
@@ -665,8 +705,20 @@ function parsePlanTech(wb){
         }
       }
 
-      if(entries.length>0)
-        days.push({date:dateObj,jour,entries});
+      // Bloc répétitions (T-Y) : 3 salles × Matin/Après-midi, texte libre. Une entrée par
+      // cellule non vide. src = provenance pour l'écriture (ajout/édition depuis l'app).
+      const repets=[];
+      REP.forEach(rp=>{
+        const txt=String(row[rp.c]||'').trim();
+        if(!txt) return;
+        repets.push({salle:rp.salle,slot:rp.slot,text:txt,src:{sheet:sheetName,row0:ri,col0:rp.c}});
+      });
+      // Index date→ligne primaire (uniquement les lignes datées) → sait où écrire une répét,
+      // même pour un jour sans spectacle (la ligne existe dans le fichier).
+      if(hasDate){ dateRows[dateObj.toISOString().slice(0,10)]={sheet:sheetName,row0:ri,repCols:REP}; }
+
+      if(entries.length>0 || repets.length>0)
+        days.push({date:dateObj,jour,entries,repets,rowRef:{sheet:sheetName,row0:ri}});
     });
   });
 
@@ -675,7 +727,7 @@ function parsePlanTech(wb){
   days.forEach(d=>{
     const k=d.date.toISOString().slice(0,10); // UTC date, safe since we store UTC midnights
     if(!map.has(k)) map.set(k,d);
-    else map.get(k).entries.push(...d.entries);
+    else { const ex=map.get(k); ex.entries.push(...d.entries); if(d.repets) ex.repets.push(...d.repets); }
   });
 
   const unique=[...map.values()].sort((a,b)=>a.date-b.date);
@@ -688,7 +740,8 @@ function parsePlanTech(wb){
   return{
     days:unique,
     mois:[...moisMap.entries()].map(([k,l])=>({k,l})),
-    regs:[...regSet].filter(Boolean).sort()
+    regs:[...regSet].filter(Boolean).sort(),
+    dateRows
   };
 }
 
@@ -709,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-01 · b96 (démarrage instantané token expiré + sync régie temps réel entre téléphones)';
+const APP_VERSION = '2026-07-01 · b97 (répétitions en salle : consultation calendrier + ajout dans le plan tech)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1989,7 +2042,7 @@ async function loadPlanTechById(fileId, fileName, mimeType) {
     ({struck:struckCells, guest:guestCells} = await parseCellStyles(arrayBuffer)); // annulés (barrés) + invités (orange)
     const wb = XLSX.read(arrayBuffer, { type: 'array' });
     const p = parsePlanTech(wb);
-    allDays = p.days; allMois = p.mois; allRegs = p.regs;
+    allDays = p.days; allMois = p.mois; allRegs = p.regs; _dateRowIndex = p.dateRows || {};
     planLoaded = true;
     setStep('plan','done');
     setStatus(`✅ "${fileName}" chargé`);
@@ -2081,7 +2134,7 @@ function saveOfflineCache(){
       t: Date.now(),
       allMois, allRegs, baseHeures, baseHeuresLoaded,
       struck: [...struckCells], guest: [...guestCells],
-      days: allDays.map(d => ({ date: d.date.toISOString(), jour: d.jour, entries: d.entries }))
+      days: allDays.map(d => ({ date: d.date.toISOString(), jour: d.jour, entries: d.entries, repets: d.repets || [] }))
     }));
   }catch(e){ console.warn('saveOfflineCache:', e); }
 }
@@ -2100,7 +2153,7 @@ function loadOfflineCache(){
     baseHeuresLoaded = !!data.baseHeuresLoaded;
     struckCells = new Set(data.struck || []);
     guestCells = new Set(data.guest || []);
-    allDays = (data.days || []).map(d => ({ date: new Date(d.date), jour: d.jour, entries: d.entries }));
+    allDays = (data.days || []).map(d => ({ date: new Date(d.date), jour: d.jour, entries: d.entries, repets: d.repets || [] }));
     planLoaded = true;
     return true;
   }catch(e){ console.warn('loadOfflineCache:', e); return false; }
@@ -2389,6 +2442,105 @@ function openFormationModal(iso){
   document.getElementById('formation-modal').style.display = 'flex';
 }
 function closeFormationModal(){ document.getElementById('formation-modal').style.display = 'none'; }
+
+// ─── RÉPÉTITIONS (bloc PLANNING REPETITIONS, colonnes T-Y du plan tech) ──────
+let _repetIso = null;
+function openRepetModal(iso){
+  if(blockIfOffline()) return;
+  if(!hasWriteScope()){ toast('Droit d\'écriture Google non accordé — reconnecte-toi en acceptant toutes les autorisations', 'err'); return; }
+  _repetIso = iso;
+  const [Y,M,D] = iso.split('-').map(Number);
+  const jourStr = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+  const moisStr = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  const dt = new Date(Y, M-1, D);
+  document.getElementById('rep-date-label').textContent = `${jourStr[dt.getDay()]} ${D} ${moisStr[M-1]} ${Y}`;
+  document.getElementById('rep-error').textContent = '';
+  document.getElementById('rep-salle').value = '3T';
+  document.getElementById('rep-slot').value = 'Matin';
+  repetPrefill();
+  document.getElementById('repet-modal').style.display = 'flex';
+}
+function closeRepetModal(){ document.getElementById('repet-modal').style.display = 'none'; _repetIso = null; }
+
+// Pré-remplit le champ avec la répét existante pour (salle, créneau) → permet l'édition,
+// et affiche le bouton « Vider » seulement si une répét est déjà là.
+function repetPrefill(){
+  if(!_repetIso) return;
+  const salle = document.getElementById('rep-salle').value;
+  const slot  = document.getElementById('rep-slot').value;
+  const existing = dayRepets(_repetIso).find(r => r.salle === salle && r.slot === slot);
+  document.getElementById('rep-text').value = existing ? existing.text : '';
+  document.getElementById('rep-clear-btn').style.display = existing ? 'block' : 'none';
+}
+
+// Écrit (ou vide) la cellule répétition dans le plan tech Drive, comme un positionnement.
+async function submitRepet(clear){
+  if(blockIfOffline()) return;
+  const iso = _repetIso; if(!iso) return;
+  const errEl = document.getElementById('rep-error');
+  const salle = document.getElementById('rep-salle').value;
+  const slot  = document.getElementById('rep-slot').value;
+  const value = clear ? '' : document.getElementById('rep-text').value.trim();
+  if(!clear && !value){ errEl.textContent = 'Écris un détail (ou utilise « Vider »).'; return; }
+  const info = _dateRowIndex[iso];
+  if(!info){ errEl.textContent = 'Impossible de localiser ce jour dans le plan tech.'; return; }
+  const col = (info.repCols || []).find(rc => rc.salle === salle && rc.slot === slot);
+  if(!col){ errEl.textContent = 'Colonne répétition introuvable pour cette salle.'; return; }
+  const mime = getSavedFileMime();
+  const isSheet = mime === 'application/vnd.google-apps.spreadsheet';
+  const isXlsx  = mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if(!isSheet && !isXlsx){ errEl.textContent = 'Type de fichier non modifiable (' + (mime||'inconnu') + ').'; return; }
+  if(!hasWriteScope()){ errEl.textContent = 'Droit d\'écriture Google non accordé — reconnecte-toi.'; return; }
+  try{
+    showBusy(true);
+    if(isSheet){ await writeSheetCell(info.sheet, info.row0, col.c, value); }
+    else { await writeXlsxCell(getSavedFileId(), info.sheet, info.row0, col.c, value, !value); }
+    await reloadPlanSilent();
+    publishSchedule();   // #sync — republie → les autres téléphones rechargent (répét incluse)
+    closeRepetModal();
+    toast(value ? '✅ Répétition enregistrée' : '✅ Répétition retirée', 'ok');
+  }catch(err){ errEl.textContent = '❌ ' + err.message; console.error(err); }
+  finally{ showBusy(false); }
+}
+
+// ─── Liste dédiée des répétitions à venir (menu Plus → Répétitions) ──────────
+function openRepetList(){ renderRepetList(); document.getElementById('repet-list-modal').style.display = 'flex'; }
+function closeRepetList(){ document.getElementById('repet-list-modal').style.display = 'none'; }
+function renderRepetList(){
+  const body = document.getElementById('repet-list-body');
+  const todayIso = isoToday();
+  const order = { '3T':0, '3TC':1, 'GT':2 };
+  const jourStr = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+  const moisStr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  let html = '';
+  allDays.forEach(d => {
+    const iso = d.date.toISOString().slice(0,10);
+    if(iso < todayIso) return;
+    const reps = d.repets || [];
+    if(!reps.length) return;
+    const [Y,M,D] = iso.split('-').map(Number);
+    const dt = new Date(Y, M-1, D);
+    const dateLabel = `${jourStr[dt.getDay()]} ${D} ${moisStr[M-1]}`;
+    const rows = reps.slice()
+      .sort((a,b) => (order[a.salle]-order[b.salle]) || (a.slot < b.slot ? -1 : 1))
+      .map(r => `<div class="rep-row"><span class="rep-salle ${repetSalleCls(r.salle)}">${repetSalleLabel(r.salle)}</span><span class="rep-slot">${r.slot}</span><span class="rep-text">${escapeHtml(r.text)}</span></div>`)
+      .join('');
+    html += `<div class="rep-day" onclick="gotoRepetDay('${iso}')"><div class="rep-day-date">${dateLabel}</div>${rows}</div>`;
+  });
+  body.innerHTML = html || '<div class="rep-empty">Aucune répétition à venir</div>';
+}
+// Ouvre le jour d'une répétition dans la grille (bon mois + jour sélectionné).
+function gotoRepetDay(iso){
+  closeRepetList();
+  const mk = iso.slice(0,7);
+  const sel = document.getElementById('mois-select');
+  if([...sel.options].some(o => o.value === mk)) sel.value = mk;
+  if(currentView !== 'grid') switchView('grid');
+  selectedDay = Number(iso.slice(8,10));
+  renderCalendar();
+  const panel = document.getElementById('detail-panel');
+  if(panel) panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
 
 // ─── RÉUNION PLANNING (Framadate : créneaux partagés + dispos) ───────────────
 let _meetingSlots = (()=>{ try{ return JSON.parse(localStorage.getItem('3t_meetings_cache')||'[]'); }catch(e){ return []; } })();
@@ -3826,7 +3978,7 @@ async function reloadPlanSilent(){
   ({struck:struckCells, guest:guestCells} = await parseCellStyles(ab));
   const wb = XLSX.read(ab, { type: 'array' });
   const p = parsePlanTech(wb);
-  allDays = p.days; allMois = p.mois; allRegs = p.regs;
+  allDays = p.days; allMois = p.mois; allRegs = p.regs; _dateRowIndex = p.dateRows || {};
   applyGuestBaseOverride();   // orange + dans la base = vraie pièce
   renderCalendar();
   saveOfflineCache();   // #19
@@ -4194,6 +4346,9 @@ function renderCalendar() {
   const warnMap = buildTeamDayMap(y, m);
   // Jours avec un conflit d'horaire (un régisseur sur 2 salles à la même heure)
   const conflictDays = new Set(computeConflicts(y, m).map(c => c.d));
+  // Répétitions par date (indépendant du mode perso/équipe : le bloc répét est commun)
+  const repetIndex = {};
+  allDays.forEach(dd => { if(dd.repets && dd.repets.length) repetIndex[dd.date.toISOString().slice(0,10)] = dd.repets; });
 
   // Stats + today card already rendered by renderStats() above
 
@@ -4238,9 +4393,10 @@ function renderCalendar() {
     const specials = [...new Set(entries.filter(e => e.special && !e.cancelled).map(e => e.special))];
     const specialMark = specials.length ? `<div class="cal-special">${specials.map(s=>`<span title="${s}">${s}</span>`).join('')}</div>` : '';
     const fmMark = (_formations[isoKey] && _formations[isoKey].length) ? '<span class="cal-formation" title="Formation">📚</span>' : '';
+    const repMark = (repetIndex[isoKey] && repetIndex[isoKey].length) ? '<span class="cal-repet" title="Répétition en salle">🔁</span>' : '';
 
     cells += `<div class="cal-cell${hasEvents?' has-events':''}${isToday?' is-today':''}${isSelected?' selected':''}" onclick="selectDay(${d})">
-      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}${conflictMark}${fmMark}</div>
+      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}${conflictMark}${fmMark}${repMark}</div>
       ${dots ? `<div class="dot-row">${dots}</div>` : ''}
       ${specialMark}
     </div>`;
@@ -4344,8 +4500,41 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
   panel.innerHTML = `<div class="detail-panel">
     <div class="detail-date">${dateLabel}</div>
     ${cardsHTML}
+    ${repetSectionHTML(iso)}
     ${fmHTML}
     <button class="fm-propose" onclick="openFormationModal('${iso}')">📚 Proposer une formation ce jour</button>
+  </div>`;
+}
+
+// Répétitions d'une date (bloc PLANNING REPETITIONS) — depuis allDays (marche hors-ligne).
+function dayRepets(iso){
+  const d = allDays.find(dd => dd.date.toISOString().slice(0,10) === iso);
+  return d ? (d.repets || []) : [];
+}
+function repetSalleLabel(s){ return s === '3TC' ? '3T Côté' : s === 'GT' ? 'Grand Théâtre' : s; }
+function repetSalleCls(s){ return s === '3TC' ? 'rep-3tc' : s === 'GT' ? 'rep-gt' : 'rep-3t'; }
+
+// Section « Répétitions » du détail du jour : liste par salle + bouton d'ajout/édition.
+function repetSectionHTML(iso){
+  const reps = dayRepets(iso);
+  const order = { '3T':0, '3TC':1, 'GT':2 };
+  let inner = '';
+  reps.slice()
+    .sort((a,b) => (order[a.salle]-order[b.salle]) || (a.slot < b.slot ? -1 : 1))
+    .forEach(r => {
+      inner += `<div class="rep-row">
+        <span class="rep-salle ${repetSalleCls(r.salle)}">${repetSalleLabel(r.salle)}</span>
+        <span class="rep-slot">${r.slot}</span>
+        <span class="rep-text">${escapeHtml(r.text)}</span>
+      </div>`;
+    });
+  // L'ajout écrit dans le plan tech (Drive) → indisponible hors-ligne.
+  const addBtn = offlineMode ? ''
+    : `<button class="rep-add" onclick="openRepetModal('${iso}')">➕ Ajouter / modifier une répétition</button>`;
+  return `<div class="rep-block">
+    <div class="rep-head">🔁 Répétitions en salle</div>
+    ${inner || '<div class="rep-empty">Aucune répétition ce jour</div>'}
+    ${addBtn}
   </div>`;
 }
 

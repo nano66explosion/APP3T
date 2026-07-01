@@ -344,6 +344,27 @@ body.page-hsupp #page-hsupp{display:block}
 #formation-modal *{box-sizing:border-box;max-width:100%}
 @media (min-width:768px){ .cal-formation{font-size:14px;margin-left:4px} }
 
+/* ── RÉPÉTITIONS (bloc PLANNING REPETITIONS, colonnes T-Y) ── */
+.cal-repet{font-size:10px;margin-left:3px;vertical-align:middle}
+@media (min-width:768px){ .cal-repet{font-size:14px;margin-left:4px} }
+.rep-block{background:#2dd4bf10;border:1px solid #2dd4bf33;border-radius:12px;padding:.6rem .75rem;margin:.5rem 0}
+.rep-head{font-size:13px;font-weight:700;color:#2dd4bf;margin-bottom:.4rem}
+.rep-row{display:flex;align-items:center;gap:8px;padding:.28rem 0;border-top:1px solid var(--border);font-size:13px}
+.rep-row:first-of-type{border-top:none}
+.rep-salle{flex-shrink:0;font-size:11px;font-weight:700;border-radius:6px;padding:2px 7px;min-width:78px;text-align:center}
+.rep-salle.rep-3t{color:var(--c3t);background:#4ade8018;border:1px solid #4ade8040}
+.rep-salle.rep-3tc{color:var(--c3tc);background:#fb923c18;border:1px solid #fb923c40}
+.rep-salle.rep-gt{color:var(--cgt);background:#60a5fa18;border:1px solid #60a5fa40}
+.rep-slot{flex-shrink:0;font-size:11px;color:var(--muted);font-weight:600;min-width:66px}
+.rep-text{flex:1;color:var(--text);word-break:break-word}
+.rep-empty{font-size:12px;color:var(--muted);padding:.2rem 0}
+.rep-add{width:100%;margin-top:.55rem;background:#2dd4bf14;border:1px dashed #2dd4bf66;color:var(--text);border-radius:10px;padding:9px;font-size:12px;cursor:pointer;font-family:inherit}
+.rep-day{border:1px solid var(--border);border-radius:12px;padding:.55rem .7rem;margin:.45rem 0;cursor:pointer;transition:background .12s}
+.rep-day:hover{background:var(--surface3)}
+.rep-day-date{font-size:12px;font-weight:700;color:#2dd4bf;margin-bottom:.35rem}
+#repet-modal .modal-card,#repet-list-modal .modal-card{box-sizing:border-box;overflow-x:hidden;width:100%}
+#repet-modal *,#repet-list-modal *{box-sizing:border-box;max-width:100%}
+
 /* ── BOUTON BILAN SOIRÉE (sous la régie du jour) ── */
 #btn-soiree-card{margin:.25rem 1rem .75rem;width:calc(100% - 2rem);background:#25D36618;border:1px solid #25D36655;color:var(--text);border-radius:12px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
 #btn-soiree-card:hover{background:#25D36628}
