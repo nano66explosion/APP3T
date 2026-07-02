@@ -3,7 +3,7 @@
 > Application web mono-fichier (`calendrier_3T.html`) pour gérer le planning des régies
 > d'un théâtre (3T), les heures, les heures supplémentaires et l'intermittence.
 > Déployée en PWA sur GitHub Pages.
-> **Dernière mise à jour : 2026-07-01** — version courante **b94**.
+> **Dernière mise à jour : 2026-07-03** — version courante **b113**.
 
 ---
 
@@ -493,6 +493,22 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 > L'utilisateur peut demander une amélioration **par son numéro** (ex. « fais 7 et 9 »).
 > Garder cette numérotation stable. Cocher [x] quand c'est fait.
 
+### 🆕 Idées & améliorations à venir (proposées le 2026-07-03)
+
+**Ajouts possibles :**
+- [ ] **31. Notif « consommable à racheter »** — quand un régisseur signale un manque sur une fiche spectacle, prévenir l'équipe (via Worker/notifyAll, respecter la préf. « info »). Complète la fiche spectacle (#30).
+- [ ] **32. Notif « nouvelle répétition »** — comme les formations : prévenir quand une répétition est ajoutée dans le plan tech.
+- [ ] **33. Rappel « chrono oublié »** — si un chrono heures supp tourne depuis > ~6 h, notification « tu as oublié d'arrêter le chrono ? » (le start est déjà persistant, cf. #28).
+- [ ] **34. Marqueur 🛒 sur le calendrier** — un repère sur les jours où un spectacle a des consommables en attente (aujourd'hui seulement sur la carte du détail).
+- [ ] **35. Historique des consommables** — garder qui a racheté quoi et quand (au lieu de juste retirer) → traçabilité / réappro récurrent.
+- [ ] **36. Congés / absences / dispos** — chacun indique ses indispos ; visibles en vue équipe → aide à répartir les régies (Firestore, comme les notes).
+- [ ] **37. Photos dans la fiche spectacle** — plan de feu / implantation en image (⚠️ nécessite Firebase Storage = plan Blaze, ou lien Drive).
+
+**Améliorations / fiabilisation :**
+- [ ] **38. Bilan heures supp mensuel exportable** (lié à #12) — total + détail + rappel des lignes « ⚠️ à justifier » encore ouvertes ; export/partage.
+- [ ] **39. Vérifier & fiabiliser les notifs push app fermée sur iPhone** (b95) — c'est le point le plus fragile ; à confirmer en conditions réelles + éventuel diagnostic FCM/APNs.
+- [ ] **40. Session Google longue (Cloudflare)** — finir de valider le flux persistant sur iPhone (cf. « À surveiller / limites », b84) pour éviter les reconnexions.
+
 - [x] **1. Sélecteur de mois pour les heures supp** — consulter/déclarer un autre mois que le mois courant. *(NB : initialement listé, mais voir #1 dans "Faits récents" — encore à confirmer ; si non fait, à implémenter : menu mois dans la modale heure supp.)*
 - [x] **2. Barre de chargement** globale en haut (showBusy) sur les écritures/refresh. ✅ FAIT
 - [x] **3. Toasts de confirmation** ✅/❌ après positionnement / heures supp / refresh. ✅ FAIT
@@ -672,8 +688,10 @@ Demande utilisateur — rendre l'app plus réactive + réparer les notifs. Trois
    exigé partout (l'app s'authentifie via Firebase Auth / custom token Worker). À **publier en console** à chaque
    modif ou nouvelle collection. Cron + Worker (compte de service) contournent les règles.
 9. **Restant à faire** : #10 (accessibilité / taille police), #12 (export PDF), #15 (stats avancées / projection 507h),
-   #20 (découper le fichier), + **calibrage heures intermittence** (compléter la base ; comparer app vs paye).
-   Pistes confort : finaliser Réunion (créneau retenu, notif), notifs Notes, session persistante Cloudflare (cf. limites).
+   + **calibrage heures intermittence** (compléter la base ; comparer app vs paye), + les **idées #31→#40** (voir la
+   sous-section « 🆕 Idées & améliorations à venir »). Pistes confort : finaliser Réunion (créneau retenu, notif),
+   notifs Notes, session persistante Cloudflare (cf. limites), fiabiliser les notifs push iPhone app fermée.
+   **Action utilisateur en attente** : publier la règle Firestore `specSheets` (fiche spectacle #30).
 10. **Dernier sujet en cours (2026-07-01, à partir de b94)** : voir la section **« 🎯 Chantiers en cours »** ci-dessus
    — (1) réparer les notifs push app fermée iPhone (data-only → `webpush.notification`), (2) démarrage instantané
    même token expiré, (3) sync régie temps réel entre téléphones via `onSnapshot` sur `schedule/v1`. Rien encore codé

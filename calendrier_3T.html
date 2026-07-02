@@ -613,7 +613,9 @@
       <a onclick="helpJump('h-pwa')">14. Installer l'app (PWA)</a>
       <a onclick="helpJump('h-detail')">15. En détail : plan tech &amp; heures supp</a>
       <a onclick="helpJump('h-offline')">16. Mode hors-ligne</a>
-      <a onclick="helpJump('h-limites')">17. Bon à savoir / limites</a>
+      <a onclick="helpJump('h-repet')">17. Répétitions en salle 🪑</a>
+      <a onclick="helpJump('h-spec')">18. Fiche spectacle &amp; consommables 🛒</a>
+      <a onclick="helpJump('h-limites')">19. Bon à savoir / limites</a>
     </div>
 
     <div class="help-section" id="h-connexion">
@@ -676,6 +678,10 @@
     <div class="help-section" id="h-position">
       <h3>7. Se positionner / se retirer d'une régie</h3>
       <p>Dans le détail d'un jour (grille), une carte d'agenda ou le tableau équipe, le bouton te permet de <b>te positionner</b> sur une régie ou de <b>t'en retirer</b>. La modification est écrite directement dans le fichier Drive. ⚠️ Pas de retrait possible sur un <b>mois passé</b>.</p>
+      <ul>
+        <li>Si la régie est <b>déjà prise</b>, deux choix apparaissent : <b>« Me mettre à 2 (/) »</b> → régie à deux (écrit <i>Autre/Toi</i>), ou <b>« 👁️ Observateur »</b> → tu viens en observation (écrit <i>Autre(Toi)</i>).</li>
+        <li>Tu peux aussi <b>retirer ton observation</b> de la même façon.</li>
+      </ul>
       <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
     </div>
 
@@ -687,12 +693,13 @@
 
     <div class="help-section" id="h-hsupp">
       <h3>9. Heures supplémentaires</h3>
-      <p>Bouton <b>⏱️ Heure supp</b> dans l'en-tête. Dans la fenêtre : choisis le régisseur, la <b>date</b>, l'heure de <b>début et de fin</b> (au quart d'heure), un motif → la durée se calcule toute seule. Le récap en dessous liste tes heures déclarées : tu peux <b>éditer ou supprimer</b> chaque ligne.</p>
+      <p>Onglet <b>⏱️ Heures</b>. Choisis le régisseur, la <b>date</b>, l'heure de <b>début et de fin</b> (au quart d'heure), un motif → la durée se calcule toute seule. Le récap liste tes heures déclarées : tu peux <b>éditer ou supprimer</b> chaque ligne (c'est instantané, la sauvegarde se fait toute seule en fond).</p>
+      <p><b>⏱️ Chrono</b> — au début de ton service, appuie sur <b>▶︎ Démarrer</b> ; à la fin, <b>◼ Arrêter</b> → une fenêtre te propose de justifier l'heure (durée arrondie au quart d'heure supérieur). Le bouton <b>＋ Étape</b> découpe la session pour justifier plusieurs choses (montage, filage…) sans arrêter le chrono. Si tu fais la croix de la fenêtre, l'heure est ajoutée quand même avec la mention <b>« ⚠️ à justifier »</b> (à compléter plus tard). Le chrono continue même si tu fermes l'app.</p>
       <ul>
-        <li>Les lignes sont triées et compactées automatiquement (pas de trous).</li>
-        <li>La ligne <b>TOTAL</b> n'est jamais touchée ; le total exact est recalculé par l'appli.</li>
-        <li>Si le patron a posé un <b>STOP</b> (période clôturée), la saisie est bloquée pour ce mois.</li>
-        <li>Limite d'environ <b>30 lignes par mois</b> (un message prévient quand c'est atteint).</li>
+        <li><b>Sélecteur de mois</b> : consulte n'importe quel mois. Les mois <b>clôturés ou passés</b> s'ouvrent en <b>lecture seule</b> (🔒).</li>
+        <li><b>STOP du patron</b> : quand un mois est clôturé, l'appli bascule automatiquement tes nouvelles heures sur le <b>mois suivant</b> (le premier non clôturé).</li>
+        <li>Si le <b>fichier du mois suivant n'existe pas encore</b> dans Drive : tes heures sont <b>mémorisées</b> (⏳) et ajoutées automatiquement dès qu'il apparaît.</li>
+        <li>Lignes triées/compactées automatiquement ; la ligne <b>TOTAL</b> n'est jamais touchée ; limite d'environ <b>30 lignes par mois</b>.</li>
       </ul>
       <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
     </div>
@@ -785,8 +792,31 @@
       <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
     </div>
 
+    <div class="help-section" id="h-repet">
+      <h3>17. Répétitions en salle 🪑</h3>
+      <p>Le plan tech contient un bloc <b>répétitions</b> (Matin / Après-midi par salle). L'appli les lit et les affiche :</p>
+      <ul>
+        <li>Un marqueur <b>🪑</b> apparaît sur les jours qui ont une répétition ; le détail (salle + créneau + activité) s'affiche quand tu ouvres le jour.</li>
+        <li>Bouton <b>« ➕ Ajouter répétition / formation »</b> dans le détail du jour → choisis <b>🪑 Répétition</b>, indique la salle, le créneau (Matin/Après-midi) et le détail → c'est écrit dans le plan tech (comme un positionnement) et visible par toute l'équipe.</li>
+        <li>Menu <b>⋯ Plus → 🪑 Répétitions</b> : la liste de toutes les répétitions à venir ; touche une ligne pour ouvrir le jour.</li>
+      </ul>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
+    <div class="help-section" id="h-spec">
+      <h3>18. Fiche spectacle &amp; consommables 🛒</h3>
+      <p><b>Touche le nom d'un spectacle</b> (détail d'un jour, semaine, agenda ou recherche — le nom a un « › ») pour ouvrir sa <b>fiche partagée</b> :</p>
+      <ul>
+        <li><b>Détails</b> : durée, montage et démontage (depuis la base heures), selon la salle.</li>
+        <li><b>Consommables à racheter</b> : quand il manque quelque chose (gaffer, piles…), ajoute-le à la liste. Le <b>prochain régisseur</b> qui fait cette régie voit un badge <b>🛒</b> sur le spectacle et la liste de ce qui manque. Quand c'est racheté, appuie sur <b>✓ Racheté</b> pour l'enlever.</li>
+        <li><b>Infos / détails</b> : un bloc de notes partagé par spectacle (plan de feu, particularités, contacts…).</li>
+      </ul>
+      <p class="muted">Tout est partagé avec l'équipe en temps quasi réel (comme les notes et formations).</p>
+      <a class="help-back" onclick="helpTop()">↑ Sommaire</a>
+    </div>
+
     <div class="help-section" id="h-limites" style="margin-bottom:.3rem">
-      <h3>17. Bon à savoir / limites</h3>
+      <h3>19. Bon à savoir / limites</h3>
       <ul>
         <li>L'écriture (positionnement, heures supp) nécessite une <b>connexion internet</b>.</li>
         <li>La connexion Google dure ~1 h puis se renouvelle ; il n'y a pas de session infinie.</li>
