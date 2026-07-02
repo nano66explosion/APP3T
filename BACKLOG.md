@@ -545,6 +545,11 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   vert pulsant, clic → vue heures). Notification « ⏱️ en cours » au démarrage (best-effort).
   **⚠️ Limite iOS** : pas de « Live Activity » façon Uber Eats (réservé aux apps natives via ActivityKit ;
   impossible en PWA/web) → la notif est un simple rappel statique, elle ne tique pas quand l'app est fermée.
+  **+ b103 : bouton « ＋ Étape »** (à côté d'Arrêter) — marque une coupure **sans arrêter** le chrono (`hsTimerLap`,
+  stocké dans `st.laps`). À l'arrêt, `hsComputeSegments` découpe la session en **segments contigus** (chaînés, chacun
+  arrondi au quart d'heure sup.) : 1 étape → préremplissage classique ; ≥2 → **modale `#hs-steps-modal`** listant chaque
+  segment avec son motif → `submitHsSteps`/`hsAddMany` écrit toutes les lignes d'un coup (batch : 1 lecture + 1 rewrite,
+  ou en attente si fichier absent). `hsAddMany` résout lui-même le mois actif du reg.
 - [x] **27. Heures supp : STOP → mois suivant, consultation, saisie en attente** — ✅ FAIT (b101). Avant, le module
   travaillait toujours sur le fichier du mois courant et **bloquait** si un STOP était présent. Désormais :
   **(a) Routage auto** — `hsResolveActive(reg)` part du mois courant et renvoie le **1er mois non clôturé** (saute les

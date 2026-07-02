@@ -580,7 +580,13 @@ button:active{transform:scale(.96)}
 .hs-timer-info{display:flex;align-items:center;gap:11px;min-width:0}
 .hs-timer-time{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text);line-height:1.05}
 .hs-timer-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.hs-timer-btns{display:flex;gap:6px;flex-shrink:0}
+.hs-timer-step{background:var(--surface3);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}
+.hs-timer-step:hover{border-color:var(--c3t)}
 .hs-timer-stop{background:#f87171;color:#fff;border:none;border-radius:10px;padding:9px 15px;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;flex-shrink:0}
+.hs-step-row{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.55rem .65rem;margin-bottom:8px}
+.hs-step-time{font-size:13px;font-weight:700;color:var(--text);margin-bottom:.4rem;font-family:'DM Mono',monospace}
+.hs-step-h{color:var(--c3t);margin-left:6px}
 .hs-timer-dot{width:11px;height:11px;border-radius:50%;background:#4ade80;flex-shrink:0;animation:hspulse 1.4s ease-in-out infinite}
 @keyframes hspulse{0%{box-shadow:0 0 0 0 #4ade8099}70%{box-shadow:0 0 0 8px #4ade8000}100%{box-shadow:0 0 0 0 #4ade8000}}
 .hs-timer-float{position:fixed;right:14px;bottom:80px;z-index:50;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--c3t);color:var(--text);border-radius:22px;padding:8px 14px;font-family:'DM Mono',monospace;font-weight:700;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer}

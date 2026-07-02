@@ -325,6 +325,20 @@
     </div>
   </div>
 
+  <!-- Étapes du chrono : justifier chaque segment (plusieurs lignes d'heures supp d'un coup) -->
+  <div id="hs-steps-modal" class="modal-overlay" style="display:none;z-index:62" onclick="if(event.target===this)closeHsSteps()">
+    <div class="modal-card" style="text-align:left;max-width:440px;max-height:82vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <div class="modal-title">⏱️ Étapes de l'heure supp</div>
+        <button onclick="closeHsSteps()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div class="modal-sub" id="hs-steps-total">Justifie chaque étape puis enregistre.</div>
+      <div id="hs-steps-body" style="overflow:auto;margin:.5rem 0"></div>
+      <div id="hs-steps-err" style="font-size:12px;color:#f87171;min-height:16px;margin-bottom:.3rem"></div>
+      <button class="go-btn" id="hs-steps-submit" onclick="submitHsSteps()" style="padding:11px;font-size:14px">Tout enregistrer</button>
+    </div>
+  </div>
+
   <!-- Pastille flottante « chrono en cours » (visible sur toutes les vues) -->
   <div id="hs-timer-float" class="hs-timer-float" style="display:none" onclick="openHsupp()"></div>
 
