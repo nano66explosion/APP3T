@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b106 (heures « à justifier » : case orange + ⚠️)';
+const APP_VERSION = '2026-07-02 · b107 (heures supp : suppression/édition instantanée en mémoire + écriture groupée, fini les bugs d\'enchaînement)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1194,6 +1194,10 @@ if ('serviceWorker' in navigator) {
       .catch(e => console.warn('SW non enregistré:', e));
   });
 }
+
+// Sécurité : persiste toute heure supp modifiée en attente d'écriture avant de masquer/fermer l'app.
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='hidden' && typeof hsFlushCommit==='function') hsFlushCommit(); });
+window.addEventListener('pagehide', () => { if(typeof hsFlushCommit==='function') hsFlushCommit(); });
 
 // ─── NOTIFICATIONS LOCALES ───────────────────────────────────────────────────
 function notifSupported(){ return 'Notification' in window; }
@@ -3427,8 +3431,32 @@ function forgetHsupp(){
   localStorage.removeItem('3t_hsupp_file_mime');
   refreshHsuppLabel();
 }
-let hsEditRow = null;     // ligne en cours d'édition (null = mode ajout)
-let hsEntries = [];       // dernières entrées chargées
+let hsEditRow = null;     // _uid de l'entrée en cours d'édition (null = mode ajout)
+let hsEntries = [];       // dernières entrées chargées (source de vérité en mémoire pendant l'édition)
+let _hsUidSeq = 0;        // identifiant stable local des entrées (indépendant du n° de ligne Excel)
+// Écriture Drive groupée + sérialisée : add/edit/suppression mutent hsEntries en mémoire (instantané),
+// puis une SEULE écriture différée persiste tout → réactif et sans course quand on enchaîne les actions.
+let _hsCommitTimer = null, _hsCommitting = false, _hsCommitAgain = false, _hsCommitReg = null, _hsLastStop = null;
+function hsScheduleCommit(){ clearTimeout(_hsCommitTimer); _hsCommitTimer = setTimeout(hsCommitNow, 500); }
+async function hsCommitNow(){
+  clearTimeout(_hsCommitTimer); _hsCommitTimer = null;
+  if(_hsCommitting){ _hsCommitAgain = true; return; }      // une écriture tourne → on relancera après
+  if(!_hsCommitReg) return;
+  _hsCommitting = true; showBusy(true);
+  try{
+    const snap = hsEntries.map(e => ({ iso:e.iso, debut:e.debut, fin:e.fin, motif:e.motif }));
+    await rewriteHeuresSupp(_hsCommitReg, snap);
+  }catch(e){ toast('❌ Enregistrement : ' + e.message, 'err'); }
+  finally{
+    _hsCommitting = false; showBusy(false);
+    if(_hsCommitAgain){ _hsCommitAgain = false; hsCommitNow(); }   // rejoue le dernier état
+  }
+}
+// Force l'écriture en attente (avant de changer de mois/régisseur ou de quitter la vue).
+async function hsFlushCommit(){
+  if(_hsCommitTimer){ clearTimeout(_hsCommitTimer); _hsCommitTimer = null; hsCommitNow(); }
+  while(_hsCommitting || _hsCommitAgain){ await new Promise(r => setTimeout(r, 80)); }
+}
 
 // Heure (00–23) et quart d'heure (00/15/30/45) séparés, pour Début et Fin.
 function hsFillTimeSelects(prefix, current){
@@ -3564,6 +3592,7 @@ async function hsJustifyWrite(motif){
 
 // Écrit plusieurs entrées d'un coup dans le fichier actif de `reg` (ou en attente si fichier absent).
 async function hsAddMany(reg, list){
+  await hsFlushCommit();   // évite d'écraser des suppressions/modifs en mémoire pas encore persistées
   const active = await hsResolveActive(reg);
   if(active.pending){
     list.forEach(e => hsAddPending({ reg, monthKey:active.key, iso:e.iso, debut:e.debut, fin:e.fin, motif:e.motif }));
@@ -3628,6 +3657,7 @@ async function hsInit(){
   if(!list) return;
   if(offlineMode){ list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">📴 Hors-ligne — reconnecte-toi pour gérer les heures supp.</div>'; hsSetBanner('', null); return; }
   if(!accessToken){ list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Reconnecte-toi à Google pour gérer les heures supp.</div>'; return; }
+  await hsFlushCommit();   // persiste d'abord d'éventuelles modifs en attente avant de relire le Drive
   list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">⏳ Recherche des fichiers…</div>';
   try{
     await hsListMonths(true);
@@ -3662,12 +3692,14 @@ function hsPopulateMonthSelect(active){
 
 // Charge un mois : actif (éditable, Drive), en attente (éditable local), ou passé/clôturé (lecture seule).
 async function hsLoadMonth(key){
+  await hsFlushCommit();                 // persiste d'abord d'éventuelles modifs en attente
   _hsViewKey = key;
   const reg = document.getElementById('hs-reg').value;
   const m = hsFindMonthByKey(key);
   const isActive = key === _hsActiveKey;
   _hsViewPending = isActive && !m;      // mois actif sans fichier Drive → saisie mémorisée
   _hsViewReadOnly = !isActive;          // seul le mois actif est modifiable
+  _hsCommitReg = reg; _hsLastStop = null;
   hsUpdateFormState();
   const list = document.getElementById('hs-list'), tot = document.getElementById('hs-total');
   if(list) list.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Chargement…</div>';
@@ -3679,7 +3711,8 @@ async function hsLoadMonth(key){
     } else if(m){
       if(isActive){ localStorage.setItem('3t_hsupp_file_id', m.fileId); localStorage.setItem('3t_hsupp_file_mime', m.mime); localStorage.setItem('3t_hsupp_file_name', m.name); }
       const { entries, stop } = await readHeuresSuppFrom(m.fileId, m.mime, reg);
-      hsEntries = entries;
+      entries.forEach(e => { e._uid = 'u' + (_hsUidSeq++); });   // identité locale stable
+      hsEntries = entries; _hsLastStop = stop;
       hsRenderList(entries, stop);
     } else {
       hsEntries = []; hsRenderList([], null);
@@ -3724,7 +3757,7 @@ function hsRenderList(entries, stop){
       const actions = _hsViewReadOnly ? ''
         : (_hsViewPending
             ? `<button class="hs-ic" onclick="hsDeletePending('${e.rowNum}')" title="Supprimer">🗑️</button>`
-            : `<button class="hs-ic" onclick="hsEdit(${e.rowNum})" title="Modifier">✏️</button><button class="hs-ic" onclick="hsDelete(${e.rowNum})" title="Supprimer">🗑️</button>`);
+            : `<button class="hs-ic" onclick="hsEdit('${e._uid}')" title="Modifier">✏️</button><button class="hs-ic" onclick="hsDelete('${e._uid}')" title="Supprimer">🗑️</button>`);
       const pend = e.pending ? ' <span class="hs-pend">⏳ en attente</span>' : '';
       const toJustify = norm(e.motif||'').includes('a justifier');   // motif « à justifier » → à compléter
       const motifHtml = toJustify ? `<span class="hs-tojustify-tag">⚠️ À justifier</span>` : escapeHtml(e.motif||'—');
@@ -3823,10 +3856,10 @@ function hsDateLabel(iso){
 // Recharge la vue courante (mois affiché). Le rendu réel est dans hsLoadMonth/hsRenderList.
 async function hsReloadList(){ return hsLoadMonth(_hsViewKey || _hsActiveKey); }
 
-function hsEdit(rowNum){
+function hsEdit(uid){
   if(_hsViewReadOnly || _hsViewPending) return;   // pas d'édition Drive sur un mois clôturé / en attente
-  const e = hsEntries.find(x=>x.rowNum===rowNum); if(!e) return;
-  hsEditRow = rowNum;
+  const e = hsEntries.find(x=>x._uid===uid); if(!e) return;
+  hsEditRow = uid;
   document.getElementById('hs-date').value = e.iso;
   hsFillTimeSelects('hs-debut', e.debut);
   hsFillTimeSelects('hs-fin', e.fin);
@@ -3863,44 +3896,41 @@ async function submitHeureSupp(){
   // #5 Garde-fous : durée inhabituelle + chevauchement avec un créneau déjà déclaré ce jour.
   const dur = hsComputeHours(deb, fin);
   if(dur && dur > 10 && !confirm(`Durée inhabituelle (${dur} h) le ${hsDateLabel(iso)}.\nConfirmer cette saisie ?`)){ return; }
-  const overlap = (hsEntries||[]).some(e => e.iso===iso && e.rowNum!==hsEditRow && e.debut && e.fin
+  const overlap = (hsEntries||[]).some(e => e.iso===iso && e._uid!==hsEditRow && e.debut && e.fin
     && timeFracFromHM(deb) < timeFracFromHM(e.fin) && timeFracFromHM(fin) > timeFracFromHM(e.debut));
   if(overlap && !confirm(`Ce créneau chevauche une heure supp déjà déclarée le ${hsDateLabel(iso)}.\nL'ajouter quand même ?`)){ return; }
-  const btn = document.getElementById('hs-submit'); const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = '⏳…'; err.textContent = '';
-  showBusy(true);
-  try{
-    // Mois actif dont le fichier n'existe pas encore → on mémorise localement (ajout auto plus tard).
-    if(_hsViewPending){
-      hsAddPending({ reg, monthKey:_hsActiveKey, iso, debut:deb, fin, motif });
-      hsCancelEdit();
-      await hsLoadMonth(_hsActiveKey);
-      btn.disabled = false;
-      toast('⏳ Mémorisé — ajouté quand le fichier du mois existera', 'ok');
-      return;
-    }
-    const editing = !!hsEditRow;
-    if(editing){ await editHeureSupp(reg, hsEditRow, iso, deb, fin, motif); }
-    else { await addHeureSupp(reg, iso, deb, fin, motif); }
-    hsCancelEdit();
-    await hsReloadList();
-    btn.disabled = false;
-    toast(editing ? '✅ Heure modifiée' : '✅ Heure supp ajoutée', 'ok');
-  }catch(e){
-    err.textContent = '❌ ' + e.message;
-    btn.disabled = false; btn.textContent = orig;
-  }finally{ showBusy(false); }
+  // Mois actif dont le fichier n'existe pas encore → on mémorise localement (ajout auto plus tard).
+  if(_hsViewPending){
+    showBusy(true);
+    try{ hsAddPending({ reg, monthKey:_hsActiveKey, iso, debut:deb, fin, motif }); hsCancelEdit(); await hsLoadMonth(_hsActiveKey); toast('⏳ Mémorisé — ajouté quand le fichier du mois existera', 'ok'); }
+    finally{ showBusy(false); }
+    return;
+  }
+  // Sinon : mutation EN MÉMOIRE (instantané) + écriture Drive différée/groupée (hsScheduleCommit).
+  const editing = !!hsEditRow;
+  if(editing){
+    const e = hsEntries.find(x => x._uid===hsEditRow);
+    if(e){ e.iso=iso; e.debut=deb; e.fin=fin; e.motif=motif; e.heures=hsComputeHours(deb,fin); }
+  } else {
+    hsEntries.push({ _uid:'u'+(_hsUidSeq++), iso, debut:deb, fin, motif, heures:hsComputeHours(deb,fin) });
+  }
+  hsCancelEdit();
+  hsRenderList(hsEntries, _hsLastStop);
+  hsScheduleCommit();
+  toast(editing ? '✅ Heure modifiée' : '✅ Heure supp ajoutée', 'ok');
 }
 
-async function hsDelete(rowNum){
+// Suppression : retire de la liste en mémoire (instantané), écriture Drive différée/groupée.
+function hsDelete(uid){
   if(_hsViewReadOnly) return;
-  const e = hsEntries.find(x=>x.rowNum===rowNum); if(!e) return;
+  const idx = hsEntries.findIndex(x => x._uid===uid); if(idx<0) return;
+  const e = hsEntries[idx];
   if(!confirm(`Supprimer l'heure supp du ${hsDateLabel(e.iso)} (${e.motif}) ?`)) return;
-  const reg = document.getElementById('hs-reg').value;
-  showBusy(true);
-  try{ await deleteHeureSupp(reg, rowNum); await hsReloadList(); toast('🗑️ Heure supprimée', 'ok'); }
-  catch(err){ toast('❌ ' + err.message, 'err'); }
-  finally{ showBusy(false); }
+  if(hsEditRow === uid) hsCancelEdit();       // on éditait justement cette ligne
+  hsEntries.splice(idx, 1);
+  hsRenderList(hsEntries, _hsLastStop);        // re-render immédiat
+  hsScheduleCommit();                          // une seule écriture Drive pour tout le lot
+  toast('🗑️ Heure supprimée', 'ok');
 }
 
 // ─── ÉCRITURE DU PLANNING (Google Sheets) ────────────────────────────────────
@@ -4178,25 +4208,8 @@ async function rewriteHeuresSupp(reg, entries){
   return ctx.sheetName;
 }
 
-// AJOUT — bloqué si STOP présent ; sinon ajoute puis réorganise
-async function addHeureSupp(reg, iso, debut, fin, motif){
-  const { entries, stop } = await readHeuresSupp(reg);
-  if(stop) throw new Error(`Période clôturée par le patron (« ${stop} »). Impossible d'ajouter une heure supp.`);
-  entries.push({ iso, debut, fin, motif });
-  return rewriteHeuresSupp(reg, entries);
-}
-// MODIFICATION d'une ligne existante → on met à jour puis on réorganise
-async function editHeureSupp(reg, rowNum, iso, debut, fin, motif){
-  const { entries } = await readHeuresSupp(reg);
-  const e = entries.find(x=>x.rowNum===rowNum);
-  if(e){ e.iso=iso; e.debut=debut; e.fin=fin; e.motif=motif; }
-  await rewriteHeuresSupp(reg, entries);
-}
-// SUPPRESSION → on retire puis on réorganise (plus de trou)
-async function deleteHeureSupp(reg, rowNum){
-  const { entries } = await readHeuresSupp(reg);
-  await rewriteHeuresSupp(reg, entries.filter(x=>x.rowNum!==rowNum));
-}
+// (add/edit/suppression passent désormais par la mutation en mémoire de hsEntries + hsScheduleCommit,
+//  qui appelle rewriteHeuresSupp une seule fois pour tout le lot → réactif et sans course.)
 // LECTURE des heures supp d'un régisseur, depuis le fichier ENREGISTRÉ (mois actif).
 async function readHeuresSupp(reg){
   return readHeuresSuppFrom(getSavedHsuppId(), getSavedHsuppMime(), reg);
@@ -5119,6 +5132,7 @@ function toggleAgenda(){ switchView(currentView==='list' ? 'grid' : 'list'); }
 
 function switchView(v, skipAnim) {
   const prev = currentView;
+  if(prev==='hsupp' && v!=='hsupp') hsFlushCommit();   // persiste les heures supp modifiées en quittant la vue
   currentView = v;
   if(CAL_SCALES.includes(v)) calLastScale = v;
   if(HOME_VIEWS.includes(v)) homeLastView = v;

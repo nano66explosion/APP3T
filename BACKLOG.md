@@ -551,7 +551,15 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   le motif. **Croix / clic dehors → `justifyDismiss` ajoute quand même l'heure avec le motif « à justifier »** ;
   `justifySubmit` avec le motif saisi. Écriture immédiate via `hsAddMany` (résout le mois actif du reg ; en attente si
   fichier absent). Chaque segment = une ligne écrite au moment de l'étape/arrêt.
-- [x] **27. Heures supp : STOP → mois suivant, consultation, saisie en attente** — ✅ FAIT (b101). Avant, le module
+- [x] **29. Heures supp : édition instantanée + écriture groupée (fix enchaînement)** — ✅ FAIT (b107). Avant, chaque
+  ajout/édition/suppression faisait un aller-retour Drive complet (lire→réécrire→recharger) ; enchaîner des
+  suppressions déclenchait des **écritures concurrentes qui se marchaient dessus** (course → bug/pertes) et c'était lent.
+  Désormais **`hsEntries` est la source de vérité en mémoire** : add/edit/suppression la mutent (re-render **instantané**)
+  et **une seule écriture Drive différée + sérialisée** persiste tout (`hsScheduleCommit` 500 ms → `hsCommitNow`
+  anti-course via `_hsCommitting`/`_hsCommitAgain`). Identité stable `_uid` (indépendante du n° de ligne Excel qui change
+  au compactage). `hsFlushCommit()` force l'écriture avant changement de mois/régisseur, `hsInit`, `hsAddMany` (chrono),
+  quitter la vue (`switchView`), et `visibilitychange`/`pagehide`. Anciennes `addHeureSupp`/`editHeureSupp`/`deleteHeureSupp`
+  supprimées. Avant, le module
   travaillait toujours sur le fichier du mois courant et **bloquait** si un STOP était présent. Désormais :
   **(a) Routage auto** — `hsResolveActive(reg)` part du mois courant et renvoie le **1er mois non clôturé** (saute les
   mois avec STOP) ; on écrit toujours dans le bon fichier sans se poser de question. **(b) Consultation** — sélecteur
