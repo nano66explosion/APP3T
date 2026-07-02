@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b108 (heures supp : fichier gardé en cache mémoire → plus de re-téléchargement à chaque écriture)';
+const APP_VERSION = '2026-07-02 · b109 (chrono : reprise instantanée au retour d\'arrière-plan ; persistance vérifiée)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1196,8 +1196,17 @@ if ('serviceWorker' in navigator) {
 }
 
 // Sécurité : persiste toute heure supp modifiée en attente d'écriture avant de masquer/fermer l'app.
-document.addEventListener('visibilitychange', () => { if(document.visibilityState==='hidden' && typeof hsFlushCommit==='function') hsFlushCommit(); });
+// Au retour au premier plan : on rafraîchit tout de suite l'affichage du chrono (iOS gèle le JS en
+// arrière-plan → le temps affiché pourrait être en retard) et on relance le tick si besoin.
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState==='hidden'){
+    if(typeof hsFlushCommit==='function') hsFlushCommit();
+  } else if(document.visibilityState==='visible'){
+    if(typeof hsTimerRenderAll==='function'){ hsTimerRenderAll(); hsTimerEnsureInterval(); }
+  }
+});
 window.addEventListener('pagehide', () => { if(typeof hsFlushCommit==='function') hsFlushCommit(); });
+window.addEventListener('focus', () => { if(typeof hsTimerRenderAll==='function'){ hsTimerRenderAll(); hsTimerEnsureInterval(); } });
 
 // ─── NOTIFICATIONS LOCALES ───────────────────────────────────────────────────
 function notifSupported(){ return 'Notification' in window; }
