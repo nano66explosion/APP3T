@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b105 (pull-to-refresh vérifie aussi la MAJ de l\'app)';
+const APP_VERSION = '2026-07-02 · b106 (heures « à justifier » : case orange + ⚠️)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3726,10 +3726,12 @@ function hsRenderList(entries, stop){
             ? `<button class="hs-ic" onclick="hsDeletePending('${e.rowNum}')" title="Supprimer">🗑️</button>`
             : `<button class="hs-ic" onclick="hsEdit(${e.rowNum})" title="Modifier">✏️</button><button class="hs-ic" onclick="hsDelete(${e.rowNum})" title="Supprimer">🗑️</button>`);
       const pend = e.pending ? ' <span class="hs-pend">⏳ en attente</span>' : '';
-      return `<div class="hs-item">
+      const toJustify = norm(e.motif||'').includes('a justifier');   // motif « à justifier » → à compléter
+      const motifHtml = toJustify ? `<span class="hs-tojustify-tag">⚠️ À justifier</span>` : escapeHtml(e.motif||'—');
+      return `<div class="hs-item${toJustify?' hs-tojustify':''}">
         <div class="hs-item-main">
           <div class="hs-item-top"><span class="hs-item-date">${hsDateLabel(e.iso)}</span><span class="hs-item-h">${e.heures!=null?e.heures+' h':''}</span></div>
-          <div class="hs-item-sub">${e.debut||'—'} → ${e.fin||'—'} · ${escapeHtml(e.motif||'—')}${pend}</div>
+          <div class="hs-item-sub">${e.debut||'—'} → ${e.fin||'—'} · ${motifHtml}${pend}</div>
         </div>
         ${actions}
       </div>`;
