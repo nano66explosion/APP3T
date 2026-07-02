@@ -2,7 +2,7 @@
 // ⚠️ Bumper ce numéro à CHAQUE release (app.js/style.css/html) : c'est le changement
 // de sw.js qui déclenche la mise à jour auto (install → skipWaiting → activate →
 // controllerchange → location.reload). Sans ça, les PWA (surtout iOS) gardent l'ancienne version.
-const CACHE = '3t-cache-v32';
+const CACHE = '3t-cache-v33';
 const ASSETS = [
   'calendrier_3T.html',
   'app.js',
@@ -30,6 +30,12 @@ self.addEventListener('install', (e) => {
     ));
     self.skipWaiting();
   })());
+});
+
+// L'app (pull-to-refresh / bouton 🔄) peut demander d'activer tout de suite une version
+// en attente → skipWaiting → controllerchange côté page → rechargement sur la nouvelle version.
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {

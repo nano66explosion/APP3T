@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b104 (chrono : popup de justification à chaque étape/arrêt ; croix = « à justifier »)';
+const APP_VERSION = '2026-07-02 · b105 (pull-to-refresh vérifie aussi la MAJ de l\'app)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -4332,6 +4332,19 @@ async function reloadPlanSilent(){
 }
 
 // Bouton 🔄 : recharge le plan tech ET la base heures depuis Drive
+// Vérifie s'il existe une nouvelle version de l'app (nouveau service worker) et l'applique.
+// Déclenché par le bouton 🔄 ET par le pull-to-refresh (via refreshData). Si une version est
+// prête, on l'active → `controllerchange` recharge automatiquement la page sur la nouvelle version.
+async function maybeUpdateApp(){
+  try{
+    if(!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(!reg) return;
+    await reg.update();                                             // re-télécharge sw.js et l'installe s'il a changé
+    if(reg.waiting) reg.waiting.postMessage({ type:'SKIP_WAITING' });   // version en attente → l'activer maintenant
+  }catch(e){ console.warn('maybeUpdateApp:', e); }
+}
+
 async function refreshData(){
   if(blockIfOffline()) return;
   const btns = [document.getElementById('btn-refresh'), document.getElementById('btn-refresh-m')].filter(Boolean);
@@ -4348,6 +4361,7 @@ async function refreshData(){
     await loadFormations();   // recharge les formations partagées (Firestore) + re-render la vue
     toast('✅ Données à jour', 'ok');
     publishSchedule();   // #16 — republie le planning après refresh
+    maybeUpdateApp();    // + vérifie une MAJ de l'app (nouveau service worker) → recharge auto si dispo
   }catch(err){
     toast('❌ Rafraîchissement impossible', 'err');
   }finally{
