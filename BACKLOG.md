@@ -559,7 +559,10 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   anti-course via `_hsCommitting`/`_hsCommitAgain`). Identité stable `_uid` (indépendante du n° de ligne Excel qui change
   au compactage). `hsFlushCommit()` force l'écriture avant changement de mois/régisseur, `hsInit`, `hsAddMany` (chrono),
   quitter la vue (`switchView`), et `visibilitychange`/`pagehide`. Anciennes `addHeureSupp`/`editHeureSupp`/`deleteHeureSupp`
-  supprimées. Avant, le module
+  supprimées. **+ b108 : cache mémoire du fichier xlsx** (`_hsZipCache`, TTL 20 s, rafraîchi à chaque `hsSave`,
+  invalidé au rechargement `hsLoadMonth`) → `hsOpenSheet` **ne re-télécharge plus** le fichier entre 2 écritures
+  rapprochées (avant : download + parse JSZip à CHAQUE écriture) → ajouts/suppressions en rafale bien plus fluides.
+- [x] **27. Heures supp : STOP → mois suivant, consultation, saisie en attente** — ✅ FAIT (b101). Avant, le module
   travaillait toujours sur le fichier du mois courant et **bloquait** si un STOP était présent. Désormais :
   **(a) Routage auto** — `hsResolveActive(reg)` part du mois courant et renvoie le **1er mois non clôturé** (saute les
   mois avec STOP) ; on écrit toujours dans le bon fichier sans se poser de question. **(b) Consultation** — sélecteur

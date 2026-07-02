@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b107 (heures supp : suppression/édition instantanée en mémoire + écriture groupée, fini les bugs d\'enchaînement)';
+const APP_VERSION = '2026-07-02 · b108 (heures supp : fichier gardé en cache mémoire → plus de re-téléchargement à chaque écriture)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3437,6 +3437,7 @@ let _hsUidSeq = 0;        // identifiant stable local des entrées (indépendant
 // Écriture Drive groupée + sérialisée : add/edit/suppression mutent hsEntries en mémoire (instantané),
 // puis une SEULE écriture différée persiste tout → réactif et sans course quand on enchaîne les actions.
 let _hsCommitTimer = null, _hsCommitting = false, _hsCommitAgain = false, _hsCommitReg = null, _hsLastStop = null;
+let _hsZipCache = null;   // fichier xlsx heures supp gardé en mémoire entre 2 écritures (évite de re-télécharger)
 function hsScheduleCommit(){ clearTimeout(_hsCommitTimer); _hsCommitTimer = setTimeout(hsCommitNow, 500); }
 async function hsCommitNow(){
   clearTimeout(_hsCommitTimer); _hsCommitTimer = null;
@@ -3693,6 +3694,7 @@ function hsPopulateMonthSelect(active){
 // Charge un mois : actif (éditable, Drive), en attente (éditable local), ou passé/clôturé (lecture seule).
 async function hsLoadMonth(key){
   await hsFlushCommit();                 // persiste d'abord d'éventuelles modifs en attente
+  _hsZipCache = null;                    // on va relire du frais → invalide le cache d'écriture
   _hsViewKey = key;
   const reg = document.getElementById('hs-reg').value;
   const m = hsFindMonthByKey(key);
@@ -4095,6 +4097,13 @@ async function hsOpenSheet(reg){
   if(!fileId) throw new Error("Aucun fichier heures supp sélectionné (⚙️ Paramètres).");
   if(getSavedHsuppMime() !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     throw new Error("Le fichier heures supp doit être un .xlsx.");
+  // Cache mémoire : on ne re-télécharge PAS le fichier entre deux écritures rapprochées
+  // (même fichier + régisseur, < 20 s) → ajouts/suppressions en rafale beaucoup plus fluides.
+  const c = _hsZipCache;
+  if(c && c.fileId===fileId && c.reg===reg && (Date.now()-c.at) < 20000){
+    const sx = await c.zip.file(c.path).async('string');   // zip garde l'état écrit précédent
+    return { fileId, zip:c.zip, path:c.path, sx, sheetName:c.sheetName, sis:c.sis };
+  }
   const ab = await fetchDriveWorkbook(fileId, getSavedHsuppMime());
   const zip = await JSZip.loadAsync(ab);
   const wbXml = await zip.file('xl/workbook.xml').async('string');
@@ -4113,10 +4122,12 @@ async function hsOpenSheet(reg){
   const ssXml = (await zip.file('xl/sharedStrings.xml')?.async('string')) || '';
   const sis = []; let im; const siRe = /<si\b[^>]*>([\s\S]*?)<\/si>|<si\s*\/>/g;
   while((im = siRe.exec(ssXml))){ sis.push(im[1]||''); }
+  _hsZipCache = { fileId, reg, zip, path, sheetName, sis, at: Date.now() };
   return { fileId, zip, path, sx, sheetName, sis };
 }
 async function hsSave(ctx){
   ctx.zip.file(ctx.path, ctx.sx);
+  if(_hsZipCache && _hsZipCache.zip === ctx.zip) _hsZipCache.at = Date.now();   // garde le cache chaud
   const blob = await ctx.zip.generateAsync({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const up = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${ctx.fileId}?uploadType=media`,
     { method:'PATCH', headers:{ Authorization:'Bearer '+accessToken,
