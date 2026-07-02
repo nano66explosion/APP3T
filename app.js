@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b111 (fix chevauchement popup : espace sous le champ motif (marge puces))';
+const APP_VERSION = '2026-07-02 · b112 (chrono : ajout instantané au clic croix/enregistrer (mémoire + écriture différée))';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3585,16 +3585,30 @@ async function hsJustifyWrite(motif){
   const seg = _hsJustifySeg, reg = _hsJustifyReg;
   if(!seg){ closeHsJustifyModal(); return; }
   _hsJustifySeg = null;   // anti double-écriture
-  const sub = document.getElementById('hs-justify-submit'); if(sub){ sub.disabled=true; sub.textContent='⏳…'; }
   closeHsJustifyModal();
+  const entry = { iso:seg.iso, debut:seg.debut, fin:seg.fin, motif };
+  const tj = motif === 'à justifier' ? ' — à justifier' : '';
+  // CHEMIN RAPIDE : on est déjà sur la vue heures, mois actif écrivable, même régisseur →
+  // on ajoute EN MÉMOIRE (instantané) + écriture Drive différée/groupée (comme le formulaire).
+  const sel = document.getElementById('hs-reg');
+  const onActive = currentView==='hsupp' && _hsViewKey===_hsActiveKey && sel && sel.value===reg && !_hsViewReadOnly;
+  if(onActive){
+    if(_hsViewPending){
+      hsAddPending({ reg, monthKey:_hsActiveKey, iso:entry.iso, debut:entry.debut, fin:entry.fin, motif });
+      await hsLoadMonth(_hsActiveKey);   // pending = localStorage → rapide
+      toast(`⏳ Mémorisé${tj}`, 'ok');
+    } else {
+      hsEntries.push({ _uid:'u'+(_hsUidSeq++), iso:entry.iso, debut:entry.debut, fin:entry.fin, motif, heures:hsComputeHours(entry.debut, entry.fin) });
+      hsRenderList(hsEntries, _hsLastStop);
+      hsScheduleCommit();
+      toast(`✅ Heure ajoutée${tj}`, 'ok');
+    }
+    return;
+  }
+  // Repli (autre vue / autre mois) : écriture directe en arrière-plan, SANS recharger toute la vue.
   showBusy(true);
   try{
-    const res = await hsAddMany(reg, [{ iso:seg.iso, debut:seg.debut, fin:seg.fin, motif }]);
-    if(currentView === 'hsupp'){
-      const sel = document.getElementById('hs-reg'); if(sel && [...sel.options].some(o=>o.value===reg)) sel.value = reg;
-      await hsInit();
-    }
-    const tj = motif === 'à justifier' ? ' — à justifier' : '';
+    const res = await hsAddMany(reg, [entry]);
     toast(res.pending ? `⏳ Heure mémorisée${tj}` : `✅ Heure ajoutée${tj}`, 'ok');
   }catch(e){ toast('❌ ' + e.message, 'err'); }
   finally{ showBusy(false); }
