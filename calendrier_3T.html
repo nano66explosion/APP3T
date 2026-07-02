@@ -325,17 +325,21 @@
     </div>
   </div>
 
-  <!-- Étapes du chrono : justifier chaque segment (plusieurs lignes d'heures supp d'un coup) -->
-  <div id="hs-steps-modal" class="modal-overlay" style="display:none;z-index:62" onclick="if(event.target===this)closeHsSteps()">
-    <div class="modal-card" style="text-align:left;max-width:440px;max-height:82vh;display:flex;flex-direction:column">
+  <!-- Popup de justification d'un segment (à chaque étape / à l'arrêt du chrono) -->
+  <!-- Croix ou clic dehors → l'heure est ajoutée quand même avec le motif « à justifier ». -->
+  <div id="hs-justify-modal" class="modal-overlay" style="display:none;z-index:62" onclick="if(event.target===this)justifyDismiss()">
+    <div class="modal-card" style="text-align:left;max-width:400px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
-        <div class="modal-title">⏱️ Étapes de l'heure supp</div>
-        <button onclick="closeHsSteps()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+        <div class="modal-title">⏱️ Justifier cette heure</div>
+        <button onclick="justifyDismiss()" title="Ajouter sans motif (à justifier)" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
       </div>
-      <div class="modal-sub" id="hs-steps-total">Justifie chaque étape puis enregistre.</div>
-      <div id="hs-steps-body" style="overflow:auto;margin:.5rem 0"></div>
-      <div id="hs-steps-err" style="font-size:12px;color:#f87171;min-height:16px;margin-bottom:.3rem"></div>
-      <button class="go-btn" id="hs-steps-submit" onclick="submitHsSteps()" style="padding:11px;font-size:14px">Tout enregistrer</button>
+      <div class="modal-sub"><span id="hs-justify-time" style="font-family:'DM Mono',monospace;font-weight:700;color:var(--c3t)">—</span></div>
+      <div id="hs-justify-hint" style="font-size:11px;color:var(--muted);margin:.2rem 0 .6rem"></div>
+      <label class="file-label">Motif</label>
+      <input id="hs-justify-motif" type="text" class="fm-input" placeholder="ex. montage + filage" list="hs-motif-list" autocomplete="off" style="margin-bottom:.4rem">
+      <div id="hs-justify-chips" class="hs-chips"></div>
+      <div id="hs-justify-err" style="font-size:12px;color:#f87171;min-height:16px;margin:.3rem 0"></div>
+      <button class="go-btn" id="hs-justify-submit" onclick="justifySubmit()" style="padding:11px;font-size:14px">Enregistrer</button>
     </div>
   </div>
 

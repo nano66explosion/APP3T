@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b103 (chrono heures supp : bouton Étape → segments justifiés séparément)';
+const APP_VERSION = '2026-07-02 · b104 (chrono : popup de justification à chaque étape/arrêt ; croix = « à justifier »)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3483,7 +3483,8 @@ function hsFmtElapsed(ms){
 function hsTimerStart(){
   if(hsTimerState()) return;
   const reg = (document.getElementById('hs-reg')||{}).value || getMyReg() || '';
-  localStorage.setItem('3t_hs_timer', JSON.stringify({ startedAt: Date.now(), reg }));
+  const now = Date.now();
+  localStorage.setItem('3t_hs_timer', JSON.stringify({ startedAt: now, segStartMs: now, segStartStr: hsRoundToQuarter(new Date(now)), segCount: 0, reg }));
   hsTimerRenderAll(); hsTimerEnsureInterval();
   // Notification "en cours" (best-effort ; ne tique pas quand l'app est fermée)
   if(typeof notifActive==='function' && notifActive()){
@@ -3495,71 +3496,71 @@ function hsTimerStart(){
 function hsTimerCloseNotif(){
   try{ navigator.serviceWorker?.ready.then(reg => reg.getNotifications({tag:'hs-timer'}).then(ns => ns.forEach(n=>n.close()))); }catch(e){}
 }
-// « Étape » : marque une coupure sans arrêter le chrono → segment séparé à justifier.
-function hsTimerLap(){
+// « Étape » (chrono continue) et « Arrêter » (chrono stoppé) : dans les 2 cas, on clôt le
+// segment en cours et on ouvre une POPUP de justification. Croix/clic dehors → l'heure est
+// quand même ajoutée avec le motif « à justifier ».
+function hsTimerLap(){ hsTimerBoundary(true); }
+function hsTimerStop(){ hsTimerBoundary(false); }
+function hsTimerBoundary(isLap){
   const st = hsTimerState(); if(!st) return;
-  st.laps = st.laps || [];
-  st.laps.push(Date.now());
-  localStorage.setItem('3t_hs_timer', JSON.stringify(st));
-  hsTimerRenderAll();
-  toast(`⏱️ Étape marquée (${st.laps.length + 1} au total) — le chrono continue`, 'ok');
-}
-// Découpe la session en segments contigus (chaînés), chacun arrondi au quart d'heure SUPÉRIEUR.
-function hsComputeSegments(startedAt, laps, stopTs){
-  const bounds = [startedAt, ...((laps||[])), stopTs];
-  const segs = []; let debStr = hsRoundToQuarter(new Date(startedAt));
-  for(let i=0;i<bounds.length-1;i++){
-    const durH = Math.max(0.25, Math.ceil(((bounds[i+1]-bounds[i])/3600000)/0.25)*0.25);
-    const fin = hsAddQuarterHours(debStr, durH);
-    const s = new Date(bounds[i]);
-    const iso = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`;
-    segs.push({ iso, debut:debStr, fin, hours:durH });
-    debStr = fin;   // segment suivant enchaîne (pas de trou ni de chevauchement)
-  }
-  return segs;
-}
-function hsTimerStop(){
-  const st = hsTimerState(); if(!st) return;
-  const segs = hsComputeSegments(st.startedAt, st.laps, Date.now());
+  const ts = Date.now();
+  const segStartMs = st.segStartMs || st.startedAt;
+  const debStr = st.segStartStr || hsRoundToQuarter(new Date(segStartMs));
+  const durH = Math.max(0.25, Math.ceil(((ts - segStartMs)/3600000)/0.25)*0.25);   // arrondi quart d'heure sup.
+  const fin = hsAddQuarterHours(debStr, durH);
+  const s = new Date(segStartMs);
+  const iso = `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-${String(s.getDate()).padStart(2,'0')}`;
+  const seg = { iso, debut:debStr, fin, hours:durH };
   const reg = st.reg || (document.getElementById('hs-reg')||{}).value || getMyReg() || '';
-  localStorage.removeItem('3t_hs_timer');
-  if(_hsTimerInt){ clearInterval(_hsTimerInt); _hsTimerInt = null; }
-  hsTimerCloseNotif(); hsTimerRenderAll();
-  if(currentView !== 'hsupp'){ switchView('hsupp'); } else { renderHsupp(); }
-  setTimeout(() => {
-    if(segs.length <= 1){
-      // Une seule étape → on préremplit le formulaire (hsInit garde le mois actif écrivable).
-      const s = segs[0] || { iso:'', debut:'', fin:'', hours:0 };
-      const d = document.getElementById('hs-date'); if(d) d.value = s.iso;
-      hsFillTimeSelects('hs-debut', s.debut); hsFillTimeSelects('hs-fin', s.fin);
-      const mo = document.getElementById('hs-motif'); if(mo){ mo.value=''; }
-      hsUpdateDuree(); hsDateSuggest();
-      document.getElementById('hs-form-title')?.scrollIntoView({ behavior:'smooth', block:'center' });
-      if(mo) mo.focus();
-      toast(`⏱️ ${s.hours} h — ajoute le motif puis valide`, 'ok');
-    } else {
-      openHsStepsModal(segs, reg);   // plusieurs étapes → modale de justification
-    }
-  }, 80);
+  if(isLap){
+    // le chrono continue : le prochain segment démarre à cet instant (enchaîné sur `fin`)
+    st.segStartMs = ts; st.segStartStr = fin; st.segCount = (st.segCount||0)+1;
+    localStorage.setItem('3t_hs_timer', JSON.stringify(st));
+    hsTimerRenderAll();
+  } else {
+    localStorage.removeItem('3t_hs_timer');
+    if(_hsTimerInt){ clearInterval(_hsTimerInt); _hsTimerInt = null; }
+    hsTimerCloseNotif(); hsTimerRenderAll();
+  }
+  openHsJustify(seg, reg, isLap);
 }
 
-// ── Modale « étapes » : une ligne par segment, un motif chacun, tout enregistré d'un coup ──
-let _hsStepsReg = null;
-function openHsStepsModal(segs, reg){
-  _hsStepsReg = reg;
-  const body = document.getElementById('hs-steps-body');
-  if(body) body.innerHTML = segs.map(s => `
-    <div class="hs-step-row" data-iso="${s.iso}" data-deb="${s.debut}" data-fin="${s.fin}">
-      <div class="hs-step-time">${s.debut} → ${s.fin} <span class="hs-step-h">${s.hours} h</span></div>
-      <input class="hs-input hs-step-motif" list="hs-motif-list" placeholder="Motif de cette étape (ex. montage)" autocomplete="off">
-    </div>`).join('');
-  const err = document.getElementById('hs-steps-err'); if(err) err.textContent = '';
-  const sub = document.getElementById('hs-steps-submit'); if(sub){ sub.disabled = false; sub.textContent = 'Tout enregistrer'; }
-  const tot = document.getElementById('hs-steps-total');
-  if(tot) tot.textContent = `Total : ${Math.round(segs.reduce((a,s)=>a+s.hours,0)*100)/100} h sur ${segs.length} étapes`;
-  document.getElementById('hs-steps-modal').style.display = 'flex';
+// ── Popup de justification d'un segment ──────────────────────────────────────
+let _hsJustifySeg = null, _hsJustifyReg = null;
+function openHsJustify(seg, reg, isLap){
+  _hsJustifySeg = seg; _hsJustifyReg = reg;
+  const t = document.getElementById('hs-justify-time'); if(t) t.textContent = `${seg.debut} → ${seg.fin} · ${seg.hours} h`;
+  const h = document.getElementById('hs-justify-hint'); if(h) h.textContent = isLap ? 'Le chrono continue pour la suite. (Croix = ajouter « à justifier »)' : '(Croix = ajouter « à justifier »)';
+  const chips = document.getElementById('hs-justify-chips');
+  if(chips) chips.innerHTML = HS_BASE_MOTIFS.map(m => `<span class="hs-chip" onclick="hsJustifyPick('${m.replace(/'/g,"\\'")}')">${m}</span>`).join('');
+  const inp = document.getElementById('hs-justify-motif'); if(inp){ inp.value=''; }
+  const err = document.getElementById('hs-justify-err'); if(err) err.textContent = '';
+  const sub = document.getElementById('hs-justify-submit'); if(sub){ sub.disabled=false; sub.textContent='Enregistrer'; }
+  document.getElementById('hs-justify-modal').style.display = 'flex';
+  setTimeout(() => { if(inp) inp.focus(); }, 60);
 }
-function closeHsSteps(){ const m=document.getElementById('hs-steps-modal'); if(m) m.style.display='none'; }
+function hsJustifyPick(t){ const inp=document.getElementById('hs-justify-motif'); if(!inp) return; inp.value = inp.value.trim() ? inp.value.trim()+' '+t : t; inp.focus(); }
+function closeHsJustifyModal(){ const m=document.getElementById('hs-justify-modal'); if(m) m.style.display='none'; }
+function justifySubmit(){ const m=(document.getElementById('hs-justify-motif').value||'').trim(); hsJustifyWrite(m || 'à justifier'); }
+function justifyDismiss(){ hsJustifyWrite('à justifier'); }   // croix / clic dehors → ajouté quand même
+async function hsJustifyWrite(motif){
+  const seg = _hsJustifySeg, reg = _hsJustifyReg;
+  if(!seg){ closeHsJustifyModal(); return; }
+  _hsJustifySeg = null;   // anti double-écriture
+  const sub = document.getElementById('hs-justify-submit'); if(sub){ sub.disabled=true; sub.textContent='⏳…'; }
+  closeHsJustifyModal();
+  showBusy(true);
+  try{
+    const res = await hsAddMany(reg, [{ iso:seg.iso, debut:seg.debut, fin:seg.fin, motif }]);
+    if(currentView === 'hsupp'){
+      const sel = document.getElementById('hs-reg'); if(sel && [...sel.options].some(o=>o.value===reg)) sel.value = reg;
+      await hsInit();
+    }
+    const tj = motif === 'à justifier' ? ' — à justifier' : '';
+    toast(res.pending ? `⏳ Heure mémorisée${tj}` : `✅ Heure ajoutée${tj}`, 'ok');
+  }catch(e){ toast('❌ ' + e.message, 'err'); }
+  finally{ showBusy(false); }
+}
 
 // Écrit plusieurs entrées d'un coup dans le fichier actif de `reg` (ou en attente si fichier absent).
 async function hsAddMany(reg, list){
@@ -3575,27 +3576,6 @@ async function hsAddMany(reg, list){
   entries.push(...list.map(e => ({ iso:e.iso, debut:e.debut, fin:e.fin, motif:e.motif })));
   await rewriteHeuresSupp(reg, entries);
   return { pending:false, count:list.length, label:active.label };
-}
-async function submitHsSteps(){
-  const rows = [...document.querySelectorAll('#hs-steps-body .hs-step-row')];
-  const list = [];
-  rows.forEach(r => {
-    const motif = r.querySelector('.hs-step-motif').value.trim();
-    if(!motif) return;   // étape sans motif → ignorée
-    list.push({ iso:r.dataset.iso, debut:r.dataset.deb, fin:r.dataset.fin, motif });
-  });
-  const err = document.getElementById('hs-steps-err');
-  if(!list.length){ if(err) err.textContent = 'Ajoute au moins un motif (les étapes vides sont ignorées).'; return; }
-  const btn = document.getElementById('hs-steps-submit'); btn.disabled = true; btn.textContent = '⏳…';
-  showBusy(true);
-  try{
-    const res = await hsAddMany(_hsStepsReg, list);
-    closeHsSteps();
-    const sel = document.getElementById('hs-reg'); if(sel && [...sel.options].some(o=>o.value===_hsStepsReg)) sel.value = _hsStepsReg;
-    await hsInit();
-    toast(res.pending ? `⏳ ${res.count} étape(s) mémorisée(s) — ${res.label}` : `✅ ${res.count} étape(s) enregistrée(s)`, 'ok');
-  }catch(e){ if(err) err.textContent = '❌ ' + e.message; btn.disabled = false; btn.textContent = 'Tout enregistrer'; }
-  finally{ showBusy(false); }
 }
 // Arrondit une Date à l'heure "HH:MM" au quart d'heure le plus proche
 function hsRoundToQuarter(date){
@@ -3613,12 +3593,12 @@ function hsTimerRenderAll(){
   const st = hsTimerState();
   const el = document.getElementById('hs-timer');
   if(el){
-    const nLaps = (st && st.laps && st.laps.length) ? st.laps.length : 0;
+    const nSeg = (st && st.segCount) ? st.segCount : 0;
     el.innerHTML = st
       ? `<div class="hs-timer-run">
            <div class="hs-timer-info"><span class="hs-timer-dot"></span>
              <div><div class="hs-timer-time">${hsFmtElapsed(Date.now()-st.startedAt)}</div>
-             <div class="hs-timer-sub">Heure supp en cours${st.reg?' · '+st.reg:''}${nLaps?` · ${nLaps+1} étapes`:''}</div></div>
+             <div class="hs-timer-sub">Heure supp en cours${st.reg?' · '+st.reg:''}${nSeg?` · ${nSeg} étape${nSeg>1?'s':''} enreg.`:''}</div></div>
            </div>
            <div class="hs-timer-btns">
              <button class="hs-timer-step" onclick="hsTimerLap()">＋ Étape</button>
