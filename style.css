@@ -555,7 +555,7 @@ button:active{transform:scale(.96)}
 #view-hsupp input[type=time]::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.6}
 .hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1rem}
 /* Raccourcis motifs (chips) */
-.hs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:-.4rem 0 .7rem}
+.hs-chips{display:flex;flex-wrap:wrap;gap:6px;margin:.65rem 0 .7rem}
 .hs-chip{background:var(--surface3);border:1px solid var(--border);border-radius:999px;padding:5px 11px;font-size:12px;color:var(--muted2);cursor:pointer;font-family:inherit;white-space:nowrap;transition:transform .1s,border-color .12s}
 .hs-chip:active{transform:scale(.94)}
 .hs-chip.spec{color:var(--c3t);border-color:var(--c3t)}
