@@ -572,6 +572,24 @@ button:active{transform:scale(.96)}
 .hs-ic{background:var(--surface3);border:1px solid var(--border);border-radius:8px;width:32px;height:32px;flex-shrink:0;cursor:pointer;font-size:14px}
 .hs-ic:hover{border-color:var(--muted)}
 .hs-pend{color:var(--c3tc);font-weight:600;white-space:nowrap}
+/* Fiche spectacle + consommables */
+.ev-name-link{cursor:pointer}
+.ev-name-link:active{opacity:.6}
+.bdg-buy{background:#fb923c22;border:1px solid #fb923c66}
+.spec-details{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.9rem}
+.spec-chip{font-size:12px;font-weight:600;color:var(--c3t);background:#4ade8016;border:1px solid #4ade8040;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.spec-chip.spec-chip-muted{color:var(--muted);background:var(--surface3);border-color:var(--border)}
+.spec-sec{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin:.4rem 0 .5rem}
+.spec-empty{font-size:13px;color:var(--muted);padding:.3rem 0 .6rem}
+.spec-item{display:flex;align-items:center;gap:8px;background:#fb923c14;border:1px solid #fb923c3a;border-radius:10px;padding:.5rem .65rem;margin-bottom:6px}
+.spec-item-main{flex:1;min-width:0}
+.spec-item-label{display:block;font-size:14px;font-weight:600;color:var(--text)}
+.spec-item-by{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+.spec-item-done{flex-shrink:0;background:#4ade8018;border:1px solid #4ade8055;color:var(--c3t);border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
+.spec-add{display:flex;gap:8px;margin:.3rem 0 .3rem;align-items:stretch}
+.spec-add .fm-input{flex:1 1 0;width:auto;min-width:0;margin-bottom:0}
+.spec-add .go-btn{flex:0 0 auto;width:auto}
+#spec-modal .modal-card,#spec-modal *{box-sizing:border-box}
 .hs-item.hs-tojustify{background:#fb923c1a;border-color:#fb923c80}
 .hs-tojustify-tag{color:var(--c3tc);font-weight:700}
 /* Chrono heures supp */

@@ -74,6 +74,15 @@ service cloud.firestore {
         && str(request.resource.data.by, 80);
     }
 
+    // Fiches spectacle : infos + consommables à racheter (partagé équipe).
+    match /specSheets/{id} {
+      allow read, delete: if authed();
+      allow create, update: if authed()
+        && optStr(request.resource.data, 'spec', 200)
+        && optStr(request.resource.data, 'info', 2000)
+        && (!('items' in request.resource.data) || smallList(request.resource.data.items, 100));
+    }
+
     // Profils (1 doc par email) — lecture réservée aux utilisateurs authentifiés.
     match /profiles/{email} {
       allow read: if authed();

@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-02 · b112 (chrono : ajout instantané au clic croix/enregistrer (mémoire + écriture différée))';
+const APP_VERSION = '2026-07-03 · b113 (fiche spectacle : détails + consommables à racheter partagés + badge 🛒)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2084,6 +2084,7 @@ async function afterPlanLoaded() {
     // Ouverture instantanée depuis le cache : les formations ont pu échouer (auth Firebase
     // pas encore prête) → on les recharge maintenant que la session est établie.
     if (typeof loadFormations === 'function') loadFormations();
+    if (typeof loadSpecSheets === 'function') loadSpecSheets();
     saveOfflineCache();   // met à jour le cache avec les données fraîches
     return;
   }
@@ -2131,6 +2132,8 @@ function launchApp() {
   publishSchedule();
   // #4 — charge les formations partagées (Firestore)
   loadFormations();
+  // Fiches spectacle + consommables partagés (badges 🛒)
+  loadSpecSheets();
   // #19 — met en cache le planning pour la consultation hors-ligne
   saveOfflineCache();
   // HS — écoule en arrière-plan les heures supp en attente si leur fichier existe désormais
@@ -2801,6 +2804,147 @@ function escapeHtml(s){
 // Identifiant Firestore réutilisé dans un onclick='...(id)...' : on le réduit au jeu de
 // caractères des auto-id (A-Z a-z 0-9 _ -) pour éviter toute évasion de chaîne JS.
 function safeId(id){ return String(id==null?'':id).replace(/[^A-Za-z0-9_-]/g,''); }
+
+// ─── FICHE SPECTACLE + CONSOMMABLES À RACHETER (partagé équipe, Firestore) ────
+// Chaque spectacle a une fiche partagée : détails (base heures) + liste de
+// consommables « à racheter » que n'importe quel régisseur signale → le prochain
+// qui fait la régie voit le badge 🛒 et la liste. Clé stable = nom normalisé.
+function specKey(spec){
+  const k = (typeof normSpec==='function' ? normSpec(spec) : String(spec||'').toLowerCase());
+  return (k.replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,120)) || 'x';
+}
+let _specSheets = (()=>{ try{ return JSON.parse(localStorage.getItem('3t_specsheets_cache')||'{}'); }catch(e){ return {}; } })();
+function specItems(spec){ const s=_specSheets[specKey(spec)]; return (s&&Array.isArray(s.items))?s.items:[]; }
+function specHasItems(spec){ return specItems(spec).length>0; }
+function _specSheetsSave(){ try{ localStorage.setItem('3t_specsheets_cache', JSON.stringify(_specSheets)); }catch(e){} }
+
+// Charge toutes les fiches (badges 🛒 partout + cache local). Appelé au lancement.
+async function loadSpecSheets(){
+  if(!pushConfigured()) return;
+  initFirebase(); if(!_fbDb) return;
+  try{
+    const snap = await _fbDb.collection('specSheets').get();
+    const map = {};
+    snap.forEach(doc => { const d=doc.data()||{}; map[doc.id]={ spec:d.spec||'', info:d.info||'', items:Array.isArray(d.items)?d.items:[] }; });
+    _specSheets = map; _specSheetsSave();
+    if(typeof appIsOpen==='function' && appIsOpen() && !offlineMode) renderCalendar();
+  }catch(e){ console.warn('loadSpecSheets:', e); }
+}
+
+let _specCur = null;   // { spec, key, salle }
+function openSpecSheet(spec, salle){
+  if(!spec) return;
+  _specCur = { spec, key: specKey(spec), salle: salle||'' };
+  renderSpecSheet();
+  document.getElementById('spec-modal').style.display = 'flex';
+  loadOneSpecSheet(_specCur.key);   // rafraîchit cette fiche depuis Firestore
+}
+function closeSpecSheet(){ const m=document.getElementById('spec-modal'); if(m) m.style.display='none'; _specCur=null; }
+
+async function loadOneSpecSheet(key){
+  initFirebase(); if(!_fbDb) return;
+  try{
+    const doc = await _fbDb.collection('specSheets').doc(key).get();
+    if(doc.exists){ const d=doc.data()||{}; _specSheets[key]={ spec:d.spec||'', info:d.info||'', items:Array.isArray(d.items)?d.items:[] }; }
+    else if(!_specSheets[key]) _specSheets[key]={ spec:_specCur?_specCur.spec:'', info:'', items:[] };
+    _specSheetsSave();
+    if(_specCur && _specCur.key===key) renderSpecSheet();
+  }catch(e){ console.warn('loadOneSpecSheet:', e); }
+}
+
+function renderSpecSheet(){
+  const cur=_specCur; if(!cur) return;
+  const t=document.getElementById('spec-title'); if(t) t.textContent = '🎭 ' + cur.spec;
+  const sheet = _specSheets[cur.key] || { info:'', items:[] };
+  const salleLbl = cur.salle==='3TC'?'3T Côté':cur.salle==='GT'?'Grand Théâtre':cur.salle;
+  const base = (typeof matchBaseSpec==='function') ? matchBaseSpec(cur.spec) : null;
+  let details = '';
+  if(cur.salle) details += `<span class="spec-chip">${escapeHtml(salleLbl)}</span>`;
+  if(base){
+    const isGT = cur.salle==='GT';
+    const mont = isGT?base.mGT:base.m3T, dem = isGT?base.dGT:base.d3T;
+    details += `<span class="spec-chip">Durée ${base.duree} h</span><span class="spec-chip">Montage ${mont} h</span><span class="spec-chip">Démontage ${dem} h</span>`;
+  } else {
+    details += `<span class="spec-chip spec-chip-muted">Pas dans la base heures</span>`;
+  }
+  const body = document.getElementById('spec-body');
+  if(!body) return;
+  body.innerHTML = `
+    <div class="spec-details">${details}</div>
+    <div class="spec-sec">🛒 Consommables à racheter</div>
+    <div id="spec-items"></div>
+    <div class="spec-add">
+      <input id="spec-item-input" class="fm-input" placeholder="ex. gaffer, piles AA, brouillard…" style="flex:1;margin-bottom:0" onkeydown="if(event.key==='Enter')addSpecItem()">
+      <button class="go-btn" onclick="addSpecItem()" style="flex:0 0 auto;padding:0 16px">Ajouter</button>
+    </div>
+    <div class="spec-sec">📝 Infos / détails du spectacle</div>
+    <textarea id="spec-info" class="fm-input" rows="3" placeholder="Plan de feu, particularités, contacts, réglages…" style="resize:vertical">${escapeHtml(sheet.info||'')}</textarea>
+    <button class="fm-propose" onclick="saveSpecInfo()" style="margin-top:.5rem">💾 Enregistrer les infos</button>
+  `;
+  renderSpecItems();
+}
+function renderSpecItems(){
+  const cur=_specCur; if(!cur) return;
+  const el=document.getElementById('spec-items'); if(!el) return;
+  const items=(_specSheets[cur.key]&&_specSheets[cur.key].items)||[];
+  if(!items.length){ el.innerHTML='<div class="spec-empty">Rien à racheter signalé ✅</div>'; return; }
+  el.innerHTML = items.map(it => `
+    <div class="spec-item">
+      <div class="spec-item-main"><span class="spec-item-label">🛒 ${escapeHtml(it.label)}</span>
+        <span class="spec-item-by">signalé par ${escapeHtml(it.by||'—')}</span></div>
+      <button class="spec-item-done" onclick="removeSpecItem('${safeId(it.id)}')" title="Marquer racheté">✓ Racheté</button>
+    </div>`).join('');
+}
+async function addSpecItem(){
+  if(blockIfOffline()) return;
+  const cur=_specCur; if(!cur) return;
+  const inp=document.getElementById('spec-item-input'); const label=(inp.value||'').trim();
+  if(!label) return;
+  initFirebase(); if(!_fbDb){ toast('Connexion requise','err'); return; }
+  const me=myRegName()||getMyReg()||'';
+  const item={ id:'i'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), label, by:me, at:new Date().toISOString() };
+  const s=_specSheets[cur.key]||{ spec:cur.spec, info:'', items:[] }; s.items=[...(s.items||[]),item]; s.spec=cur.spec; _specSheets[cur.key]=s;
+  inp.value=''; renderSpecItems(); _specSheetsSave();
+  try{
+    const FV=firebase.firestore.FieldValue;
+    await _fbDb.collection('specSheets').doc(cur.key).set({ spec:cur.spec, updatedAt:new Date().toISOString(), items:FV.arrayUnion(item) }, {merge:true});
+    if(appIsOpen()) renderCalendar();
+    toast('🛒 Ajouté à la liste','ok');
+  }catch(e){ toast('❌ '+e.message,'err'); }
+}
+async function removeSpecItem(id){
+  if(blockIfOffline()) return;
+  const cur=_specCur; if(!cur) return;
+  const s=_specSheets[cur.key]; if(!s) return;
+  const item=(s.items||[]).find(x=>x.id===id); if(!item) return;
+  if(!confirm(`Marquer « ${item.label} » comme racheté (le retirer de la liste) ?`)) return;
+  s.items=(s.items||[]).filter(x=>x.id!==id); renderSpecItems(); _specSheetsSave();
+  initFirebase(); if(!_fbDb) return;
+  try{
+    const FV=firebase.firestore.FieldValue;
+    await _fbDb.collection('specSheets').doc(cur.key).set({ updatedAt:new Date().toISOString(), items:FV.arrayRemove(item) }, {merge:true});
+    if(appIsOpen()) renderCalendar();
+    toast('✅ Racheté','ok');
+  }catch(e){ toast('❌ '+e.message,'err'); }
+}
+async function saveSpecInfo(){
+  if(blockIfOffline()) return;
+  const cur=_specCur; if(!cur) return;
+  const info=(document.getElementById('spec-info').value||'').trim();
+  initFirebase(); if(!_fbDb){ toast('Connexion requise','err'); return; }
+  try{
+    showBusy(true);
+    await _fbDb.collection('specSheets').doc(cur.key).set({ spec:cur.spec, info, updatedAt:new Date().toISOString() }, {merge:true});
+    const s=_specSheets[cur.key]||{ spec:cur.spec, items:[] }; s.info=info; s.spec=cur.spec; _specSheets[cur.key]=s; _specSheetsSave();
+    toast('💾 Infos enregistrées','ok');
+  }catch(e){ toast('❌ '+e.message,'err'); } finally{ showBusy(false); }
+}
+// HTML d'un nom de spectacle cliquable (ouvre la fiche) + badge 🛒 si consommables en attente.
+function specNameHTML(spec, salle, extraStyle){
+  if(!spec) return `<span class="ev-name">—</span>`;
+  return `<span class="ev-name ev-name-link" data-spec="${escapeHtml(spec)}" data-salle="${escapeHtml(salle||'')}" onclick="openSpecSheet(this.dataset.spec, this.dataset.salle)"${extraStyle?` style="${extraStyle}"`:''}>${escapeHtml(spec)} ›</span>`;
+}
+function specBuyBadge(spec){ return specHasItems(spec) ? '<span class="ev-badge bdg-buy" title="Consommables à racheter">🛒</span>' : ''; }
 
 function renderNotes(){
   const box = document.getElementById('notes-list');
@@ -4915,8 +5059,8 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
 
       cardsHTML += `<div class="event-card ${cls}">
         <div class="ev-top">
-          <span class="ev-name" style="${e.cancelled?'text-decoration:line-through;opacity:.6':''}">${e.spec || '—'}</span>
-          <div class="ev-badges">${badges.join('')}</div>
+          ${specNameHTML(e.spec, e.salle, e.cancelled?'text-decoration:line-through;opacity:.6':'')}
+          <div class="ev-badges">${specBuyBadge(e.spec)}${badges.join('')}</div>
         </div>
         <div class="ev-meta">${meta}</div>
         ${actionHTML}
@@ -5648,8 +5792,8 @@ function searchBySpec() {
     }).join('');
     const badge = s.guest ? '<span class="ev-badge bdg-guest">🎤 invité</span>'
                 : s.tournee ? '<span class="ev-badge bdg-h">tournée</span>' : '';
-    return `<div class="search-card ${clsOf(occ[0].salle)}" style="cursor:default">
-      <div class="ev-top"><span class="ev-name">${s.display}</span><div class="ev-badges">${badge}<span class="ev-badge bdg-h">${occ.length}×</span></div></div>
+    return `<div class="search-card ${clsOf(occ[0].salle)}">
+      <div class="ev-top">${specNameHTML(s.display, occ[0].salle)}<div class="ev-badges">${specBuyBadge(s.display)}${badge}<span class="ev-badge bdg-h">${occ.length}×</span></div></div>
       <div class="spec-occ-list">${rows}</div>
     </div>`;
   };
@@ -5765,7 +5909,7 @@ function eventCardHTML(e, reg, teamMode, posCtx) {
   }
   const action = posCtx ? posActionHTML(e, posCtx.y, posCtx.m, posCtx.dateLabel) : '';
   return `<div class="event-card ${cls}${e.cancelled?' ecancel':''}">
-    <div class="ev-top"><span class="ev-name">${e.spec||'—'}</span><div class="ev-badges">${badges.join('')}</div></div>
+    <div class="ev-top">${specNameHTML(e.spec, e.salle)}<div class="ev-badges">${specBuyBadge(e.spec)}${badges.join('')}</div></div>
     <div class="ev-meta">${meta}</div>
     ${who}
     ${action}

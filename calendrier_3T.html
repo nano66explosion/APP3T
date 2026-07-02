@@ -420,6 +420,17 @@
   </div>
 
   <!-- Notes partagées (chaque régisseur écrit, tout le monde voit) -->
+  <!-- Fiche spectacle : détails + consommables à racheter (partagé équipe) -->
+  <div id="spec-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeSpecSheet()">
+    <div class="modal-card" style="text-align:left;max-width:460px;max-height:86vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <div class="modal-title" id="spec-title">🎭 Spectacle</div>
+        <button onclick="closeSpecSheet()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div id="spec-body" style="overflow:auto"></div>
+    </div>
+  </div>
+
   <div id="notes-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeNotes()">
     <div class="modal-card" style="text-align:left;max-width:460px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">

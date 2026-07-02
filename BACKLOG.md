@@ -537,6 +537,13 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
   `localStorage 3t_notif_prefs` + champ `prefs` du doc Firestore ; le cron filtre (`tokensFor`).
 - [x] **24. Formations** — ✅ FAIT (voir section Firebase). Proposer/positionner/supprimer, affichage calendrier
   (📚) + détail/régie du jour/semaine, notif aux autres via cron. Horaire au quart d'heure. Champs `.fm-input`.
+- [x] **30. Fiche spectacle + consommables partagés** — ✅ FAIT (b113). Clic sur un nom de spectacle (détail du jour,
+  semaine/agenda, recherche → `specNameHTML`) ouvre une **fiche** (`#spec-modal`) : détails depuis la base heures
+  (durée/montage/démontage selon la salle) + **liste de consommables « à racheter »** partagée (Firestore `specSheets`,
+  clé = `specKey` = nom normalisé). N'importe quel régisseur signale un manque (`addSpecItem`, arrayUnion), un autre
+  le marque racheté (`removeSpecItem`, arrayRemove). **Badge 🛒** sur les cartes spectacle quand il y a des items en
+  attente (`specHasItems`/`specBuyBadge`, chargé au lancement via `loadSpecSheets`, cache localStorage). Champ **infos
+  partagées** par spectacle (`saveSpecInfo`). ⚠️ **Règle Firestore `specSheets` à publier** (ajoutée dans `firestore.rules`).
 - [x] **28. Chrono heures supp** — ✅ FAIT (b102). Bouton **▶︎ Démarrer** au début de l'heure supp, **◼ Arrêter**
   à la fin → préremplit le formulaire (date + début + fin), il ne reste qu'à saisir le motif et valider. Durée
   **arrondie au quart d'heure SUPÉRIEUR** (`Math.ceil(dur/0.25)*0.25`, min 0,25 h). État persistant
