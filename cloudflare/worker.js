@@ -42,7 +42,7 @@ function originAllowed(origin) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const origin = request.headers.get('Origin');
     if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }), origin);
     if (request.method !== 'POST')   return cors(json({ error: 'POST only' }, 405), origin);
@@ -181,12 +181,20 @@ export default {
       let saT;
       try { saT = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); }
       catch (e) { return cors(json({ error: 'service account manquant/invalide' }, 500), origin); }
-      try {
-        const tok = await getAccessToken(saT);
-        const r = await fcmSend(saT.project_id, tok, tk, '🔔 Test 3T TECH',
-          'Notif de test — si tu la vois app FERMÉE, les notifications marchent 👍', APP_URL, 'test');
-        return cors(json({ ok: r.ok, gone: r.gone }), origin);
-      } catch (e) { return cors(json({ error: String((e && e.message) || e) }, 500), origin); }
+      // Envoi éventuellement DIFFÉRÉ (delayMs) → laisse le temps de fermer l'app pour tester app fermée.
+      // ctx.waitUntil : l'envoi se termine même si le client s'est déconnecté (app fermée).
+      const delay = Math.min(20000, Math.max(0, Number(body.delayMs) || 0));
+      const doSend = (async () => {
+        try {
+          if (delay) await new Promise(r => setTimeout(r, delay));
+          const tok = await getAccessToken(saT);
+          await fcmSend(saT.project_id, tok, tk, '🔔 Test 3T TECH',
+            'Notif de test — si tu la vois app FERMÉE, les notifications marchent 👍', APP_URL, 'test');
+        } catch (e) { /* best-effort */ }
+      })();
+      if (delay && ctx && ctx.waitUntil) { ctx.waitUntil(doSend); return cors(json({ ok: true, scheduled: true, delay }), origin); }
+      await doSend;
+      return cors(json({ ok: true }), origin);
     }
 
     const id = body && body.id;

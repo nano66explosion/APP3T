@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b123 (FIX notifs : init FCM messaging etait en code mort -> jeton jamais cree)';
+const APP_VERSION = '2026-07-03 · b124 (test notif differe 8s pour verifier reception app fermee)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1486,9 +1486,9 @@ async function testPushNotif(){
     if(!user){ toast('Session non prête — reconnecte-toi', 'err'); return; }
     const idToken = await user.getIdToken();
     const r = await fetch(FORMATION_WORKER_URL, { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ action:'testSelf', firebaseIdToken:idToken, token }) });
+      body: JSON.stringify({ action:'testSelf', firebaseIdToken:idToken, token, delayMs: 8000 }) });
     const j = await r.json().catch(()=>({}));
-    if(j && j.ok) toast('🔔 Test envoyé — ferme l\'app et attends la notif (quelques secondes)', 'ok');
+    if(j && j.ok){ try{ alert('Test programme !\n\nFERME COMPLETEMENT L\'APP maintenant.\nLa notif arrive dans ~8 secondes.\nSi tu la vois app fermee -> tout marche.'); }catch(e){} toast('🔔 Ferme l\'app — notif dans ~8s', 'ok'); }
     else toast('❌ Échec du test : ' + (j.error || ('HTTP '+r.status)), 'err');
   }catch(e){ toast('❌ ' + e.message, 'err'); }
   finally{ showBusy(false); }
