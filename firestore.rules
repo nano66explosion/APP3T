@@ -83,6 +83,14 @@ service cloud.firestore {
         && (!('items' in request.resource.data) || smallList(request.resource.data.items, 100));
     }
 
+    // Congés / indisponibilités : 1 doc par régisseur.
+    match /availability/{id} {
+      allow read, delete: if authed();
+      allow create, update: if authed()
+        && optStr(request.resource.data, 'reg', 80)
+        && (!('off' in request.resource.data) || smallList(request.resource.data.off, 400));
+    }
+
     // Profils (1 doc par email) — lecture réservée aux utilisateurs authentifiés.
     match /profiles/{email} {
       allow read: if authed();

@@ -281,6 +281,7 @@
         <button onclick="closeMoreMenu();openSoiree()"><span class="mg-ico">💬</span>Bilan soirée</button>
         <button onclick="closeMoreMenu();openFormationModal()"><span class="mg-ico">📚</span>Formation</button>
         <button onclick="closeMoreMenu();openRepetList()"><span class="mg-ico">🪑</span>Répétitions</button>
+        <button onclick="closeMoreMenu();openAvail()"><span class="mg-ico">🌴</span>Mes congés</button>
         <button onclick="closeMoreMenu();openMeeting()"><span class="mg-ico">🗓️</span>Réunion</button>
         <button onclick="closeMoreMenu();openNotes()"><span class="mg-ico">📝</span>Notes</button>
         <button onclick="closeMoreMenu();openSearch()"><span class="mg-ico">🔍</span>Recherche</button>
@@ -420,6 +421,22 @@
   </div>
 
   <!-- Notes partagées (chaque régisseur écrit, tout le monde voit) -->
+  <!-- Congés / indisponibilités (partagé équipe) -->
+  <div id="avail-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeAvail()">
+    <div class="modal-card" style="text-align:left;max-width:420px;max-height:82vh;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.35rem">
+        <div class="modal-title">🌴 Mes congés / indispos</div>
+        <button onclick="closeAvail()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
+      </div>
+      <div class="modal-sub">Régisseur : <b id="avail-reg">—</b>. Tes jours d'indispo sont visibles par toute l'équipe (dans le détail du jour) pour aider à répartir les régies.</div>
+      <div style="display:flex;gap:8px;margin:.6rem 0">
+        <input type="date" id="avail-date" class="fm-input" style="flex:1;margin-bottom:0">
+        <button class="go-btn" onclick="addAvailDay()" style="flex:0 0 auto;width:auto;padding:0 16px">Ajouter</button>
+      </div>
+      <div id="avail-list" style="overflow:auto"></div>
+    </div>
+  </div>
+
   <!-- Fiche spectacle : détails + consommables à racheter (partagé équipe) -->
   <div id="spec-modal" class="modal-overlay" style="display:none;z-index:60" onclick="if(event.target===this)closeSpecSheet()">
     <div class="modal-card" style="text-align:left;max-width:460px;max-height:86vh;display:flex;flex-direction:column">

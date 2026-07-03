@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b116 (notifs consommable + répétition ; alerte chrono oublié > 6 h)';
+const APP_VERSION = '2026-07-03 · b117 (congés/indisponibilités partagés #36)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2106,6 +2106,7 @@ async function afterPlanLoaded() {
     // pas encore prête) → on les recharge maintenant que la session est établie.
     if (typeof loadFormations === 'function') loadFormations();
     if (typeof loadSpecSheets === 'function') loadSpecSheets();
+    if (typeof loadAvailability === 'function') loadAvailability();
     saveOfflineCache();   // met à jour le cache avec les données fraîches
     return;
   }
@@ -2155,6 +2156,8 @@ function launchApp() {
   loadFormations();
   // Fiches spectacle + consommables partagés (badges 🛒)
   loadSpecSheets();
+  // #36 — congés / indisponibilités partagés
+  loadAvailability();
   // #19 — met en cache le planning pour la consultation hors-ligne
   saveOfflineCache();
   // HS — écoule en arrière-plan les heures supp en attente si leur fichier existe désormais
@@ -2978,6 +2981,80 @@ function specNameHTML(spec, salle, extraStyle){
   return `<span class="ev-name ev-name-link" data-spec="${escapeHtml(spec)}" data-salle="${escapeHtml(salle||'')}" onclick="openSpecSheet(this.dataset.spec, this.dataset.salle)"${extraStyle?` style="${extraStyle}"`:''}>${escapeHtml(spec)} ›</span>`;
 }
 function specBuyBadge(spec){ return specHasItems(spec) ? '<span class="ev-badge bdg-buy" title="Consommables à racheter">🛒</span>' : ''; }
+
+// ─── #36 CONGÉS / INDISPONIBILITÉS (partagé équipe, Firestore) ───────────────
+// Chacun marque ses jours d'indispo (congés) ; visibles par tous dans le détail
+// du jour → aide à répartir les régies. 1 doc par régisseur (id = nom).
+let _avail = (()=>{ try{ return JSON.parse(localStorage.getItem('3t_avail_cache')||'{}'); }catch(e){ return {}; } })();
+function availOff(reg){ const a=_avail[reg]; return Array.isArray(a)?a:[]; }
+function availForDay(iso){ return Object.keys(_avail).filter(r => Array.isArray(_avail[r]) && _avail[r].includes(iso)); }
+async function loadAvailability(){
+  if(!pushConfigured()) return;
+  initFirebase(); if(!_fbDb) return;
+  try{
+    const snap = await _fbDb.collection('availability').get();
+    const map = {};
+    snap.forEach(doc => { const d=doc.data()||{}; if(Array.isArray(d.off) && d.off.length) map[d.reg||doc.id]=d.off; });
+    _avail = map;
+    try{ localStorage.setItem('3t_avail_cache', JSON.stringify(map)); }catch(e){}
+    if(typeof appIsOpen==='function' && appIsOpen() && !offlineMode) renderCalendar();
+  }catch(e){ console.warn('loadAvailability:', e); }
+}
+function openAvail(){
+  const me=myRegName()||getMyReg()||'';
+  if(!me){ openProfileModal(); return; }
+  const r=document.getElementById('avail-reg'); if(r) r.textContent=me;
+  const d=document.getElementById('avail-date'); if(d) d.value='';
+  renderAvail();
+  document.getElementById('avail-modal').style.display='flex';
+  loadAvailability();
+}
+function closeAvail(){ const m=document.getElementById('avail-modal'); if(m) m.style.display='none'; }
+function renderAvail(){
+  const me=myRegName()||getMyReg()||'';
+  const el=document.getElementById('avail-list'); if(!el) return;
+  const jourStr=['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
+  const moisStr=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  const todayIso=isoToday();
+  const fut=availOff(me).slice().sort().filter(iso=>iso>=todayIso);
+  el.innerHTML = fut.length ? fut.map(iso=>{
+    const [Y,M,D]=iso.split('-').map(Number); const dt=new Date(Y,M-1,D);
+    return `<div class="avail-row"><span>🌴 ${jourStr[dt.getDay()]} ${D} ${moisStr[M-1]} ${Y}</span><button class="hs-ic" onclick="removeAvailDay('${iso}')" title="Retirer">🗑️</button></div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:13px;padding:.4rem 0">Aucune indisponibilité à venir.</div>';
+}
+async function addAvailDay(){
+  if(blockIfOffline()) return;
+  const me=myRegName()||getMyReg()||''; if(!me) return;
+  const iso=(document.getElementById('avail-date')||{}).value; if(!iso) return;
+  initFirebase(); if(!_fbDb){ toast('Connexion requise','err'); return; }
+  if(availOff(me).includes(iso)){ toast('Ce jour est déjà marqué','err'); return; }
+  _avail[me]=[...availOff(me),iso]; try{ localStorage.setItem('3t_avail_cache', JSON.stringify(_avail)); }catch(e){}
+  document.getElementById('avail-date').value=''; renderAvail();
+  try{
+    const FV=firebase.firestore.FieldValue;
+    await _fbDb.collection('availability').doc(me).set({ reg:me, updatedAt:new Date().toISOString(), off:FV.arrayUnion(iso) }, {merge:true});
+    if(appIsOpen()) renderCalendar();
+    toast('🌴 Indisponibilité ajoutée','ok');
+  }catch(e){ toast('❌ '+e.message,'err'); }
+}
+async function removeAvailDay(iso){
+  if(blockIfOffline()) return;
+  const me=myRegName()||getMyReg()||''; if(!me) return;
+  _avail[me]=availOff(me).filter(x=>x!==iso); try{ localStorage.setItem('3t_avail_cache', JSON.stringify(_avail)); }catch(e){}
+  renderAvail();
+  initFirebase(); if(!_fbDb) return;
+  try{
+    const FV=firebase.firestore.FieldValue;
+    await _fbDb.collection('availability').doc(me).set({ reg:me, updatedAt:new Date().toISOString(), off:FV.arrayRemove(iso) }, {merge:true});
+    if(appIsOpen()) renderCalendar();
+    toast('✅ Retiré','ok');
+  }catch(e){ toast('❌ '+e.message,'err'); }
+}
+// Bandeau « indispo ce jour » pour le détail du jour
+function availBannerHTML(iso){
+  const off=availForDay(iso);
+  return off.length ? `<div class="avail-banner">🌴 Indisponible ce jour : ${off.map(escapeHtml).join(', ')}</div>` : '';
+}
 
 function renderNotes(){
   const box = document.getElementById('notes-list');
@@ -5124,6 +5201,7 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
   const iso = `${y}-${String(m).padStart(2,'0')}-${String(selectedDay).padStart(2,'0')}`;
   panel.innerHTML = `<div class="detail-panel">
     <div class="detail-date">${dateLabel}</div>
+    ${availBannerHTML(iso)}
     ${cardsHTML}
     ${dayExtrasHTML(iso)}
   </div>`;
