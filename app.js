@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b120 (fix critique : app.js cassé en b119 par une apostrophe non échappée dans la version)';
+const APP_VERSION = '2026-07-03 · b121 (fix chrono : le bloc plantait quand aucun chrono ne tourne)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3932,9 +3932,9 @@ function hsTimerRenderAll(){
   const long = st && (Date.now()-st.startedAt) > HS_TIMER_WARN_MS;   // chrono probablement oublié
   if(el){
     const nSeg = (st && st.segCount) ? st.segCount : 0;
-    const sub = long
+    const sub = !st ? '' : (long
       ? `⚠️ En cours depuis ${hsFmtLong(Date.now()-st.startedAt)} — pense à l'arrêter${st.reg?' · '+st.reg:''}`
-      : `Heure supp en cours${st.reg?' · '+st.reg:''}${nSeg?` · ${nSeg} étape${nSeg>1?'s':''} enreg.`:''}`;
+      : `Heure supp en cours${st.reg?' · '+st.reg:''}${nSeg?` · ${nSeg} étape${nSeg>1?'s':''} enreg.`:''}`);
     el.innerHTML = st
       ? `<div class="hs-timer-run${long?' hs-timer-late':''}">
            <div class="hs-timer-info"><span class="hs-timer-dot"></span>
