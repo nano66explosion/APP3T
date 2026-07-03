@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b122 (diagnostic notifications detaille sur le bouton test)';
+const APP_VERSION = '2026-07-03 · b123 (FIX notifs : init FCM messaging etait en code mort -> jeton jamais cree)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1311,17 +1311,27 @@ async function firebaseSignIn(token){
     updateAuthStatus(_fbAuth && _fbAuth.currentUser);
     return null;
   }
+}
+
+// Initialise FCM messaging À LA DEMANDE (le bloc historique était en code mort après un
+// return → _fbMessaging restait null → aucun jeton → notifs jamais fonctionnelles).
+async function initMessaging(){
+  if(_fbMessaging) return _fbMessaging;
+  if(!pushConfigured() || typeof firebase==='undefined' || !firebase.messaging){ _lastPushErr='SDK messaging absent'; return null; }
+  initFirebase();
   try{
-    // messaging() peut échouer sur navigateurs non supportés (ex. Safari onglet) → isolé
+    if(firebase.messaging.isSupported){
+      const ok = await firebase.messaging.isSupported();
+      if(!ok){ _lastPushErr='FCM isSupported=false'; return null; }
+    }
     _fbMessaging = firebase.messaging();
     _fbMessaging.onMessage(payload => {
-      // Messages DATA-ONLY (title/body/url/tag dans data) — cf. firebase-messaging-sw.js.
       const d = (payload && payload.data) || {};
-      const n = (payload && payload.notification) || {};   // compat anciens messages
+      const n = (payload && payload.notification) || {};
       showNotif(d.title || n.title || '🎭 3T TECH', d.body || n.body || '', d.tag || n.tag, d.url || '');
     });
-  }catch(e){ console.warn('initFirebase (messaging):', e); }
-  return _fbApp;
+    return _fbMessaging;
+  }catch(e){ _lastPushErr = 'messaging: '+((e&&(e.message||e.code))||e); console.warn('initMessaging:', e); return null; }
 }
 
 // #16 — Publie le planning à venir dans Firestore (lu ensuite par le cron d'envoi).
@@ -1394,7 +1404,8 @@ async function enablePush(){
   if(!('serviceWorker' in navigator)){ _lastPushErr = 'service worker non supporte'; return null; }
   if(Notification.permission !== 'granted'){ _lastPushErr = 'permission navigateur non accordee'; return null; }
   initFirebase();
-  if(!_fbMessaging){ _lastPushErr = 'FCM non initialise (isSupported=false ? navigateur/appareil ?)'; return null; }
+  if(!_fbMessaging){ await initMessaging(); }
+  if(!_fbMessaging){ _lastPushErr = _lastPushErr || 'FCM non initialise'; return null; }
   try{
     // Scope distinct pour ne pas ecraser le service worker PWA (sw.js)
     const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js',
