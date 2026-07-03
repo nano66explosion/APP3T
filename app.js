@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b117 (congés/indisponibilités partagés #36)';
+const APP_VERSION = '2026-07-03 · b118 (bouton test notif app fermée #39 + action worker testSelf)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1438,6 +1438,29 @@ function refreshPushRegistration(){
 }
 function isPushDisabled(){ return localStorage.getItem('3t_push_disabled') === '1'; }
 function notifActive(){ return notifSupported() && Notification.permission === 'granted' && !isPushDisabled(); }
+// #39 — Envoie une notif de TEST à cet appareil (via le Worker) pour vérifier la réception app fermée.
+async function testPushNotif(){
+  if(!notifSupported()){
+    toast(isIOS()&&!isStandalone() ? '📲 Installe l\'app sur l\'écran d\'accueil (iPhone) pour les notifs' : 'Notifications non supportées ici', 'err');
+    return;
+  }
+  if(Notification.permission !== 'granted'){ toast('Autorise d\'abord les notifications (« Activer les rappels »)', 'err'); return; }
+  let token = localStorage.getItem('3t_push_token');
+  showBusy(true);
+  try{
+    if(!token){ await enablePush(); token = localStorage.getItem('3t_push_token'); }
+    if(!token){ toast('Aucun jeton push — désactive puis réactive les rappels, puis rouvre l\'app', 'err'); return; }
+    const user = await ensureFirebaseReady();
+    if(!user){ toast('Session non prête — reconnecte-toi', 'err'); return; }
+    const idToken = await user.getIdToken();
+    const r = await fetch(FORMATION_WORKER_URL, { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ action:'testSelf', firebaseIdToken:idToken, token }) });
+    const j = await r.json().catch(()=>({}));
+    if(j && j.ok) toast('🔔 Test envoyé — ferme l\'app et attends la notif (quelques secondes)', 'ok');
+    else toast('❌ Échec du test : ' + (j.error || ('HTTP '+r.status)), 'err');
+  }catch(e){ toast('❌ ' + e.message, 'err'); }
+  finally{ showBusy(false); }
+}
 function updateNotifLabel(){
   const el = document.getElementById('lbl-notif');
   const btn = document.getElementById('btn-notif');

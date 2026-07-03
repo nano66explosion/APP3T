@@ -552,7 +552,8 @@
       <label class="file-label">🔔 Notifications</label>
       <div class="file-name" id="lbl-notif" style="color:var(--text)"></div>
       <button class="file-btn" id="btn-notif" onclick="toggleNotifications()" style="margin-top:.4rem">Activer les rappels</button>
-      <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Rappel de ta régie du jour / du lendemain à l'ouverture de l'app, <b>et</b> — quand le push est activé — la veille d'une régie même app fermée.</div>
+      <button class="file-btn" id="btn-notif-test" onclick="testPushNotif()" style="margin-top:.4rem">🔔 M'envoyer une notif de test</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Rappel de ta régie du jour / du lendemain à l'ouverture de l'app, <b>et</b> — quand le push est activé — la veille d'une régie même app fermée. <b>Le test</b> : appuie, <b>ferme l'app</b>, la notif doit arriver en quelques secondes (sinon les notifs app fermée ne marchent pas encore sur cet appareil).</div>
       <!-- Choix des notifications reçues -->
       <div id="notif-prefs" style="margin-top:.8rem;display:none">
         <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.4rem">Notifications reçues</div>

@@ -172,6 +172,23 @@ export default {
       }
     }
 
+    // #39 — Notif de TEST envoyée au jeton fourni (le sien) → vérifier la réception app fermée.
+    if (body && body.action === 'testSelf') {
+      const uid = await verifyFirebaseIdToken(body.firebaseIdToken);
+      if (!uid) return cors(json({ error: 'auth requise' }, 401), origin);
+      const tk = body.token;
+      if (!tk) return cors(json({ error: 'missing token' }, 400), origin);
+      let saT;
+      try { saT = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); }
+      catch (e) { return cors(json({ error: 'service account manquant/invalide' }, 500), origin); }
+      try {
+        const tok = await getAccessToken(saT);
+        const r = await fcmSend(saT.project_id, tok, tk, '🔔 Test 3T TECH',
+          'Notif de test — si tu la vois app FERMÉE, les notifications marchent 👍', APP_URL, 'test');
+        return cors(json({ ok: r.ok, gone: r.gone }), origin);
+      } catch (e) { return cors(json({ error: String((e && e.message) || e) }, 500), origin); }
+    }
+
     const id = body && body.id;
     if (!id) return cors(json({ error: 'missing id' }, 400), origin);
 
