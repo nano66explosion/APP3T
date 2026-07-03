@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b121 (fix chrono : le bloc plantait quand aucun chrono ne tourne)';
+const APP_VERSION = '2026-07-03 · b122 (diagnostic notifications detaille sur le bouton test)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1445,6 +1445,21 @@ function refreshPushRegistration(){
 function isPushDisabled(){ return localStorage.getItem('3t_push_disabled') === '1'; }
 function notifActive(){ return notifSupported() && Notification.permission === 'granted' && !isPushDisabled(); }
 // #39 — Envoie une notif de TEST à cet appareil (via le Worker) pour vérifier la réception app fermée.
+async function pushDiag(){
+  let sup = 'n/a';
+  try{ if(typeof firebase!=='undefined' && firebase.messaging && firebase.messaging.isSupported){ sup = String(await firebase.messaging.isSupported()); } }
+  catch(e){ sup = 'err'; }
+  return [
+    'iOS: '+(isIOS()?'oui':'non'),
+    'installee (ecran accueil): '+(isStandalone()?'OUI':'NON'),
+    'Notification API: '+(('Notification' in window)?'ok':'MANQUE'),
+    'serviceWorker: '+(('serviceWorker' in navigator)?'ok':'MANQUE'),
+    'PushManager: '+(('PushManager' in window)?'ok':'MANQUE'),
+    'permission: '+((typeof Notification!=='undefined')?Notification.permission:'n/a'),
+    'FCM isSupported: '+sup,
+    'raison: '+(_lastPushErr||'?')
+  ].join('\n');
+}
 async function testPushNotif(){
   if(!notifSupported()){
     toast(isIOS()&&!isStandalone() ? '📲 Installe l\'app sur l\'écran d\'accueil (iPhone) pour les notifs' : 'Notifications non supportées ici', 'err');
@@ -1455,7 +1470,7 @@ async function testPushNotif(){
   showBusy(true);
   try{
     if(!token){ await enablePush(); token = localStorage.getItem('3t_push_token'); }
-    if(!token){ toast('Aucun jeton push (' + (_lastPushErr||'?') + '). Vérifie : app installée sur l\'écran d\'accueil + notifs autorisées, puis désactive/réactive les rappels.', 'err'); return; }
+    if(!token){ const d = await pushDiag(); try{ alert('DIAGNOSTIC NOTIFICATIONS\n\n' + d); }catch(e){} toast('Aucun jeton push — voir le diagnostic', 'err'); return; }
     const user = await ensureFirebaseReady();
     if(!user){ toast('Session non prête — reconnecte-toi', 'err'); return; }
     const idToken = await user.getIdToken();
