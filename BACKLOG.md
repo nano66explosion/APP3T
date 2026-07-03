@@ -496,18 +496,18 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 ### 🆕 Idées & améliorations à venir (proposées le 2026-07-03)
 
 **Ajouts possibles :**
-- [ ] **31. Notif « consommable à racheter »** — quand un régisseur signale un manque sur une fiche spectacle, prévenir l'équipe (via Worker/notifyAll, respecter la préf. « info »). Complète la fiche spectacle (#30).
-- [ ] **32. Notif « nouvelle répétition »** — comme les formations : prévenir quand une répétition est ajoutée dans le plan tech.
-- [ ] **33. Rappel « chrono oublié »** — si un chrono heures supp tourne depuis > ~6 h, notification « tu as oublié d'arrêter le chrono ? » (le start est déjà persistant, cf. #28).
+- [x] **31. Notif « consommable à racheter »** — ✅ FAIT (b116). `addSpecItem` → `notifyAll` (pref « info », exclut l'auteur).
+- [x] **32. Notif « nouvelle répétition »** — ✅ FAIT (b116). `submitRepet` → `notifyAll` (à l'ajout, pas au retrait).
+- [x] **33. Rappel « chrono oublié »** — ✅ FAIT (b116). > 6 h : bloc/pastille en orange + notif locale « tu as oublié d'arrêter ? » (1×/chrono, au retour au 1er plan / lancement, `hsTimerCheckForgotten`).
 - [ ] **34. Marqueur 🛒 sur le calendrier** — un repère sur les jours où un spectacle a des consommables en attente (aujourd'hui seulement sur la carte du détail).
 - [ ] **35. Historique des consommables** — garder qui a racheté quoi et quand (au lieu de juste retirer) → traçabilité / réappro récurrent.
-- [ ] **36. Congés / absences / dispos** — chacun indique ses indispos ; visibles en vue équipe → aide à répartir les régies (Firestore, comme les notes).
+- [x] **36. Congés / absences / dispos** — ✅ FAIT (b117). Menu Plus → 🌴 Mes congés (Firestore `availability`, 1 doc/régisseur) ; bandeau « 🌴 Indisponible ce jour : … » dans le détail du jour. **Règle Firestore `availability` à publier.**
 - [ ] **37. Photos dans la fiche spectacle** — plan de feu / implantation en image (⚠️ nécessite Firebase Storage = plan Blaze, ou lien Drive).
 
 **Améliorations / fiabilisation :**
 - [ ] **38. Bilan heures supp mensuel exportable** (lié à #12) — total + détail + rappel des lignes « ⚠️ à justifier » encore ouvertes ; export/partage.
-- [ ] **39. Vérifier & fiabiliser les notifs push app fermée sur iPhone** (b95) — c'est le point le plus fragile ; à confirmer en conditions réelles + éventuel diagnostic FCM/APNs.
-- [ ] **40. Session Google longue (Cloudflare)** — finir de valider le flux persistant sur iPhone (cf. « À surveiller / limites », b84) pour éviter les reconnexions.
+- [x] **39. Tester les notifs push app fermée** — ✅ OUTIL FAIT (b118). Paramètres → « 🔔 M'envoyer une notif de test » (`testPushNotif` + action Worker `testSelf`) → vérifier la réception app fermée en 1 clic. **La fiabilisation réelle dépend du résultat du test sur iPhone** (à faire par l'utilisateur ; on itère si ça ne passe pas).
+- [ ] **40. Session Google longue (Cloudflare)** — le code existe (b84, `persistEnabled`/`refreshViaWorker`/`startCodeRedirect`) ; reste à **valider sur iPhone réel** (redirection qui revient bien dans la PWA). Tâche de test/device, pas de code manquant.
 
 - [x] **1. Sélecteur de mois pour les heures supp** — consulter/déclarer un autre mois que le mois courant. *(NB : initialement listé, mais voir #1 dans "Faits récents" — encore à confirmer ; si non fait, à implémenter : menu mois dans la modale heure supp.)*
 - [x] **2. Barre de chargement** globale en haut (showBusy) sur les écritures/refresh. ✅ FAIT
