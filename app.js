@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b114 (aide mise à jour : répétitions, régie à 2, chrono, fiche spectacle)';
+const APP_VERSION = '2026-07-03 · b115 (Paramètres : bouton Partager l\'app — partage natif / copie du lien)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -812,6 +812,27 @@ function appIsOpen() {
 }
 
 // Fenêtre "Fichiers" : ouvrable depuis l'app, ou affichée d'office si rien n'est configuré
+// Lien de l'app à partager (URL déployée GitHub Pages ; l'URL courante si déjà dessus).
+function appShareUrl(){
+  const here = location.href.split('#')[0].split('?')[0];
+  return /github\.io$/i.test(location.host) ? here : 'https://nano66explosion.github.io/APP3T/calendrier_3T.html';
+}
+// Bouton « Partager » des Paramètres : menu de partage natif (mobile) sinon copie du lien.
+async function shareApp(){
+  const url = appShareUrl();
+  if(navigator.share){
+    try{ await navigator.share({ title: 'Calendrier 3T TECH', text: "Planning des régies du 3T — installe l'app :", url }); return; }
+    catch(e){ if(e && e.name === 'AbortError') return; }   // annulé par l'utilisateur → on ne fait rien
+  }
+  try{
+    await navigator.clipboard.writeText(url);
+    toast('🔗 Lien copié — colle-le où tu veux !', 'ok');
+  }catch(e){
+    try{ window.prompt("Copie le lien de l'app :", url); }
+    catch(e2){ toast('Lien : ' + url, 'ok'); }
+  }
+}
+
 function openSettingsModal() {
   document.getElementById('client-id-input').value = getClientId();
   refreshSavedFileLabel();
