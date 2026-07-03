@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b118 (bouton test notif app fermée #39 + action worker testSelf)';
+const APP_VERSION = '2026-07-03 · b119 (diagnostic jeton push : message d'erreur précis + SW ready avant getToken)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1386,23 +1386,29 @@ function subscribeScheduleSync(){
   }catch(e){ console.warn('subscribeScheduleSync:', e); }
 }
 // Récupère un jeton FCM pour cet appareil et l'enregistre dans Firestore
+let _lastPushErr = '';   // #39 - derniere raison d'echec d'obtention du jeton FCM (diagnostic)
 async function enablePush(){
-  if(!pushConfigured()){ return; }
-  if(isPushDisabled()){ return; }
-  if(!('serviceWorker' in navigator)){ return; }
-  if(Notification.permission !== 'granted'){ return; }
+  _lastPushErr = '';
+  if(!pushConfigured()){ _lastPushErr = 'config push absente'; return null; }
+  if(isPushDisabled()){ _lastPushErr = 'notifs desactivees dans l\'app'; return null; }
+  if(!('serviceWorker' in navigator)){ _lastPushErr = 'service worker non supporte'; return null; }
+  if(Notification.permission !== 'granted'){ _lastPushErr = 'permission navigateur non accordee'; return null; }
   initFirebase();
-  if(!_fbMessaging){ return; }
+  if(!_fbMessaging){ _lastPushErr = 'FCM non initialise (isSupported=false ? navigateur/appareil ?)'; return null; }
   try{
-    // Scope distinct pour ne pas écraser le service worker PWA (sw.js)
+    // Scope distinct pour ne pas ecraser le service worker PWA (sw.js)
     const reg = await navigator.serviceWorker.register('firebase-messaging-sw.js',
       { scope: './firebase-cloud-messaging-push-scope' });
+    try{ await navigator.serviceWorker.ready; }catch(e){}
     const token = await _fbMessaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
     if(token){
       localStorage.setItem('3t_push_token', token);
       await savePushToken(token);
+      return token;
     }
-  }catch(e){ console.warn('enablePush:', e); }
+    _lastPushErr = 'getToken a renvoye vide';
+    return null;
+  }catch(e){ _lastPushErr = (e && (e.message || e.code)) || 'echec getToken'; console.warn('enablePush:', e); return null; }
 }
 // Identifiant stable de CET appareil (1 entrée par appareil → pas de doublons)
 function getDeviceId(){
@@ -1449,7 +1455,7 @@ async function testPushNotif(){
   showBusy(true);
   try{
     if(!token){ await enablePush(); token = localStorage.getItem('3t_push_token'); }
-    if(!token){ toast('Aucun jeton push — désactive puis réactive les rappels, puis rouvre l\'app', 'err'); return; }
+    if(!token){ toast('Aucun jeton push (' + (_lastPushErr||'?') + '). Vérifie : app installée sur l\'écran d\'accueil + notifs autorisées, puis désactive/réactive les rappels.', 'err'); return; }
     const user = await ensureFirebaseReady();
     if(!user){ toast('Session non prête — reconnecte-toi', 'err'); return; }
     const idToken = await user.getIdToken();
