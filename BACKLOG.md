@@ -3,7 +3,8 @@
 > Application web mono-fichier (`calendrier_3T.html`) pour gérer le planning des régies
 > d'un théâtre (3T), les heures, les heures supplémentaires et l'intermittence.
 > Déployée en PWA sur GitHub Pages.
-> **Dernière mise à jour : 2026-07-03** — version courante **b113**.
+> **Dernière mise à jour : 2026-07-03** — version courante **b124**.
+> 🎉 **Les notifications push app fermée FONCTIONNENT enfin** (validé sur iPhone iOS 26) — cf. fix b123 ci-dessous.
 
 ---
 
@@ -484,7 +485,24 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
     **Actions manuelles associées (utilisateur)** : ⚠️ redéployer le Worker Cloudflare (copier `worker.js` dans
     le dashboard, sinon les notifs de formation restent en data-only) ; sur chaque iPhone : app installée sur
     l'écran d'accueil + notifs autorisées + réouvrir (off/on des notifs pour régénérer un jeton propre).
-    Cron GitHub : nouveau code pris automatiquement au prochain run (rien à faire). **À TESTER iPhone réel.**
+    Cron GitHub : nouveau code pris automatiquement au prochain run (rien à faire).
+  - **🎉 CAUSE RACINE TROUVÉE ET CORRIGÉE — b123 (2026-07-03)** : malgré le fix b95, **aucune notif n'arrivait
+    JAMAIS**. Raison : dans `firebaseSignIn`, la ligne `_fbMessaging = firebase.messaging()` était placée **APRÈS**
+    un `try/catch` qui fait toujours `return` → **code mort, jamais exécuté** → `_fbMessaging` restait `null` →
+    `enablePush()` échouait (« FCM non initialisé ») → **aucun jeton FCM n'était jamais créé** → le cron/worker
+    n'avait aucun destinataire. **✅ FIX b123** : nouvelle fonction `initMessaging()` (avec `firebase.messaging.isSupported()`
+    async + handler `onMessage`), appelée **à la demande** par `enablePush()`. Depuis, un jeton est bien créé et
+    **les notifs arrivent app fermée** (validé iPhone iOS 26). **Outils de diag/test** : `pushDiag()` (capacités :
+    installée ?, PushManager, isSupported, permission) affiché sur le bouton test ; action Worker `testSelf`
+    (+ `delayMs`/`ctx.waitUntil` pour tester app fermée avec 8 s de délai, b124).
+  - **⚠️ Piège de dev appris (b119→b120)** : une **apostrophe non échappée** dans la constante `APP_VERSION`
+    (`d'erreur`) a cassé tout `app.js` (SyntaxError) → app morte. `new Function(src)` ne l'attrape PAS toujours si la
+    vérif est faite avant l'écriture. **→ APP_VERSION SANS apostrophe**, et re-vérifier le parsing APRÈS toute
+    édition de chaîne (idéalement via `(0,eval)(src)` dans un navigateur).
+  - **⚠️ GitHub Pages capricieux (2026-07-03)** : déploiements `pages-build-deployment` **échouaient par
+    intermittence** (rien ne montait en ligne malgré les push). Ajout de **`.nojekyll`** (site 100% statique →
+    pas de build Jekyll). En cas d'échec : **re-push (commit vide)** finit par passer. Le CDN Fastly ignore les
+    query-strings et cache ~10 min → la propagation peut prendre plusieurs minutes.
 - **Fichiers Drive** doivent être des **.xlsx** pour l'écriture (heures supp, plan tech xlsx).
 - **Colonnes du plan tech en dur** : un changement de structure du fichier casserait le parsing.
 
@@ -506,7 +524,9 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 
 **Améliorations / fiabilisation :**
 - [ ] **38. Bilan heures supp mensuel exportable** (lié à #12) — total + détail + rappel des lignes « ⚠️ à justifier » encore ouvertes ; export/partage.
-- [x] **39. Tester les notifs push app fermée** — ✅ OUTIL FAIT (b118). Paramètres → « 🔔 M'envoyer une notif de test » (`testPushNotif` + action Worker `testSelf`) → vérifier la réception app fermée en 1 clic. **La fiabilisation réelle dépend du résultat du test sur iPhone** (à faire par l'utilisateur ; on itère si ça ne passe pas).
+- [x] **39. Notifs push app fermée** — ✅ **FAIT & VALIDÉ (b123/b124, iPhone iOS 26)**. Cause racine = init FCM en
+  code mort (cf. section « À surveiller »). Bouton test « 🔔 M'envoyer une notif de test » (`testPushNotif`) + `pushDiag`
+  + action Worker `testSelf` (délai 8 s optionnel). **Les notifs marchent enfin de bout en bout.**
 - [ ] **40. Session Google longue (Cloudflare)** — le code existe (b84, `persistEnabled`/`refreshViaWorker`/`startCodeRedirect`) ; reste à **valider sur iPhone réel** (redirection qui revient bien dans la PWA). Tâche de test/device, pas de code manquant.
 
 - [x] **1. Sélecteur de mois pour les heures supp** — consulter/déclarer un autre mois que le mois courant. *(NB : initialement listé, mais voir #1 dans "Faits récents" — encore à confirmer ; si non fait, à implémenter : menu mois dans la modale heure supp.)*
