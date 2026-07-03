@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b115 (Paramètres : bouton Partager l\'app — partage natif / copie du lien)';
+const APP_VERSION = '2026-07-03 · b116 (notifs consommable + répétition ; alerte chrono oublié > 6 h)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1223,11 +1223,11 @@ document.addEventListener('visibilitychange', () => {
   if(document.visibilityState==='hidden'){
     if(typeof hsFlushCommit==='function') hsFlushCommit();
   } else if(document.visibilityState==='visible'){
-    if(typeof hsTimerRenderAll==='function'){ hsTimerRenderAll(); hsTimerEnsureInterval(); }
+    if(typeof hsTimerRenderAll==='function'){ hsTimerRenderAll(); hsTimerEnsureInterval(); hsTimerCheckForgotten(); }
   }
 });
 window.addEventListener('pagehide', () => { if(typeof hsFlushCommit==='function') hsFlushCommit(); });
-window.addEventListener('focus', () => { if(typeof hsTimerRenderAll==='function'){ hsTimerRenderAll(); hsTimerEnsureInterval(); } });
+window.addEventListener('focus', () => { if(typeof hsTimerRenderAll==='function'){ hsTimerRenderAll(); hsTimerEnsureInterval(); hsTimerCheckForgotten(); } });
 
 // ─── NOTIFICATIONS LOCALES ───────────────────────────────────────────────────
 function notifSupported(){ return 'Notification' in window; }
@@ -2160,7 +2160,7 @@ function launchApp() {
   // HS — écoule en arrière-plan les heures supp en attente si leur fichier existe désormais
   setTimeout(() => { if(accessToken && !offlineMode) hsFlushPending(false).catch(()=>{}); }, 5000);
   // Chrono heures supp : reprend l'affichage (pastille flottante) si un chrono tournait
-  hsTimerRenderAll(); hsTimerEnsureInterval();
+  hsTimerRenderAll(); hsTimerEnsureInterval(); hsTimerCheckForgotten();
   // #16 — si on arrive via le clic d'une notif (#today), aller à la régie du jour
   handleNotifNav();
 }
@@ -2538,6 +2538,15 @@ async function submitRepet(clear){
     else { await writeXlsxCell(getSavedFileId(), info.sheet, info.row0, col.c, value, !value); }
     await reloadPlanSilent();
     publishSchedule();   // #sync — republie → les autres téléphones rechargent (répét incluse)
+    // #32 — prévient l'équipe d'une nouvelle répétition (pas au retrait)
+    if(value){
+      const me = myRegName() || getMyReg() || '';
+      const salleLbl = salle==='3TC'?'3T Côté':salle==='GT'?'Grand Théâtre':salle;
+      const [Y,M,D] = iso.split('-').map(Number);
+      const moisStr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+      notifyAll('🪑 Répétition — ' + salleLbl, value + ' le ' + D + ' ' + moisStr[M-1] + ' (' + slot + ')',
+        { pref:'info', excludeReg:me, tag:'repet-'+iso, url:'calendrier_3T.html#today' });
+    }
     closeRepetModal();
     toast(value ? '✅ Répétition enregistrée' : '✅ Répétition retirée', 'ok');
   }catch(err){ errEl.textContent = '❌ ' + err.message; console.error(err); }
@@ -2930,6 +2939,9 @@ async function addSpecItem(){
     const FV=firebase.firestore.FieldValue;
     await _fbDb.collection('specSheets').doc(cur.key).set({ spec:cur.spec, updatedAt:new Date().toISOString(), items:FV.arrayUnion(item) }, {merge:true});
     if(appIsOpen()) renderCalendar();
+    // #31 — prévient l'équipe qu'il manque un consommable (respecte la préf « Infos équipe »)
+    notifyAll('🛒 À racheter — ' + cur.spec, label + (me ? ' (signalé par ' + me + ')' : ''),
+      { pref:'info', excludeReg:me, tag:'buy-'+cur.key, url:'' });
     toast('🛒 Ajouté à la liste','ok');
   }catch(e){ toast('❌ '+e.message,'err'); }
 }
@@ -3807,16 +3819,21 @@ function hsAddQuarterHours(hhmm, hours){
   let total = (((H*60 + M + Math.round(hours*60)) % 1440) + 1440) % 1440;
   return `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
 }
+const HS_TIMER_WARN_MS = 6*3600*1000;   // #33 — au-delà de 6 h, on suppose un oubli
 function hsTimerRenderAll(){
   const st = hsTimerState();
   const el = document.getElementById('hs-timer');
+  const long = st && (Date.now()-st.startedAt) > HS_TIMER_WARN_MS;   // chrono probablement oublié
   if(el){
     const nSeg = (st && st.segCount) ? st.segCount : 0;
+    const sub = long
+      ? `⚠️ En cours depuis ${hsFmtLong(Date.now()-st.startedAt)} — pense à l'arrêter${st.reg?' · '+st.reg:''}`
+      : `Heure supp en cours${st.reg?' · '+st.reg:''}${nSeg?` · ${nSeg} étape${nSeg>1?'s':''} enreg.`:''}`;
     el.innerHTML = st
-      ? `<div class="hs-timer-run">
+      ? `<div class="hs-timer-run${long?' hs-timer-late':''}">
            <div class="hs-timer-info"><span class="hs-timer-dot"></span>
              <div><div class="hs-timer-time">${hsFmtElapsed(Date.now()-st.startedAt)}</div>
-             <div class="hs-timer-sub">Heure supp en cours${st.reg?' · '+st.reg:''}${nSeg?` · ${nSeg} étape${nSeg>1?'s':''} enreg.`:''}</div></div>
+             <div class="hs-timer-sub">${sub}</div></div>
            </div>
            <div class="hs-timer-btns">
              <button class="hs-timer-step" onclick="hsTimerLap()">＋ Étape</button>
@@ -3827,8 +3844,23 @@ function hsTimerRenderAll(){
   }
   const fl = document.getElementById('hs-timer-float');
   if(fl){
-    if(st){ fl.style.display='flex'; fl.innerHTML = `<span class="hs-timer-dot"></span><span>${hsFmtElapsed(Date.now()-st.startedAt)}</span>`; }
+    if(st){ fl.style.display='flex'; fl.className = 'hs-timer-float' + (long?' hs-timer-float-late':''); fl.innerHTML = `<span class="hs-timer-dot"></span><span>${hsFmtElapsed(Date.now()-st.startedAt)}</span>`; }
     else { fl.style.display='none'; fl.innerHTML=''; }
+  }
+}
+// Format « 6 h 12 » pour l'alerte d'oubli
+function hsFmtLong(ms){ const m=Math.floor(ms/60000); return `${Math.floor(m/60)} h ${String(m%60).padStart(2,'0')}`; }
+// #33 — Notif locale si un chrono tourne depuis trop longtemps (1× par chrono).
+function hsTimerCheckForgotten(){
+  const st = hsTimerState(); if(!st) return;
+  if((Date.now()-st.startedAt) <= HS_TIMER_WARN_MS) return;
+  const flagKey = '3t_hs_timer_warned_' + st.startedAt;
+  if(localStorage.getItem(flagKey)) return;               // déjà prévenu pour CE chrono
+  try{ localStorage.setItem(flagKey, '1'); }catch(e){}
+  if(typeof notifActive==='function' && notifActive()){
+    showNotif('⏱️ Chrono toujours en cours', `Ton chrono d'heure supp tourne depuis ${hsFmtLong(Date.now()-st.startedAt)}. Tu as oublié de l'arrêter ?`, 'hs-timer');
+  } else {
+    toast(`⏱️ Chrono en cours depuis ${hsFmtLong(Date.now()-st.startedAt)} — pense à l'arrêter`, 'err');
   }
 }
 function hsTimerEnsureInterval(){

@@ -607,6 +607,12 @@ button:active{transform:scale(.96)}
 .hs-timer-dot{width:11px;height:11px;border-radius:50%;background:#4ade80;flex-shrink:0;animation:hspulse 1.4s ease-in-out infinite}
 @keyframes hspulse{0%{box-shadow:0 0 0 0 #4ade8099}70%{box-shadow:0 0 0 8px #4ade8000}100%{box-shadow:0 0 0 0 #4ade8000}}
 .hs-timer-float{position:fixed;right:14px;bottom:80px;z-index:50;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--c3t);color:var(--text);border-radius:22px;padding:8px 14px;font-family:'DM Mono',monospace;font-weight:700;font-size:14px;box-shadow:0 6px 18px rgba(0,0,0,.35);cursor:pointer}
+/* #33 — chrono oublié (> 6 h) : alerte orange */
+.hs-timer-run.hs-timer-late{border-color:#fb923c;background:#fb923c14}
+.hs-timer-run.hs-timer-late .hs-timer-dot{background:#fb923c}
+.hs-timer-run.hs-timer-late .hs-timer-sub{color:var(--c3tc);font-weight:600}
+.hs-timer-float-late{border-color:#fb923c!important}
+.hs-timer-float-late .hs-timer-dot{background:#fb923c}
 @media (min-width:768px){ .hs-timer-float{bottom:20px} }
 /* Heures supp : formulaire + liste */
 .hs-form{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1.1rem}
