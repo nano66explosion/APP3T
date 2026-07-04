@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-03 · b125 (notifs OK app fermee ; backlog + aide a jour)';
+const APP_VERSION = '2026-07-04 · b126 (fiche spectacle : derniere fois jouee + carte entierement cliquable + regie du jour)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2940,6 +2940,24 @@ async function loadOneSpecSheet(key){
   }catch(e){ console.warn('loadOneSpecSheet:', e); }
 }
 
+// Derniere fois que le spectacle a ete joue (date la plus recente <= aujourd'hui) -> {iso, salle, regs}.
+function specLastPlayed(spec){
+  if(!spec || !allDays || !allDays.length) return null;
+  const key = specKey(spec), todayIso = isoToday();
+  let best = null;
+  allDays.forEach(d => {
+    const iso = d.date.toISOString().slice(0,10);
+    if(iso > todayIso) return;
+    (d.entries||[]).forEach(e => {
+      if(e.salle === 'Tournee' || e.salle === 'Tournée' || e.cancelled) return;
+      if(specKey(e.spec) !== key) return;
+      if(!best || iso > best.iso){
+        best = { iso, salle:e.salle, regs:(e.regies||[]).filter(r=>r.role!=='observateur').map(r=>r.reg) };
+      }
+    });
+  });
+  return best;
+}
 function renderSpecSheet(){
   const cur=_specCur; if(!cur) return;
   const t=document.getElementById('spec-title'); if(t) t.textContent = '🎭 ' + cur.spec;
@@ -2955,10 +2973,23 @@ function renderSpecSheet(){
   } else {
     details += `<span class="spec-chip spec-chip-muted">Pas dans la base heures</span>`;
   }
+  // Derniere fois joue (date + salle + regisseur)
+  const lp = specLastPlayed(cur.spec);
+  let lpHtml = '';
+  if(lp){
+    const _m=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+    const [LY,LM,LD]=lp.iso.split('-').map(Number);
+    const lsalle = lp.salle==='3TC'?'3T Côté':lp.salle==='GT'?'Grand Théâtre':lp.salle;
+    const who = lp.regs.length ? lp.regs.join(', ') : 'personne assigné';
+    lpHtml = `<div class="spec-lastplayed">🎬 Dernière fois : <b>${LD} ${_m[LM-1]} ${LY}</b> &middot; ${escapeHtml(lsalle)} &middot; <b>${escapeHtml(who)}</b></div>`;
+  } else {
+    lpHtml = `<div class="spec-lastplayed spec-lp-none">Pas encore joué (aucune date passée trouvée)</div>`;
+  }
   const body = document.getElementById('spec-body');
   if(!body) return;
   body.innerHTML = `
     <div class="spec-details">${details}</div>
+    ${lpHtml}
     <div class="spec-sec">🛒 Consommables à racheter</div>
     <div id="spec-items"></div>
     <div class="spec-add">
@@ -3033,7 +3064,7 @@ async function saveSpecInfo(){
 // HTML d'un nom de spectacle cliquable (ouvre la fiche) + badge 🛒 si consommables en attente.
 function specNameHTML(spec, salle, extraStyle){
   if(!spec) return `<span class="ev-name">—</span>`;
-  return `<span class="ev-name ev-name-link" data-spec="${escapeHtml(spec)}" data-salle="${escapeHtml(salle||'')}" onclick="openSpecSheet(this.dataset.spec, this.dataset.salle)"${extraStyle?` style="${extraStyle}"`:''}>${escapeHtml(spec)} ›</span>`;
+  return `<span class="ev-name ev-name-link" data-spec="${escapeHtml(spec)}" data-salle="${escapeHtml(salle||'')}" onclick="event.stopPropagation(); openSpecSheet(this.dataset.spec, this.dataset.salle)"${extraStyle?` style="${extraStyle}"`:''}>${escapeHtml(spec)} ›</span>`;
 }
 function specBuyBadge(spec){ return specHasItems(spec) ? '<span class="ev-badge bdg-buy" title="Consommables à racheter">🛒</span>' : ''; }
 
@@ -5242,7 +5273,9 @@ function renderDetail(reg, y, m, dayMap, teamMode) {
       // Bouton "se positionner" / "se retirer" (fonctionne en perso ET en équipe)
       const actionHTML = posActionHTML(e, y, m, dateLabel);
 
-      cardsHTML += `<div class="event-card ${cls}">
+      const _fiche = (e.spec && e.salle!=='Tournée' && !e.cancelled);
+      const _cardClick = _fiche ? ` data-spec="${escapeHtml(e.spec)}" data-salle="${escapeHtml(e.salle)}" onclick="if(!event.target.closest('button')) openSpecSheet(this.dataset.spec, this.dataset.salle)"` : '';
+      cardsHTML += `<div class="event-card ${cls}${_fiche?' card-clickable':''}"${_cardClick}>
         <div class="ev-top">
           ${specNameHTML(e.spec, e.salle, e.cancelled?'text-decoration:line-through;opacity:.6':'')}
           <div class="ev-badges">${specBuyBadge(e.spec)}${badges.join('')}</div>
@@ -5425,7 +5458,9 @@ function renderTodayCard(reg, dayMap) {
       ${i===0?`<div style="font-size:11px;color:var(--muted2);margin-bottom:4px">${dateStr}</div>`:''}
       <div style="display:flex;align-items:center;gap:8px">
         <div class="today-dot" style="background:${dotColor}"></div>
-        <div class="today-name" style="${nameStyle}">${e.spec||'—'}</div>
+        ${(e.spec && e.salle!=='Tournée')
+          ? `<div class="today-name today-name-link" style="${nameStyle}" data-spec="${escapeHtml(e.spec)}" data-salle="${escapeHtml(e.salle)}" onclick="openSpecSheet(this.dataset.spec, this.dataset.salle)">${escapeHtml(e.spec)} ›</div>`
+          : `<div class="today-name" style="${nameStyle}">${escapeHtml(e.spec||'—')}</div>`}
       </div>
       <div class="today-meta">${salleLabel}</div>
       ${badges.length ? `<div class="today-badges">${badges.join('')}</div>` : ''}
@@ -6094,7 +6129,9 @@ function eventCardHTML(e, reg, teamMode, posCtx) {
       : `${salleLabel}${withStr}`;
   }
   const action = posCtx ? posActionHTML(e, posCtx.y, posCtx.m, posCtx.dateLabel) : '';
-  return `<div class="event-card ${cls}${e.cancelled?' ecancel':''}">
+  const _fiche = (e.spec && e.salle!=='Tournée' && !e.cancelled);
+  const _cardClick = _fiche ? ` data-spec="${escapeHtml(e.spec)}" data-salle="${escapeHtml(e.salle)}" onclick="if(!event.target.closest('button')) openSpecSheet(this.dataset.spec, this.dataset.salle)"` : '';
+  return `<div class="event-card ${cls}${e.cancelled?' ecancel':''}${_fiche?' card-clickable':''}"${_cardClick}>
     <div class="ev-top">${specNameHTML(e.spec, e.salle)}<div class="ev-badges">${specBuyBadge(e.spec)}${badges.join('')}</div></div>
     <div class="ev-meta">${meta}</div>
     ${who}

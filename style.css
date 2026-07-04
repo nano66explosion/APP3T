@@ -574,11 +574,17 @@ button:active{transform:scale(.96)}
 .hs-pend{color:var(--c3tc);font-weight:600;white-space:nowrap}
 /* Fiche spectacle + consommables */
 .ev-name-link{cursor:pointer}
+.today-name-link{cursor:pointer}
+.today-name-link:active{opacity:.6}
+.event-card.card-clickable{cursor:pointer}
+.event-card.card-clickable:active{filter:brightness(1.12)}
 .ev-name-link:active{opacity:.6}
 .bdg-buy{background:#fb923c22;border:1px solid #fb923c66}
 .spec-details{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.9rem}
 .spec-chip{font-size:12px;font-weight:600;color:var(--c3t);background:#4ade8016;border:1px solid #4ade8040;border-radius:999px;padding:3px 10px;white-space:nowrap}
 .spec-chip.spec-chip-muted{color:var(--muted);background:var(--surface3);border-color:var(--border)}
+.spec-lastplayed{font-size:13px;color:var(--text);background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.5rem .65rem;margin-bottom:.9rem;line-height:1.4}
+.spec-lastplayed.spec-lp-none{color:var(--muted);font-style:italic}
 .spec-sec{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin:.4rem 0 .5rem}
 .spec-empty{font-size:13px;color:var(--muted);padding:.3rem 0 .6rem}
 .spec-item{display:flex;align-items:center;gap:8px;background:#fb923c14;border:1px solid #fb923c3a;border-radius:10px;padding:.5rem .65rem;margin-bottom:6px}
