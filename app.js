@@ -626,9 +626,14 @@ function parsePlanTech(wb){
     let lastDateObj=null, lastJour='';
     rows.forEach((row,ri)=>{
       if(ri<firstDataRow) return;
-      const jourRaw=String(row[0]||'').trim().toLowerCase();
-      const serial=rows[ri][1];
-      const hasDate = JOURS_V.some(j=>jourRaw.startsWith(j)) && typeof serial==='number' && serial>=40000;
+      // Normalement : jour en col A, date (serie Excel) en col B. Mais certains onglets
+      // ont A/B INVERSES (ex. « Sept 26 » du plan 26-27 : date en A, jour en B) → on gere les 2 ordres.
+      const _cA = row[0], _cB = rows[ri][1];
+      const _aStr = String(_cA||'').trim().toLowerCase(), _bStr = String(_cB||'').trim().toLowerCase();
+      let serial=null, jourRaw='';
+      if(JOURS_V.some(j=>_aStr.startsWith(j)) && typeof _cB==='number' && _cB>=40000){ serial=_cB; jourRaw=_aStr; }
+      else if(JOURS_V.some(j=>_bStr.startsWith(j)) && typeof _cA==='number' && _cA>=40000){ serial=_cA; jourRaw=_bStr; }
+      const hasDate = serial!==null;
       let dateObj, jour;
       if(hasDate){
         // Convert Excel serial to a UTC-based date ; year overridden by sheet header
@@ -768,7 +773,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-04 · b128 (selecteur de saison : bascule plan tech saison en cours / prochaine)';
+const APP_VERSION = '2026-07-04 · b129 (fix parsing : onglet avec colonnes date/jour inversees (ex. Sept 26))';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
