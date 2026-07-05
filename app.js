@@ -760,9 +760,15 @@ let planLoaded = false;
 const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com';
 // Fichiers Drive par défaut (chargés automatiquement — plus besoin de les sélectionner)
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
+// Saisons de plan tech disponibles (sélecteur dans Paramètres). L'app charge celle enregistrée
+// (3t_plan_file_id) ; par défaut la saison en cours. Chacun bascule quand il veut.
+const PLAN_SEASONS = [
+  { label: 'Saison 2025-26', id: '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_' },
+  { label: 'Saison 2026-27', id: '1IzIhgF-MmDCaGXetSAZTU3k6Owf0ey-q' },
+];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-04 · b127 (carte regie du jour cliquable + fix resume comptage par salle)';
+const APP_VERSION = '2026-07-04 · b128 (selecteur de saison : bascule plan tech saison en cours / prochaine)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -835,6 +841,7 @@ async function shareApp(){
 
 function openSettingsModal() {
   document.getElementById('client-id-input').value = getClientId();
+  if(typeof refreshSeasonSelect==='function') refreshSeasonSelect();
   refreshSavedFileLabel();
   refreshBaseLabel();
   // "Entrer dans l'app" utile seulement avant d'être entré, et si un plan est chargé
@@ -1835,6 +1842,41 @@ async function driveGetMeta(id){
 }
 
 // Configure plan tech + base heures depuis les IDs par défaut (si pas déjà fait)
+// Remplit le sélecteur de saison (Paramètres) et coche la saison actuellement chargée.
+function refreshSeasonSelect(){
+  const sel = document.getElementById('season-select');
+  if(!sel) return;
+  const cur = getSavedFileId();
+  sel.innerHTML = PLAN_SEASONS.map(s => `<option value="${s.id}"${s.id===cur?' selected':''}>${s.label}</option>`).join('');
+  // Si le fichier chargé n'est aucune saison connue (choisi à la main), on l'ajoute en tête.
+  if(cur && !PLAN_SEASONS.some(s => s.id===cur)){
+    const opt = document.createElement('option');
+    opt.value = cur; opt.textContent = (getSavedFileName() || 'Fichier actuel'); opt.selected = true;
+    sel.insertBefore(opt, sel.firstChild);
+  }
+}
+// Bascule vers une autre saison (autre fichier plan tech) : recharge tout et re-rend.
+async function switchSeason(id){
+  if(!id || id === getSavedFileId()) return;
+  if(typeof blockIfOffline==='function' && blockIfOffline()){ refreshSeasonSelect(); return; }
+  if(!accessToken){ toast("Reconnecte-toi à Google d'abord.", 'err'); refreshSeasonSelect(); return; }
+  showBusy(true);
+  try{
+    const m = await driveGetMeta(id);
+    localStorage.setItem('3t_plan_file_id', m.id);
+    localStorage.setItem('3t_plan_file_name', m.name);
+    localStorage.setItem('3t_plan_file_mime', m.mimeType);
+    await loadPlanTechById(m.id, m.name, m.mimeType);   // parse + afterPlanLoaded (populateSelects + render)
+    try{ goToday(); }catch(e){}
+    if(typeof refreshSavedFileLabel==='function') refreshSavedFileLabel();
+    const lbl = (PLAN_SEASONS.find(x=>x.id===id)||{}).label || m.name;
+    toast('📅 ' + lbl + ' chargée', 'ok');
+    if(typeof publishSchedule==='function') publishSchedule();
+    if(typeof closeSettingsModal==='function') closeSettingsModal();
+  }catch(e){ toast('❌ ' + e.message, 'err'); console.error(e); refreshSeasonSelect(); }
+  finally{ showBusy(false); }
+}
+
 async function ensureDefaultFiles(){
   if(!getSavedFileId() && DEFAULT_PLAN_ID){
     const m = await driveGetMeta(DEFAULT_PLAN_ID);

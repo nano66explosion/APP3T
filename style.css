@@ -576,6 +576,7 @@ button:active{transform:scale(.96)}
 .ev-name-link{cursor:pointer}
 .today-name-link{cursor:pointer}
 .today-name-link:active{opacity:.6}
+#season-select{background:var(--surface3);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:16px;color:var(--text);font-family:inherit;-webkit-appearance:none;appearance:none}
 .event-card.card-clickable,.today-card.card-clickable{cursor:pointer}
 .event-card.card-clickable:active,.today-card.card-clickable:active{filter:brightness(1.12)}
 .ev-name-link:active{opacity:.6}
