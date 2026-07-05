@@ -762,7 +762,7 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-04 · b126 (fiche spectacle : derniere fois jouee + carte entierement cliquable + regie du jour)';
+const APP_VERSION = '2026-07-04 · b127 (carte regie du jour cliquable + fix resume comptage par salle)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5450,7 +5450,9 @@ function renderTodayCard(reg, dayMap) {
     if (others.length) badges.push(`<span class="today-badge">avec ${others.join(', ')}</span>`);
     const nameStyle = e.cancelled ? 'color:#f87171;text-decoration:line-through' : '';
 
-    cardsHTML += `<div class="today-card ${cls}"${i>0?' style="margin-top:6px"':''}>
+    const _tFiche = (e.spec && e.salle!=='Tournée' && !e.cancelled);
+    const _tClick = _tFiche ? ` data-spec="${escapeHtml(e.spec)}" data-salle="${escapeHtml(e.salle)}" onclick="if(!event.target.closest('button')) openSpecSheet(this.dataset.spec, this.dataset.salle)"` : '';
+    cardsHTML += `<div class="today-card ${cls}${_tFiche?' card-clickable':''}"${i>0?' style="margin-top:6px"':''}${_tClick}>
       <div class="today-top">
         <span class="today-label">Régie du jour${entries.length>1?' ('+(i+1)+'/'+entries.length+')':''}</span>
         <span style="font-size:11px;color:var(--muted)">${i===0?timeStr:''}</span>
@@ -5459,7 +5461,7 @@ function renderTodayCard(reg, dayMap) {
       <div style="display:flex;align-items:center;gap:8px">
         <div class="today-dot" style="background:${dotColor}"></div>
         ${(e.spec && e.salle!=='Tournée')
-          ? `<div class="today-name today-name-link" style="${nameStyle}" data-spec="${escapeHtml(e.spec)}" data-salle="${escapeHtml(e.salle)}" onclick="openSpecSheet(this.dataset.spec, this.dataset.salle)">${escapeHtml(e.spec)} ›</div>`
+          ? `<div class="today-name today-name-link" style="${nameStyle}" data-spec="${escapeHtml(e.spec)}" data-salle="${escapeHtml(e.salle)}" onclick="event.stopPropagation(); openSpecSheet(this.dataset.spec, this.dataset.salle)">${escapeHtml(e.spec)} ›</div>`
           : `<div class="today-name" style="${nameStyle}">${escapeHtml(e.spec||'—')}</div>`}
       </div>
       <div class="today-meta">${salleLabel}</div>
@@ -6363,8 +6365,9 @@ function renderResume(reg, y, m) {
     (dayMap[d]||[]).forEach(e => {
       if (e.salle === 'Tournée') { nTournees++; return; }
       if (e.myRole === 'observateur' || e.unassigned) return;
-      const key = e.spec || '—';
-      if (!specMap[key]) specMap[key] = {count:0, salle:e.salle, cls:''};
+      const specName = e.spec || '—';
+      const key = specName + '|' + e.salle;   // separer par SALLE (une meme piece peut jouer en 2 salles)
+      if (!specMap[key]) specMap[key] = {name:specName, count:0, salle:e.salle, cls:''};
       specMap[key].count++;
     });
   }
@@ -6378,7 +6381,7 @@ function renderResume(reg, y, m) {
   if (specs.length === 0) {
     specsHTML = '<div style="color:var(--muted);font-size:13px;padding:.5rem 0">Aucun spectacle forfaité</div>';
   } else {
-    specs.forEach(([name, data]) => {
+    specs.forEach(([key, data]) => {
       const color = salleColor[data.salle] || 'var(--cgt)';
       const pct = Math.round((data.count / maxCount) * 100);
       const salleLabel = data.salle==='3TC'?'3T Côté':data.salle==='GT'?'Grand Théâtre':data.salle;
@@ -6386,7 +6389,7 @@ function renderResume(reg, y, m) {
         <div class="resume-dot" style="background:${color}"></div>
         <div style="flex:1">
           <div style="display:flex;justify-content:space-between;align-items:center">
-            <span class="resume-name">${name}</span>
+            <span class="resume-name">${data.name}</span>
             <span class="resume-count">${data.count}× · ${salleLabel}</span>
           </div>
           <div class="resume-bar-wrap"><div class="resume-bar-fill" style="width:${pct}%;background:${color}"></div></div>

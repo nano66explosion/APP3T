@@ -576,8 +576,8 @@ button:active{transform:scale(.96)}
 .ev-name-link{cursor:pointer}
 .today-name-link{cursor:pointer}
 .today-name-link:active{opacity:.6}
-.event-card.card-clickable{cursor:pointer}
-.event-card.card-clickable:active{filter:brightness(1.12)}
+.event-card.card-clickable,.today-card.card-clickable{cursor:pointer}
+.event-card.card-clickable:active,.today-card.card-clickable:active{filter:brightness(1.12)}
 .ev-name-link:active{opacity:.6}
 .bdg-buy{background:#fb923c22;border:1px solid #fb923c66}
 .spec-details{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.9rem}
