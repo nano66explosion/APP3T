@@ -378,7 +378,8 @@ const REPET_SLOTS = [
 const JOURS_V=['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'];
 
 let allDays=[], allMois=[], allRegs=[];
-let _dateRowIndex={};   // iso → {sheet,row0,repCols} pour écrire les répétitions (rempli au chargement Drive)
+let _dateRowIndex={};   // iso → {sheet,row0,repCols,file} pour écrire les répétitions (rempli au chargement Drive)
+let _planFiles={};      // fileId → {mime,name} : les fichiers plan tech chargés (calendrier continu multi-saisons)
 // Cellules "barrées" (spectacles annulés) et "orange" (artistes invités) : "Feuille!REF"
 let struckCells = new Set();
 let guestCells = new Set();
@@ -570,7 +571,8 @@ function detectRepetCols(rows){
   }catch(e){ console.warn('detectRepetCols:', e); return null; }
 }
 
-function parsePlanTech(wb){
+function parsePlanTech(wb, fileId){
+  fileId = fileId || getSavedFileId();
   const days=[];
   const regSet=new Set();
   const dateRows={};   // iso → {sheet,row0,repCols} : ligne primaire d'une date (écriture des répét)
@@ -682,8 +684,8 @@ function parsePlanTech(wb){
         if(specNom||special||regies.length>0)
           entries.push({salle:slot.salle,h:rowTime||slot.h,spec:specNom,special,regies,cancelled,guest,
             unassigned:regies.length===0&&!!specNom,
-            // Provenance pour pouvoir écrire dans le Google Sheet
-            src:{sheet:sheetName,row0:ri,col0:slot.cR,rawReg:regRaw}});
+            // Provenance pour pouvoir écrire dans le Google Sheet (file = quel fichier saison)
+            src:{sheet:sheetName,row0:ri,col0:slot.cR,rawReg:regRaw,file:fileId}});
       });
 
       // Tournée: scan entire cell text for reg names
@@ -716,14 +718,14 @@ function parsePlanTech(wb){
       REP.forEach(rp=>{
         const txt=String(row[rp.c]||'').trim();
         if(!txt) return;
-        repets.push({salle:rp.salle,slot:rp.slot,text:txt,src:{sheet:sheetName,row0:ri,col0:rp.c}});
+        repets.push({salle:rp.salle,slot:rp.slot,text:txt,src:{sheet:sheetName,row0:ri,col0:rp.c,file:fileId}});
       });
       // Index date→ligne primaire (uniquement les lignes datées) → sait où écrire une répét,
       // même pour un jour sans spectacle (la ligne existe dans le fichier).
-      if(hasDate){ dateRows[dateObj.toISOString().slice(0,10)]={sheet:sheetName,row0:ri,repCols:REP}; }
+      if(hasDate){ dateRows[dateObj.toISOString().slice(0,10)]={sheet:sheetName,row0:ri,repCols:REP,file:fileId}; }
 
       if(entries.length>0 || repets.length>0)
-        days.push({date:dateObj,jour,entries,repets,rowRef:{sheet:sheetName,row0:ri}});
+        days.push({date:dateObj,jour,entries,repets,rowRef:{sheet:sheetName,row0:ri,file:fileId}});
     });
   });
 
@@ -767,15 +769,16 @@ const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.go
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
 // #37 — dossier Drive contenant un sous-dossier par spectacle (photos / plan de feu / implantation)
 const SPEC_PHOTOS_FOLDER_ID = '1eGBxIRyvaRRkPEiVHvxCF21gwiGjAl6m';
-// Saisons de plan tech disponibles (sélecteur dans Paramètres). L'app charge celle enregistrée
-// (3t_plan_file_id) ; par défaut la saison en cours. Chacun bascule quand il veut.
+// Saisons de plan tech : TOUTES chargées et fusionnées en un calendrier CONTINU
+// (les mois des 2 saisons se suivent). Chaque cellule garde sa provenance (fichier)
+// pour que l'écriture (positionnement, répét) aille dans le bon fichier.
 const PLAN_SEASONS = [
   { label: 'Saison 2025-26', id: '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_' },
   { label: 'Saison 2026-27', id: '1IzIhgF-MmDCaGXetSAZTU3k6Owf0ey-q' },
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-06 · b131 (stats avancees + marqueur 🛒 calendrier + historique consommables + photos fiche)';
+const APP_VERSION = '2026-07-06 · b132 (calendrier continu : les 2 saisons se suivent, fin du selecteur de saison)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1013,16 +1016,8 @@ async function onAuthenticated() {
   // Configure automatiquement plan tech + base depuis les IDs par défaut
   try { setStatus('⏳ Préparation des fichiers…'); await ensureDefaultFiles(); }
   catch(e){ console.warn('ensureDefaultFiles:', e); }
-  const savedId = getSavedFileId();
-  if (savedId) {
-    setStatus(`⏳ Chargement de "${getSavedFileName()}"…`);
-    setStep('plan','loading');
-    await loadPlanTechById(savedId, getSavedFileName(), getSavedFileMime());
-  } else {
-    setStep('plan','error');
-    setStatus('Choisis ton plan tech pour commencer.');
-    openSettingsModal();
-  }
+  setStatus('⏳ Chargement des plans tech (saisons)…');
+  await loadPlanContinuous();
 }
 
 // Demande un jeton en silence (sans popup) — utilisé si le cache a expiré
@@ -1808,13 +1803,14 @@ function pickDriveFile(kind) {
           // Première config (plan chargé mais pas encore entré) → on entre
           if (!appIsOpen() && planLoaded) launchApp();
         } else {
-          // Save for next time
+          // Save for next time — ajouté au calendrier CONTINU (en plus des saisons)
           localStorage.setItem('3t_plan_file_id', file.id);
           localStorage.setItem('3t_plan_file_name', file.name);
           localStorage.setItem('3t_plan_file_mime', file.mimeType);
+          try{ localStorage.setItem('3t_planmeta_'+file.id, JSON.stringify({ name:file.name, mime:file.mimeType })); }catch(e){}
           document.getElementById('btn-change-file').style.display = 'block';
           setStatus(`⏳ Chargement de "${file.name}"…`);
-          await loadPlanTechById(file.id, file.name, file.mimeType);
+          await loadPlanContinuous();
         }
       })
       .build();
@@ -2199,6 +2195,87 @@ async function loadPlanTechById(fileId, fileName, mimeType) {
   }
 }
 
+// ─── CALENDRIER CONTINU : charge et fusionne TOUS les fichiers saison ─────────
+// Liste des fichiers plan à charger : les saisons connues + un éventuel fichier
+// choisi à la main (ajouté au calendrier continu, pas en remplacement).
+function planFileList(){
+  const list = PLAN_SEASONS.map(s => ({ id:s.id, label:s.label }));
+  const saved = getSavedFileId();
+  if(saved && !list.some(x => x.id===saved)) list.push({ id:saved, label:getSavedFileName()||'Fichier perso' });
+  return list;
+}
+// Métadonnées d'un fichier plan (mime/nom) avec cache localStorage (évite 1 appel Drive/boot).
+async function getPlanMeta(id){
+  const ck = '3t_planmeta_' + id;
+  try{ const c = JSON.parse(localStorage.getItem(ck)||'null'); if(c && c.mime) return { id, name:c.name||'', mime:c.mime }; }catch(e){}
+  const m = await driveGetMeta(id);
+  try{ localStorage.setItem(ck, JSON.stringify({ name:m.name, mime:m.mimeType })); }catch(e){}
+  return { id:m.id, name:m.name, mime:m.mimeType };
+}
+// Fusionne plusieurs plans parsés en un seul calendrier continu.
+function mergeParsed(list){
+  const map = new Map(), dateRows = {}, regSet = new Set(), moisMap = new Map();
+  list.forEach(p => {
+    (p.days||[]).forEach(d => {
+      const k = d.date.toISOString().slice(0,10);
+      if(!map.has(k)) map.set(k, { date:d.date, jour:d.jour, entries:[...d.entries], repets:[...(d.repets||[])], rowRef:d.rowRef });
+      else { const ex = map.get(k); ex.entries.push(...d.entries); ex.repets.push(...(d.repets||[])); }
+    });
+    Object.entries(p.dateRows||{}).forEach(([iso,v]) => { if(!dateRows[iso]) dateRows[iso] = v; });
+    (p.regs||[]).forEach(r => regSet.add(r));
+  });
+  const days = [...map.values()].sort((a,b) => a.date - b.date);
+  days.forEach(d => { const k = moisKey(d.date); if(!moisMap.has(k)) moisMap.set(k, moisLabel(d.date)); });
+  return {
+    days,
+    mois: [...moisMap.entries()].map(([k,l]) => ({k,l})),
+    regs: [...regSet].filter(Boolean).sort(),
+    dateRows
+  };
+}
+// Charge et fusionne tous les fichiers saison. Résilient : un fichier inaccessible est ignoré.
+async function loadAllPlans(){
+  const files = planFileList();
+  const parsed = [], allStruck = new Set(), allGuest = new Set(), okNames = [];
+  _planFiles = {};
+  for(const f of files){
+    try{
+      const meta = await getPlanMeta(f.id);
+      _planFiles[f.id] = { mime:meta.mime, name:meta.name };
+      const ab = await fetchDriveWorkbook(f.id, meta.mime);
+      const styles = await parseCellStyles(ab);
+      struckCells = styles.struck; guestCells = styles.guest;   // globals lus par parsePlanTech
+      const wb = XLSX.read(ab, { type:'array' });
+      parsed.push(parsePlanTech(wb, f.id));
+      styles.struck.forEach(x => allStruck.add(x));
+      styles.guest.forEach(x => allGuest.add(x));
+      okNames.push(meta.name || f.label);
+    }catch(e){ console.warn('loadAllPlans: échec', f.id, e); }
+  }
+  if(!parsed.length) throw new Error('Aucun plan tech chargé (fichiers Drive inaccessibles ?)');
+  struckCells = allStruck; guestCells = allGuest;
+  const merged = mergeParsed(parsed);
+  allDays = merged.days; allMois = merged.mois; allRegs = merged.regs; _dateRowIndex = merged.dateRows;
+  planLoaded = true;
+  return okNames;
+}
+// Boot : charge le calendrier continu (avec les étapes de statut + repli hors-ligne).
+async function loadPlanContinuous(){
+  try{
+    setStep('plan','loading');
+    const names = await loadAllPlans();
+    setStep('plan','done');
+    setStatus(`✅ ${names.length} saison(s) chargée(s)`);
+    afterPlanLoaded();
+  }catch(err){
+    setStep('plan','error'); console.error(err);
+    if(!appIsOpen() && offlineCacheInfo() && loadOfflineCache()){ loginStepsShow(false); enterOfflineMode(); return; }
+    setStatus('❌ Erreur de chargement — ' + err.message);
+  }
+}
+// Mime du fichier plan pour une provenance donnée (calendrier continu multi-fichiers).
+function planMimeFor(fileId){ return (_planFiles[fileId] || {}).mime || getSavedFileMime(); }
+
 // Après chargement du plan : charge la base heures puis entre / rafraîchit
 async function afterPlanLoaded() {
   // Si on change le plan alors qu'on est déjà dans l'app → simple rafraîchissement
@@ -2280,7 +2357,7 @@ function saveOfflineCache(){
   try{
     localStorage.setItem('3t_offline_cache', JSON.stringify({
       t: Date.now(),
-      allMois, allRegs, baseHeures, baseHeuresLoaded,
+      allMois, allRegs, baseHeures, baseHeuresLoaded, planFiles:_planFiles,
       struck: [...struckCells], guest: [...guestCells],
       days: allDays.map(d => ({ date: d.date.toISOString(), jour: d.jour, entries: d.entries, repets: d.repets || [] }))
     }));
@@ -2297,6 +2374,7 @@ function loadOfflineCache(){
     if(!data || !data.days) return false;
     allMois = data.allMois || [];
     allRegs = data.allRegs || [];
+    _planFiles = data.planFiles || {};
     baseHeures = data.baseHeures || {};
     baseHeuresLoaded = !!data.baseHeuresLoaded;
     struckCells = new Set(data.struck || []);
@@ -2634,15 +2712,16 @@ async function submitRepet(clear){
   if(!info){ errEl.textContent = 'Impossible de localiser ce jour dans le plan tech.'; return; }
   const col = (info.repCols || []).find(rc => rc.salle === salle && rc.slot === slot);
   if(!col){ errEl.textContent = 'Colonne répétition introuvable pour cette salle.'; return; }
-  const mime = getSavedFileMime();
+  const file = info.file || getSavedFileId();
+  const mime = planMimeFor(file);
   const isSheet = mime === 'application/vnd.google-apps.spreadsheet';
   const isXlsx  = mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   if(!isSheet && !isXlsx){ errEl.textContent = 'Type de fichier non modifiable (' + (mime||'inconnu') + ').'; return; }
   if(!hasWriteScope()){ errEl.textContent = 'Droit d\'écriture Google non accordé — reconnecte-toi.'; return; }
   try{
     showBusy(true);
-    if(isSheet){ await writeSheetCell(info.sheet, info.row0, col.c, value); }
-    else { await writeXlsxCell(getSavedFileId(), info.sheet, info.row0, col.c, value, !value); }
+    if(isSheet){ await writeSheetCell(file, info.sheet, info.row0, col.c, value); }
+    else { await writeXlsxCell(file, info.sheet, info.row0, col.c, value, !value); }
     await reloadPlanSilent();
     publishSchedule();   // #sync — republie → les autres téléphones rechargent (répét incluse)
     // #32 — prévient l'équipe d'une nouvelle répétition (pas au retrait)
@@ -4546,8 +4625,8 @@ function colLetter(n){
 }
 
 // Écrit une valeur dans une cellule du Google Sheets
-async function writeSheetCell(sheetName, row0, col0, value){
-  const id = getSavedFileId();
+async function writeSheetCell(fileId, sheetName, row0, col0, value){
+  const id = fileId || getSavedFileId();
   const cell = colLetter(col0) + (row0 + 1);
   const range = `'${String(sheetName).replace(/'/g,"''")}'!${cell}`;
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`;
@@ -4948,11 +5027,7 @@ async function hsFlushPending(silent){
 
 // Recharge le plan depuis Drive sans réinitialiser la vue (garde mois + jour ouverts)
 async function reloadPlanSilent(){
-  const ab = await fetchDriveWorkbook(getSavedFileId(), getSavedFileMime());
-  ({struck:struckCells, guest:guestCells} = await parseCellStyles(ab));
-  const wb = XLSX.read(ab, { type: 'array' });
-  const p = parsePlanTech(wb);
-  allDays = p.days; allMois = p.mois; allRegs = p.regs; _dateRowIndex = p.dateRows || {};
+  await loadAllPlans();       // recharge + refusionne toutes les saisons (calendrier continu)
   applyGuestBaseOverride();   // orange + dans la base = vraie pièce
   renderCalendar();
   saveOfflineCache();   // #19
@@ -5049,7 +5124,8 @@ async function doPosition(i){
   const a = dayActions[i];
   if(!a) return;
   const me = a.me;
-  const mime = getSavedFileMime();
+  const file = a.src.file || getSavedFileId();
+  const mime = planMimeFor(file);
   const isSheet = mime === 'application/vnd.google-apps.spreadsheet';
   const isXlsx  = mime === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   if(!isSheet && !isXlsx){
@@ -5072,9 +5148,9 @@ async function doPosition(i){
     const btn = document.getElementById('act-'+i);
     if(btn){ btn.disabled = true; btn.textContent = '⏳…'; }
     if(isSheet){
-      await writeSheetCell(a.src.sheet, a.src.row0, a.src.col0, newVal);
+      await writeSheetCell(file, a.src.sheet, a.src.row0, a.src.col0, newVal);
     } else {
-      await writeXlsxCell(getSavedFileId(), a.src.sheet, a.src.row0, a.src.col0, newVal, isRemove && !newVal);
+      await writeXlsxCell(file, a.src.sheet, a.src.row0, a.src.col0, newVal, isRemove && !newVal);
     }
     await reloadPlanSilent();
     publishSchedule();   // #16 — republie le planning après (dé)positionnement
