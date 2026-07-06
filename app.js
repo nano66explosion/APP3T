@@ -773,7 +773,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-04 · b129 (fix parsing : onglet avec colonnes date/jour inversees (ex. Sept 26))';
+const APP_VERSION = '2026-07-04 · b130 (selecteur de saison dans l en-tete + fix avatar hors saison)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3284,7 +3284,7 @@ function avatarFor(reg){
   return (reg || '').slice(0,2).toUpperCase();
 }
 function updateAvatar(){
-  const reg = getCurrentReg();
+  const reg = getCurrentReg() || getMyReg();
   const av = avatarFor(reg);
   const a1 = document.getElementById('reg-avatar'); if(a1) a1.textContent = av;
   const a2 = document.getElementById('hdr-reg-avatar'); if(a2) a2.textContent = av;
@@ -4925,11 +4925,14 @@ function resetApp(){
 
 function populateSelects(){
   const rs=document.getElementById('reg-select');
-  rs.innerHTML=allRegs.map(r=>`<option value="${r}">${r}</option>`).join('');
-  // Sélectionne mon régisseur par défaut s'il est connu
   const mine=getMyReg();
-  if(mine && allRegs.includes(mine)) rs.value=mine;
+  // Toujours inclure MON régisseur (profil), même s'il n'a aucune régie cette saison
+  // (sinon la liste/avatar deviennent vides en début de saison ou apres bascule de saison).
+  const regList = [...new Set([...(mine?[mine]:[]), ...allRegs])];
+  rs.innerHTML=regList.map(r=>`<option value="${r}">${r}</option>`).join('');
+  if(mine && regList.includes(mine)) rs.value=mine;
   updateAvatar();
+  if(typeof refreshSeasonSelect==='function') refreshSeasonSelect();   // sélecteur de saison dans l'en-tête
   const ms=document.getElementById('mois-select');
   ms.innerHTML=allMois.map(m=>`<option value="${m.k}">${m.l}</option>`).join('');
   if(allMois.length){

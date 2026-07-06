@@ -136,6 +136,11 @@
       <select id="reg-select" onchange="onRegChange()" style="max-width:130px"></select>
     </div>
   </div>
+  <!-- Sélecteur de saison (bascule le plan tech directement, sans passer par les Paramètres) -->
+  <div class="season-row">
+    <span class="season-lbl">📅 Saison</span>
+    <select id="season-select" onchange="switchSeason(this.value)"></select>
+  </div>
   <!-- Recherche globale (toutes vues) : bascule sur la Grille au premier caractère -->
   <div class="search-row" style="padding:.45rem 1rem .1rem">
     <span class="search-icon">🔍</span>
@@ -501,13 +506,6 @@
       <button onclick="closeSettingsModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;line-height:1">✕</button>
     </div>
     <div class="modal-sub">Choisis tes fichiers sur Google Drive. Ils sont mémorisés.</div>
-
-    <!-- Saison (choix du fichier plan tech) -->
-    <div class="settings-block">
-      <label class="file-label">📅 Saison</label>
-      <select id="season-select" onchange="switchSeason(this.value)" style="width:100%;margin-top:.4rem"></select>
-      <div style="font-size:11px;color:var(--muted);margin-top:.4rem;line-height:1.4">Bascule entre le plan tech de la saison en cours et celui de la saison prochaine. Le choix est propre à cet appareil.</div>
-    </div>
 
     <!-- Plan tech -->
     <div class="settings-block">
