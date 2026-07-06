@@ -778,7 +778,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-06 · b132 (calendrier continu : les 2 saisons se suivent, fin du selecteur de saison)';
+const APP_VERSION = '2026-07-06 · b133 (vue annee : spectacles sans regie affiches en contour, saison a venir visible)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -6586,9 +6586,11 @@ function renderYear(reg){
     let cells = '';
     for(let i=0;i<offset;i++) cells += '<span class="yd empty"></span>';
     for(let d=1; d<=nbDays; d++){
-      const has = (dayMap[d]||[]).some(e => !e.unassigned);
+      const es = dayMap[d]||[];
+      const has = es.some(e => !e.unassigned && !e.cancelled);          // régie assignée → plein (vert)
+      const showOnly = !has && es.some(e => e.unassigned && !e.cancelled); // spectacle sans régie → contour
       const isToday = (y===tY && m===tM && d===tD);
-      cells += `<span class="yd${has?' has':''}${isToday?' today':''}">${d}</span>`;
+      cells += `<span class="yd${has?' has':showOnly?' show':''}${isToday?' today':''}">${d}</span>`;
     }
     html += `<button class="year-month" onclick="gotoMonth('${mo.k}')">
       <div class="ym-title">${moisStr[m-1]} <span class="ym-y">${String(y).slice(2)}</span></div>

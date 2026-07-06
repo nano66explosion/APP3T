@@ -461,6 +461,7 @@ body.page-hsupp #page-hsupp{display:block}
 .yd{font-size:9px;text-align:center;color:var(--muted2);aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:50%;line-height:1}
 .yd.empty{visibility:hidden}
 .yd.has{background:var(--c3t);color:#08210f;font-weight:700}
+.yd.show{box-shadow:inset 0 0 0 1.5px var(--c3t);color:var(--c3t);font-weight:600}
 .yd.today{outline:1.5px solid var(--c3tc);outline-offset:-1px}
 @media(min-width:768px){.year-grid{grid-template-columns:repeat(3,1fr);gap:.7rem}}
 .vtab{flex:1;padding:6px 4px;font-size:12px;font-weight:500;color:var(--muted);background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-family:inherit;transition:all .15s;text-align:center}
