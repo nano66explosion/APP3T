@@ -89,11 +89,13 @@ async function sendTo(tokens, title, body, link, tag) {
 
 // ─── 1) Rappels « régie demain » ─────────────────────────────────────────────
 async function remindTomorrow(tokensByReg) {
-  // Le rappel « régie demain » ne part que le soir (17h–22h Paris), même si le
-  // cron tourne plusieurs fois par jour (la détection STOP, elle, tourne à chaque run).
+  // FILET DE SECOURS : l'envoi principal « régie demain » se fait à 19h pile via le
+  // cron Cloudflare (fiable). Ce cron GitHub ne sert qu'à rattraper si Cloudflare a
+  // échoué → il ne part donc PAS avant 19h (pour ne jamais pré-empter l'heure fixe),
+  // et pas après 22h. L'anti-doublon sentLog évite tout double envoi entre les deux.
   const parisNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
-  if (parisNow.getHours() < 17 || parisNow.getHours() >= 22) {
-    console.log('Régie demain — hors créneau du soir (17h–22h), on n\'envoie pas.');
+  if (parisNow.getHours() < 19 || parisNow.getHours() >= 22) {
+    console.log('Régie demain — hors créneau de rattrapage (19h–22h), on n\'envoie pas.');
     return;
   }
   const tomorrow = isoInParis(1);

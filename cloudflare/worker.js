@@ -21,6 +21,10 @@
    ─────────────────────────────────────────────────────────────────────────── */
 
 const APP_URL = 'https://nano66explosion.github.io/APP3T/calendrier_3T.html';
+// Heure fixe (Paris) d'envoi du rappel « régie demain » via le cron Cloudflare.
+// ⚠️ Doit correspondre aux Cron Triggers du dashboard : "0 17 * * *" (été → 19h Paris)
+// et "0 18 * * *" (hiver → 19h Paris). Changer ici = changer aussi les triggers.
+const REGIE_HOUR = 19;
 const FS = 'https://firestore.googleapis.com/v1/projects/';
 // Identifiants publics (déjà exposés dans l'app) — pour la session Drive persistante.
 const GOOGLE_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com';
@@ -261,8 +265,51 @@ export default {
   // Le contrôle d'heure Paris + l'anti-doublon sentLog évitent tout double envoi.
   async scheduled(event, env, ctx) {
     ctx.waitUntil(soireeReminder(env));
+    ctx.waitUntil(regieTomorrow(env));
   }
 };
+
+/* ── Rappel « régie demain » à heure fixe (porté de scripts/send-reminders.js) ──
+   Envoyé UNE fois, à REGIE_HOUR pile (Paris). Anti-doublon partagé avec le cron
+   GitHub (sentLog/reminders-<date>) → jamais de double envoi entre les deux. */
+async function regieTomorrow(env) {
+  let sa;
+  try { sa = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT); } catch (e) { return; }
+  const pid = sa.project_id;
+  const paris = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Paris' }));
+  if (paris.getHours() !== REGIE_HOUR) return;             // heure fixe uniquement
+  const t = new Date(paris); t.setDate(t.getDate() + 1);   // demain (Paris)
+  const tomorrow = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  const token = await getAccessToken(sa);
+  const sent = await firestoreGet(pid, token, `sentLog/reminders-${tomorrow}`);
+  if (sent) return;                                        // déjà envoyé (anti-doublon)
+  const sdoc = await firestoreGet(pid, token, 'schedule/v1');
+  if (!sdoc) return;
+  const days = (parseFields(sdoc.fields) || {}).days || {};
+  const entries = days[tomorrow] || [];
+  if (!entries.length) return;
+  const docs = await firestoreList(pid, token, 'pushTokens');
+  const tokensByReg = {};
+  for (const d of docs) {
+    const v = parseFields(d.fields || {});
+    if (!v.token || !v.reg) continue;
+    if ((v.prefs || {}).regie === false) continue;         // respecte la préférence « regie »
+    (tokensByReg[v.reg] = tokensByReg[v.reg] || new Set()).add(v.token);
+  }
+  const sLbl = s => s === '3TC' ? '3T Côté' : s === 'GT' ? 'Grand Théâtre' : s;
+  const perReg = {};
+  entries.forEach(e => (e.regs || []).forEach(reg => { (perReg[reg] = perReg[reg] || []).push(e); }));
+  let total = 0;
+  for (const reg in perReg) {
+    const toks = [...(tokensByReg[reg] || [])];
+    const body = perReg[reg].map(e => `${e.spec} · ${sLbl(e.salle)}${e.h ? ' ' + e.h : ''}`).join('\n');
+    for (const tk of toks) {
+      const r = await fcmSend(pid, token, tk, '🎭 Régie demain', body, APP_URL + '#today', 'regie-' + tomorrow);
+      if (r.ok) total++;
+    }
+  }
+  await firestorePatch(pid, token, `sentLog/reminders-${tomorrow}`, { at: new Date().toISOString(), count: total, by: 'cf-cron' });
+}
 
 /* ── Rappel bilan de soirée (porté de scripts/send-reminders.js) ─────────────── */
 async function soireeReminder(env) {
