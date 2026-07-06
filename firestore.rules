@@ -80,7 +80,8 @@ service cloud.firestore {
       allow create, update: if authed()
         && optStr(request.resource.data, 'spec', 200)
         && optStr(request.resource.data, 'info', 2000)
-        && (!('items' in request.resource.data) || smallList(request.resource.data.items, 100));
+        && (!('items' in request.resource.data) || smallList(request.resource.data.items, 100))
+        && (!('history' in request.resource.data) || smallList(request.resource.data.history, 1000));
     }
 
     // Congés / indisponibilités : 1 doc par régisseur.

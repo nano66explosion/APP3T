@@ -765,6 +765,8 @@ let planLoaded = false;
 const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com';
 // Fichiers Drive par défaut (chargés automatiquement — plus besoin de les sélectionner)
 const DEFAULT_PLAN_ID  = '1PVlsCn2SS3BmJaehNdjsh3xhjPhTCVh_';
+// #37 — dossier Drive contenant un sous-dossier par spectacle (photos / plan de feu / implantation)
+const SPEC_PHOTOS_FOLDER_ID = '1eGBxIRyvaRRkPEiVHvxCF21gwiGjAl6m';
 // Saisons de plan tech disponibles (sélecteur dans Paramètres). L'app charge celle enregistrée
 // (3t_plan_file_id) ; par défaut la saison en cours. Chacun bascule quand il veut.
 const PLAN_SEASONS = [
@@ -773,7 +775,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-04 · b130 (selecteur de saison dans l en-tete + fix avatar hors saison)';
+const APP_VERSION = '2026-07-06 · b131 (stats avancees + marqueur 🛒 calendrier + historique consommables + photos fiche)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2960,7 +2962,7 @@ async function loadSpecSheets(){
   try{
     const snap = await _fbDb.collection('specSheets').get();
     const map = {};
-    snap.forEach(doc => { const d=doc.data()||{}; map[doc.id]={ spec:d.spec||'', info:d.info||'', items:Array.isArray(d.items)?d.items:[] }; });
+    snap.forEach(doc => { const d=doc.data()||{}; map[doc.id]={ spec:d.spec||'', info:d.info||'', items:Array.isArray(d.items)?d.items:[], history:Array.isArray(d.history)?d.history:[] }; });
     _specSheets = map; _specSheetsSave();
     if(typeof appIsOpen==='function' && appIsOpen() && !offlineMode) renderCalendar();
   }catch(e){ console.warn('loadSpecSheets:', e); }
@@ -2980,8 +2982,8 @@ async function loadOneSpecSheet(key){
   initFirebase(); if(!_fbDb) return;
   try{
     const doc = await _fbDb.collection('specSheets').doc(key).get();
-    if(doc.exists){ const d=doc.data()||{}; _specSheets[key]={ spec:d.spec||'', info:d.info||'', items:Array.isArray(d.items)?d.items:[] }; }
-    else if(!_specSheets[key]) _specSheets[key]={ spec:_specCur?_specCur.spec:'', info:'', items:[] };
+    if(doc.exists){ const d=doc.data()||{}; _specSheets[key]={ spec:d.spec||'', info:d.info||'', items:Array.isArray(d.items)?d.items:[], history:Array.isArray(d.history)?d.history:[] }; }
+    else if(!_specSheets[key]) _specSheets[key]={ spec:_specCur?_specCur.spec:'', info:'', items:[], history:[] };
     _specSheetsSave();
     if(_specCur && _specCur.key===key) renderSpecSheet();
   }catch(e){ console.warn('loadOneSpecSheet:', e); }
@@ -3032,22 +3034,35 @@ function renderSpecSheet(){
   } else {
     lpHtml = `<div class="spec-lastplayed spec-lp-none">Pas encore joué (aucune date passée trouvée)</div>`;
   }
+  // #35 — historique des rachats (le plus récent d'abord)
+  const hist=(sheet.history||[]).slice().sort((a,b)=>String(b.boughtAt||'').localeCompare(String(a.boughtAt||'')));
+  let histHtml='';
+  if(hist.length){
+    const _m=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+    const fmtd = iso => { if(!iso) return ''; const dt=new Date(iso); return isNaN(dt)?'':`${dt.getDate()} ${_m[dt.getMonth()]} ${dt.getFullYear()}`; };
+    const rows = hist.map(h => `<div class="spec-hist-item"><span class="spec-hist-label">🧾 ${escapeHtml(h.label)}</span><span class="spec-hist-by">racheté par ${escapeHtml(h.boughtBy||'—')}${h.boughtAt?' · '+fmtd(h.boughtAt):''}</span></div>`).join('');
+    histHtml = `<details class="spec-hist"><summary>🧾 Historique des rachats (${hist.length})</summary><div class="spec-hist-list">${rows}</div></details>`;
+  }
   const body = document.getElementById('spec-body');
   if(!body) return;
   body.innerHTML = `
     <div class="spec-details">${details}</div>
     ${lpHtml}
+    <div class="spec-sec">📷 Photos / plan de feu</div>
+    <div id="spec-photos" class="spec-photos"></div>
     <div class="spec-sec">🛒 Consommables à racheter</div>
     <div id="spec-items"></div>
     <div class="spec-add">
       <input id="spec-item-input" class="fm-input" placeholder="ex. gaffer, piles AA, brouillard…" style="flex:1;margin-bottom:0" onkeydown="if(event.key==='Enter')addSpecItem()">
       <button class="go-btn" onclick="addSpecItem()" style="flex:0 0 auto;padding:0 16px">Ajouter</button>
     </div>
+    ${histHtml}
     <div class="spec-sec">📝 Infos / détails du spectacle</div>
     <textarea id="spec-info" class="fm-input" rows="3" placeholder="Plan de feu, particularités, contacts, réglages…" style="resize:vertical">${escapeHtml(sheet.info||'')}</textarea>
     <button class="fm-propose" onclick="saveSpecInfo()" style="margin-top:.5rem">💾 Enregistrer les infos</button>
   `;
   renderSpecItems();
+  loadSpecPhotos(cur.spec, cur.key);
 }
 function renderSpecItems(){
   const cur=_specCur; if(!cur) return;
@@ -3087,11 +3102,16 @@ async function removeSpecItem(id){
   const s=_specSheets[cur.key]; if(!s) return;
   const item=(s.items||[]).find(x=>x.id===id); if(!item) return;
   if(!confirm(`Marquer « ${item.label} » comme racheté (le retirer de la liste) ?`)) return;
-  s.items=(s.items||[]).filter(x=>x.id!==id); renderSpecItems(); _specSheetsSave();
+  // #35 — trace le rachat dans l'historique (qui a racheté quoi et quand)
+  const me=myRegName()||getMyReg()||'';
+  const hist={ id:item.id, label:item.label, by:item.by||'', at:item.at||'', boughtBy:me, boughtAt:new Date().toISOString() };
+  s.items=(s.items||[]).filter(x=>x.id!==id);
+  s.history=[...(s.history||[]), hist];
+  renderSpecSheet(); _specSheetsSave();
   initFirebase(); if(!_fbDb) return;
   try{
     const FV=firebase.firestore.FieldValue;
-    await _fbDb.collection('specSheets').doc(cur.key).set({ updatedAt:new Date().toISOString(), items:FV.arrayRemove(item) }, {merge:true});
+    await _fbDb.collection('specSheets').doc(cur.key).set({ updatedAt:new Date().toISOString(), items:FV.arrayRemove(item), history:FV.arrayUnion(hist) }, {merge:true});
     if(appIsOpen()) renderCalendar();
     toast('✅ Racheté','ok');
   }catch(e){ toast('❌ '+e.message,'err'); }
@@ -3114,6 +3134,70 @@ function specNameHTML(spec, salle, extraStyle){
   return `<span class="ev-name ev-name-link" data-spec="${escapeHtml(spec)}" data-salle="${escapeHtml(salle||'')}" onclick="event.stopPropagation(); openSpecSheet(this.dataset.spec, this.dataset.salle)"${extraStyle?` style="${extraStyle}"`:''}>${escapeHtml(spec)} ›</span>`;
 }
 function specBuyBadge(spec){ return specHasItems(spec) ? '<span class="ev-badge bdg-buy" title="Consommables à racheter">🛒</span>' : ''; }
+
+// ─── #37 PHOTOS DE LA FICHE SPECTACLE (depuis Drive) ─────────────────────────
+// Le dossier SPEC_PHOTOS_FOLDER_ID contient un sous-dossier par spectacle.
+// On matche le nom du spectacle → on liste les images du sous-dossier → on les
+// affiche en vignettes (chargées en blob via l'API Drive, clic = ouvre dans Drive).
+let _specPhotoFolders = null;              // [{id,name,norm}] — liste des sous-dossiers (cache session)
+const _specPhotoCache = {};                // key -> {found:bool, images:[{id,name,url}]}
+async function _listSpecPhotoFolders(){
+  if(_specPhotoFolders) return _specPhotoFolders;
+  const files = await driveListFolder(SPEC_PHOTOS_FOLDER_ID);
+  _specPhotoFolders = files.filter(f => f.mimeType===DRIVE_FOLDER_MIME)
+    .map(f => ({ id:f.id, name:f.name, norm:normSpec(f.name) }));
+  return _specPhotoFolders;
+}
+function _matchSpecFolder(folders, spec){
+  const n = normSpec(spec);
+  if(!n) return null;
+  let f = folders.find(x => x.norm === n);
+  if(f) return f;
+  // fallback : le nom du dossier commence par / contient le nom du spectacle (ou l'inverse)
+  const cand = folders.filter(x => x.norm && (x.norm.startsWith(n) || n.startsWith(x.norm) || x.norm.includes(n) || n.includes(x.norm)));
+  if(!cand.length) return null;
+  // le plus proche en longueur
+  cand.sort((a,b) => Math.abs(a.norm.length-n.length) - Math.abs(b.norm.length-n.length));
+  return cand[0];
+}
+async function loadSpecPhotos(spec, key){
+  const el = document.getElementById('spec-photos');
+  if(!el) return;
+  if(!accessToken){ el.innerHTML = '<div class="spec-empty">Reconnecte-toi à Google pour voir les photos.</div>'; return; }
+  // cache session
+  const cached = _specPhotoCache[key];
+  if(cached){ _renderSpecPhotos(el, cached, key); if(cached.images && cached.images.every(i=>i.url)) return; }
+  else el.innerHTML = '<div class="spec-empty">📷 Recherche des photos…</div>';
+  try{
+    const folders = await _listSpecPhotoFolders();
+    const folder = _matchSpecFolder(folders, spec);
+    if(!folder){ const r={found:false, images:[]}; _specPhotoCache[key]=r; if(_specCur&&_specCur.key===key) _renderSpecPhotos(el, r, key); return; }
+    const files = await driveListFolder(folder.id);
+    const imgs = files.filter(f => (f.mimeType||'').startsWith('image/'))
+      .map(f => ({ id:f.id, name:f.name, url:null }));
+    const rec = { found:true, folderId:folder.id, images:imgs };
+    _specPhotoCache[key] = rec;
+    if(_specCur && _specCur.key===key) _renderSpecPhotos(el, rec, key);
+    // charge les vignettes (blob) en parallèle, puis re-render
+    await Promise.all(imgs.map(async im => {
+      try{
+        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${im.id}?alt=media&supportsAllDrives=true`, { headers:{ Authorization:'Bearer '+accessToken } });
+        if(r.ok) im.url = URL.createObjectURL(await r.blob());
+      }catch(e){}
+    }));
+    if(_specCur && _specCur.key===key){ const el2=document.getElementById('spec-photos'); if(el2) _renderSpecPhotos(el2, rec, key); }
+  }catch(e){
+    if(_specCur && _specCur.key===key){ const el2=document.getElementById('spec-photos'); if(el2) el2.innerHTML = '<div class="spec-empty">Photos indisponibles ('+escapeHtml(e.message||'erreur')+').</div>'; }
+  }
+}
+function _renderSpecPhotos(el, rec, key){
+  if(!rec.found){ el.innerHTML = '<div class="spec-empty">Aucun dossier photo trouvé pour ce spectacle.</div>'; return; }
+  if(!rec.images.length){ el.innerHTML = '<div class="spec-empty">Dossier trouvé, mais aucune image.</div>'; return; }
+  el.innerHTML = rec.images.map(im => im.url
+    ? `<a class="spec-photo" href="https://drive.google.com/file/d/${im.id}/view" target="_blank" rel="noopener" title="${escapeHtml(im.name)}"><img src="${im.url}" alt="${escapeHtml(im.name)}" loading="lazy"></a>`
+    : `<div class="spec-photo spec-photo-loading" title="${escapeHtml(im.name)}">⏳</div>`
+  ).join('');
+}
 
 // ─── #36 CONGÉS / INDISPONIBILITÉS (partagé équipe, Firestore) ───────────────
 // Chacun marque ses jours d'indispo (congés) ; visibles par tous dans le détail
@@ -3465,6 +3549,13 @@ function openIntermittence(){
   const anniv = getMyAnniv();
   const win = anniv ? annivWindow(anniv) : null;
   const s = win ? computeWindow(reg, win.start, win.end) : computeSeason(reg);
+  // #15 — fenêtre pour la projection 507h : année anniversaire, sinon bornes de la saison du plan.
+  if(win){ _intermiProjWin = { start:win.start, end:win.end }; }
+  else if(allMois.length){
+    const [y0,m0] = allMois[0].k.split('-').map(Number);
+    const [y1,m1] = allMois[allMois.length-1].k.split('-').map(Number);
+    _intermiProjWin = { start:new Date(y0, m0-1, 1), end:new Date(y1, m1, 1) };
+  } else { _intermiProjWin = null; }
   const who = `${getMyEmoji()?getMyEmoji()+' ':''}${reg||'—'}`;
   const fmtD = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
   const periodLabel = win
@@ -3555,6 +3646,8 @@ function openIntermittence(){
       <div class="intermi-row" style="margin-bottom:0"><span class="intermi-label">Services (1h/régie)</span><span class="intermi-val">${s.service}h</span></div>
     </div>
 
+    ${advancedStatsHTML(s)}
+
     <!-- Détail par mois -->
     <div class="intermi-block"><div style="font-size:12px;color:var(--muted);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.6px">Par mois · heures spectacles + supp</div><div id="intermi-months">${monthRows}</div></div>
 
@@ -3575,6 +3668,7 @@ function openIntermittence(){
     ${baseWarn}`;
 
   document.getElementById('intermittence-modal').style.display = 'flex';
+  renderIntermiProjection(s.hours, 0);   // #15 — projection sur les heures spectacles, affinée après les heures supp
   // Charge les heures supp (async) puis recalcule la jauge + le total par mois.
   // Fenêtrées sur l'année anniversaire si renseignée, sinon toute la saison.
   const hsuppLoader = win
@@ -3584,6 +3678,7 @@ function openIntermittence(){
     if(!res) return;                          // erreur de lecture → on garde les heures spectacles seules
     updateIntermiGauge(s.hours, res.total);
     updateIntermiMonths(res.byMonth || {});
+    renderIntermiProjection(s.hours, res.total);   // #15 — projection avec heures supp incluses
   });
 }
 
@@ -3634,6 +3729,82 @@ function updateIntermiGauge(specHours, hsuppHours){
   set('intermi-gauge-pct',   el => el.textContent = pct+'%');
   set('intermi-gauge-reste', el => el.textContent = reste>0 ? `reste ${reste}h` : 'objectif atteint 🎉');
   set('intermi-gauge-supp',  el => el.textContent = `+ ${Math.round(hsuppHours*100)/100}h supp`);
+}
+
+// ─── #15 STATISTIQUES AVANCÉES ───────────────────────────────────────────────
+let _intermiProjWin = null;   // {start,end} — fenêtre pour la projection 507h
+const _SALLE_META = { '3T':{lbl:'3T',c:'var(--c3t)'}, '3TC':{lbl:'3T Côté',c:'var(--c3tc)'}, 'GT':{lbl:'Grand Théâtre',c:'#a78bfa'} };
+// Bloc « Statistiques avancées » : heures par salle + comparaison par mois + projection 507h.
+function advancedStatsHTML(s){
+  const r2 = x => Math.round(x*100)/100;
+  // Heures par salle (dérivées des spectacles)
+  const salleAgg = {};
+  Object.values(s.specs||{}).forEach(v => { const k=v.salle||'?'; salleAgg[k]=(salleAgg[k]||0)+v.hours; });
+  const salleKeys = Object.keys(salleAgg).sort((a,b)=>salleAgg[b]-salleAgg[a]);
+  const salleMax = Math.max(1, ...salleKeys.map(k=>salleAgg[k]));
+  const salleRows = salleKeys.map(k => {
+    const meta = _SALLE_META[k] || { lbl:k, c:'var(--muted)' };
+    const w = Math.round((salleAgg[k]/salleMax)*100);
+    return `<div class="stat-bar-row">
+      <span class="stat-bar-lbl">${escapeHtml(meta.lbl)}</span>
+      <span class="stat-bar-track"><span class="stat-bar-fill" style="width:${w}%;background:${meta.c}"></span></span>
+      <span class="stat-bar-val">${r2(salleAgg[k])}h</span>
+    </div>`;
+  }).join('') || '<div class="spec-empty">—</div>';
+  // Comparaison par mois (heures spectacles)
+  const months = (s.months||[]).filter(m => m.hours>0);
+  const moMax = Math.max(1, ...months.map(m=>m.hours));
+  const moRows = months.map(m => {
+    const w = Math.round((m.hours/moMax)*100);
+    const short = String(m.label||'').replace(/\s+\d{4}$/,'');
+    return `<div class="stat-bar-row">
+      <span class="stat-bar-lbl" style="text-transform:capitalize">${escapeHtml(short)}</span>
+      <span class="stat-bar-track"><span class="stat-bar-fill" style="width:${w}%;background:${m.hours===moMax?'var(--c3t)':'var(--c3tc)'}"></span></span>
+      <span class="stat-bar-val">${r2(m.hours)}h</span>
+    </div>`;
+  }).join('') || '<div class="spec-empty">—</div>';
+  return `
+    <details class="intermi-block" style="margin-bottom:1rem" open>
+      <summary style="font-size:12px;color:var(--muted);cursor:pointer;text-transform:uppercase;letter-spacing:.6px;list-style:none">📊 Statistiques avancées ▾</summary>
+      <div style="margin-top:.9rem">
+        <div class="stat-title">Heures par salle</div>
+        <div class="stat-bars">${salleRows}</div>
+        <div class="stat-title" style="margin-top:1rem">Comparaison par mois</div>
+        <div class="stat-bars">${moRows}</div>
+        <div class="stat-title" style="margin-top:1rem">Projection 507h</div>
+        <div id="intermi-projection" class="stat-proj">⏳…</div>
+      </div>
+    </details>`;
+}
+// Projection : au rythme actuel, où en sera-t-on à 507h ? (total = spectacles + heures supp)
+function renderIntermiProjection(specHours, suppTotal){
+  const el = document.getElementById('intermi-projection'); if(!el) return;
+  const win = _intermiProjWin;
+  const total = Math.round((specHours + (suppTotal||0))*100)/100;
+  if(!win || !win.start || !win.end){ el.innerHTML = `<b>${total}h</b> cumulées sur la saison.`; return; }
+  const now = new Date();
+  const span = win.end - win.start;
+  const DAY = 86400000;
+  const spanDays = Math.max(1, Math.round(span/DAY));
+  const elapsedDays = Math.min(spanDays, Math.max(0, Math.round((now - win.start)/DAY)));
+  const _fd = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  if(total >= OBJECTIF_HEURES){
+    el.innerHTML = `🎉 Objectif <b>507h atteint</b> (${total}h) — bravo !`;
+    return;
+  }
+  if(elapsedDays <= 0){ el.innerHTML = `Période pas encore commencée (démarre le ${_fd(win.start)}).`; return; }
+  const ratePerDay = total / elapsedDays;
+  const projectedEnd = Math.round(ratePerDay * spanDays);
+  if(ratePerDay <= 0){ el.innerHTML = `Aucune heure encore — projection indisponible.`; return; }
+  const remaining = OBJECTIF_HEURES - total;
+  const daysToTarget = Math.ceil(remaining / ratePerDay);
+  const targetDate = new Date(now.getTime() + daysToTarget*DAY);
+  const rythme = `<span class="stat-proj-sub">rythme actuel ≈ ${Math.round(ratePerDay*7*10)/10}h/semaine · reste ${Math.round(remaining*100)/100}h</span>`;
+  if(targetDate < win.end){
+    el.innerHTML = `✅ Au rythme actuel : <b>507h vers le ${_fd(targetDate)}</b>, avant la fin de période.<br>${rythme}`;
+  } else {
+    el.innerHTML = `⚠️ Au rythme actuel : <b>~${projectedEnd}h</b> en fin de période (${_fd(win.end)}) → objectif <b>non atteint</b>.<br>${rythme}`;
+  }
 }
 
 function closeIntermittence(){
@@ -5233,9 +5404,12 @@ function renderCalendar() {
     const specialMark = specials.length ? `<div class="cal-special">${specials.map(s=>`<span title="${s}">${s}</span>`).join('')}</div>` : '';
     const fmMark = (_formations[isoKey] && _formations[isoKey].length) ? '<span class="cal-formation" title="Formation">📚</span>' : '';
     const repMark = (repetIndex[isoKey] && repetIndex[isoKey].length) ? '<span class="cal-repet" title="Répétition en salle">🪑</span>' : '';
+    // #34 — marqueur 🛒 : un spectacle du jour a des consommables à racheter
+    const hasBuy = entries.some(e => !e.cancelled && e.spec && specHasItems(e.spec));
+    const buyMark = hasBuy ? '<span class="cal-buy" title="Consommables à racheter">🛒</span>' : '';
 
     cells += `<div class="cal-cell${hasEvents?' has-events':''}${isToday?' is-today':''}${isSelected?' selected':''}" onclick="selectDay(${d})">
-      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}${conflictMark}${fmMark}${repMark}</div>
+      <div class="day-num" style="${isWeekend?'color:#f87171':''}">${d}${micMark}${warnMark}${conflictMark}${fmMark}${repMark}${buyMark}</div>
       ${dots ? `<div class="dot-row">${dots}</div>` : ''}
       ${specialMark}
     </div>`;
