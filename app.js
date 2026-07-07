@@ -763,6 +763,19 @@ let accessToken = null;
 let googleEmail = (localStorage.getItem('3t_google_email') || '');  // identité du compte connecté
 let planLoaded = false;
 
+// ─── Compte DIRECTION (patron) ───────────────────────────────────────────────
+// Renseigner ici l'email Google du patron (en minuscules). À sa connexion, l'app :
+//  • force le calendrier ÉQUIPE et atterrit sur Home (calendrier),
+//  • ne lui demande PAS de choisir un régisseur,
+//  • désactive le positionnement sur les régies (il n'en prend pas),
+//  • mais il peut voir heures/fiches et poster formations/réunions/notes (au nom « Direction »).
+// Tant que la liste est vide, comportement 100 % identique pour tout le monde.
+const BOSS_EMAILS = ['team3tcafetheatre@gmail.com'];   // compte(s) Direction (patron)
+function isBoss(){ return BOSS_EMAILS.includes(String(googleEmail||'').trim().toLowerCase()); }
+function bossName(){ return localStorage.getItem('3t_google_name') || 'Direction'; }
+// Identité utilisée pour ATTRIBUER une action (formation, réunion, note…).
+function authorName(){ return isBoss() ? bossName() : (myRegName() || getMyReg() || ''); }
+
 // Client OAuth du projet tapp-2c0a8 (compte nano66explosion) — même projet que Firebase depuis 2026-06-10.
 const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com';
 // Fichiers Drive par défaut (chargés automatiquement — plus besoin de les sélectionner)
@@ -778,7 +791,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-07 · b136 (fiche : Mise (MISE.docx) editable + photos des sous-dossiers par salle)';
+const APP_VERSION = '2026-07-07 · b137 (compte Direction : calendrier equipe auto a la connexion du patron)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -2323,10 +2336,18 @@ function launchApp() {
   document.getElementById('upload-screen').style.display = 'none';
   document.getElementById('app-screen').style.display = 'flex';
   populateSelects();
-  switchView(currentView);   // vue par défaut = « Ma semaine »
+  // Compte DIRECTION : force le calendrier ÉQUIPE, atterrit sur le mois, pas de profil régisseur.
+  if(isBoss()){
+    document.body.classList.add('boss-mode');
+    const tt = document.getElementById('team-toggle');
+    if(tt && !tt.checked){ tt.checked = true; onTeamToggle(); }
+    currentView = 'grid';
+  }
+  switchView(currentView);   // vue par défaut = « Ma semaine » (ou « Mois » pour la direction)
   requestAnimationFrame(updateStickyOffsets);
-  // Première utilisation : pas encore de régisseur associé → on demande
-  if (!getMyReg() && allRegs.length) openProfileModal();
+  // Première utilisation : pas encore de régisseur associé → on demande (sauf la direction)
+  if (!isBoss() && !getMyReg() && allRegs.length) openProfileModal();
+  if (isBoss()) toast('🏛️ Mode direction — calendrier équipe', 'ok');
   // Rappels (notifications locales) si déjà autorisées
   checkReminders();
   // #16 — (ré)enregistre l'appareil pour le push si déjà autorisé
@@ -2560,7 +2581,7 @@ async function submitFormation(){
   if(!pushConfigured()){ if(err) err.textContent = 'Configuration manquante.'; return; }
   initFirebase();
   if(!_fbDb){ if(err) err.textContent = 'Connexion requise.'; return; }
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   try{
     showBusy(true);
     const ref = await _fbDb.collection('formations').add({
@@ -2606,7 +2627,7 @@ async function notifyAll(title, bodyText, opts){
 
 async function toggleFormation(id){
   if(blockIfOffline()) return;
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   if(!me){ openProfileModal(); return; }
   initFirebase();
   if(!_fbDb) return;
@@ -2635,7 +2656,7 @@ async function deleteFormation(id){
 function formationCardsHTML(iso){
   const list = _formations[iso] || [];
   if(!list.length) return '';
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   return list.map(f => {
     const parts = f.participants || [];
     const iIn = parts.includes(me);
@@ -2726,7 +2747,7 @@ async function submitRepet(clear){
     publishSchedule();   // #sync — republie → les autres téléphones rechargent (répét incluse)
     // #32 — prévient l'équipe d'une nouvelle répétition (pas au retrait)
     if(value){
-      const me = myRegName() || getMyReg() || '';
+      const me = authorName();
       const salleLbl = salle==='3TC'?'3T Côté':salle==='GT'?'Grand Théâtre':salle;
       const [Y,M,D] = iso.split('-').map(Number);
       const moisStr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
@@ -2824,7 +2845,7 @@ async function submitMeetingSlot(){
   initFirebase();
   if(!_fbDb){ if(err) err.textContent = 'Connexion requise.'; return; }
   if(_meetingSlots.some(s => s.date===date && s.time===time)){ if(err) err.textContent = 'Ce créneau existe déjà.'; return; }
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   try{
     showBusy(true);
     await _fbDb.collection('meetingSlots').add({
@@ -2839,7 +2860,7 @@ async function submitMeetingSlot(){
 
 async function toggleMeetingAvail(id){
   if(blockIfOffline()) return;
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   if(!me){ openProfileModal(); return; }
   initFirebase();
   if(!_fbDb) return;
@@ -2867,7 +2888,7 @@ async function deleteMeetingSlot(id){
 // prévient toute l'équipe par notification.
 async function chooseMeetingSlot(id){
   if(blockIfOffline()) return;
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   initFirebase(); if(!_fbDb) return;
   const slot = _meetingSlots.find(s => s.id === id);
   if(!slot) return;
@@ -2915,7 +2936,7 @@ function renderMeetingSlots(){
     box.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1.2rem">Aucun créneau à venir.<br>Ajoute le premier ci-dessus 👆</div>';
     return;
   }
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   const maxV = Math.max(...slots.map(s => (s.available||[]).length));
   const jourStr = ['dim.','lun.','mar.','mer.','jeu.','ven.','sam.'];
   const moisStr = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
@@ -2987,7 +3008,7 @@ async function submitNote(){
   if(!pushConfigured()){ if(err) err.textContent = 'Configuration manquante.'; return; }
   initFirebase();
   if(!_fbDb){ if(err) err.textContent = 'Connexion requise.'; return; }
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   try{
     showBusy(true);
     await _fbDb.collection('notes').add({ text, by: me, createdAt: new Date().toISOString() });
@@ -3642,7 +3663,7 @@ function renderNotes(){
     box.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:1.2rem">Aucune note pour l\'instant.<br>Écris la première 👆</div>';
     return;
   }
-  const me = myRegName() || getMyReg() || '';
+  const me = authorName();
   box.innerHTML = _notes.map(n => {
     let when = '';
     if(n.createdAt){ const d = new Date(n.createdAt); if(!isNaN(d)) when = d.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}) + ' ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
@@ -6647,6 +6668,7 @@ function buildDayMap(reg, y, m) {
 // Bouton "Me positionner / Me retirer" pour une entrée (réutilisé partout).
 // Empile l'action dans dayActions et renvoie le HTML du bouton (ou '').
 function posActionHTML(e, y, m, dateLabel){
+  if(isBoss()) return '';                               // la direction ne se positionne pas sur les régies
   const me = myRegName();
   if(!(me && e.src && e.salle !== 'Tournée')) return '';
   if(e.cancelled) return '';                          // pas de positionnement sur un spectacle annulé
