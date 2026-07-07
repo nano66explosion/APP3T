@@ -778,7 +778,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-06 · b133 (vue annee : spectacles sans regie affiches en contour, saison a venir visible)';
+const APP_VERSION = '2026-07-07 · b134 (fiche spectacle : ajouter une photo depuis le telephone -> Drive)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3129,6 +3129,8 @@ function renderSpecSheet(){
     ${lpHtml}
     <div class="spec-sec">📷 Photos / plan de feu</div>
     <div id="spec-photos" class="spec-photos"></div>
+    <input type="file" id="spec-photo-input" accept="image/*" style="display:none" onchange="addSpecPhoto(this)">
+    <button class="spec-photo-btn" onclick="document.getElementById('spec-photo-input').click()">📷 Ajouter une photo</button>
     <div class="spec-sec">🛒 Consommables à racheter</div>
     <div id="spec-items"></div>
     <div class="spec-add">
@@ -3270,12 +3272,87 @@ async function loadSpecPhotos(spec, key){
   }
 }
 function _renderSpecPhotos(el, rec, key){
-  if(!rec.found){ el.innerHTML = '<div class="spec-empty">Aucun dossier photo trouvé pour ce spectacle.</div>'; return; }
-  if(!rec.images.length){ el.innerHTML = '<div class="spec-empty">Dossier trouvé, mais aucune image.</div>'; return; }
+  if(!rec.found){ el.innerHTML = '<div class="spec-empty">Aucune photo pour l\'instant — ajoute-en une ci-dessous.</div>'; return; }
+  if(!rec.images.length){ el.innerHTML = '<div class="spec-empty">Aucune photo pour l\'instant — ajoute-en une ci-dessous.</div>'; return; }
   el.innerHTML = rec.images.map(im => im.url
     ? `<a class="spec-photo" href="https://drive.google.com/file/d/${im.id}/view" target="_blank" rel="noopener" title="${escapeHtml(im.name)}"><img src="${im.url}" alt="${escapeHtml(im.name)}" loading="lazy"></a>`
     : `<div class="spec-photo spec-photo-loading" title="${escapeHtml(im.name)}">⏳</div>`
   ).join('');
+}
+
+// ── #37b AJOUT D'UNE PHOTO depuis l'appareil (caméra ou galerie) → Drive ──────
+// Réduit l'image (max 2000 px, JPEG) → upload dans le sous-dossier du spectacle
+// (créé s'il n'existe pas) → la grille se rafraîchit. HEIC iPhone converti en JPEG.
+function _downscaleImage(file, maxDim, quality){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+      if(!w || !h){ reject(new Error('image illisible')); return; }
+      if(Math.max(w,h) > maxDim){ const s = maxDim/Math.max(w,h); w = Math.round(w*s); h = Math.round(h*s); }
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      cv.toBlob(b => b ? resolve(b) : reject(new Error('conversion image échouée')), 'image/jpeg', quality || 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image illisible (format non supporté ?)')); };
+    img.src = url;
+  });
+}
+// Trouve le sous-dossier du spectacle, ou le crée sous SPEC_PHOTOS_FOLDER_ID.
+async function ensureSpecFolder(spec){
+  const folders = await _listSpecPhotoFolders();
+  const f = _matchSpecFolder(folders, spec);
+  if(f) return f.id;
+  const r = await fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true', {
+    method:'POST', headers:{ Authorization:'Bearer '+accessToken, 'Content-Type':'application/json' },
+    body: JSON.stringify({ name: spec, mimeType: DRIVE_FOLDER_MIME, parents:[SPEC_PHOTOS_FOLDER_ID] })
+  });
+  if(r.status===401||r.status===403){ clearToken(); throw new Error('Autorisation insuffisante — reconnecte-toi.'); }
+  if(!r.ok) throw new Error('Création du dossier impossible (HTTP '+r.status+')');
+  const d = await r.json();
+  _specPhotoFolders = null;   // invalide le cache des dossiers
+  return d.id;
+}
+// Upload multipart d'un blob image dans un dossier Drive.
+async function _driveUpload(blob, name, folderId){
+  const boundary = 'ftt'+Math.random().toString(36).slice(2);
+  const meta = JSON.stringify({ name, parents:[folderId] });
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`, meta,
+    `\r\n--${boundary}\r\nContent-Type: ${blob.type||'image/jpeg'}\r\n\r\n`, blob,
+    `\r\n--${boundary}--`
+  ]);
+  const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
+    method:'POST', headers:{ Authorization:'Bearer '+accessToken, 'Content-Type':`multipart/related; boundary=${boundary}` }, body
+  });
+  if(r.status===401||r.status===403){ clearToken(); throw new Error('Autorisation insuffisante — reconnecte-toi.'); }
+  if(!r.ok) throw new Error('Upload impossible (HTTP '+r.status+')');
+  return r.json();
+}
+// Handler du <input type=file> : prend/choisit une photo → Drive.
+async function addSpecPhoto(input){
+  const file = input && input.files && input.files[0];
+  if(input) input.value = '';
+  if(!file) return;
+  if(blockIfOffline()) return;
+  const cur = _specCur; if(!cur) return;
+  if(!accessToken){ toast('Reconnecte-toi à Google.', 'err'); return; }
+  if(!hasWriteScope()){ toast("Droit d'écriture Google non accordé — reconnecte-toi.", 'err'); return; }
+  try{
+    showBusy(true); toast('📤 Envoi de la photo…', 'ok');
+    const blob = await _downscaleImage(file, 2000, 0.85);
+    const folderId = await ensureSpecFolder(cur.spec);
+    const p = n => String(n).padStart(2,'0'); const t = new Date();
+    const name = `${cur.spec} ${t.getFullYear()}${p(t.getMonth()+1)}${p(t.getDate())}-${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}.jpg`;
+    await _driveUpload(blob, name, folderId);
+    delete _specPhotoCache[cur.key];        // force le rechargement de la grille
+    _specPhotoFolders = null;
+    if(_specCur && _specCur.key===cur.key) loadSpecPhotos(cur.spec, cur.key);
+    toast('✅ Photo ajoutée', 'ok');
+  }catch(e){ toast('❌ '+(e.message||'échec'), 'err'); console.error('addSpecPhoto:', e); }
+  finally{ showBusy(false); }
 }
 
 // ─── #36 CONGÉS / INDISPONIBILITÉS (partagé équipe, Firestore) ───────────────
