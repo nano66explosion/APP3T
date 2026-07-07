@@ -124,6 +124,22 @@ select:focus{outline:none;border-color:var(--muted2)}
 .team-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg)}
 /* Bouton PAYE (compte Direction uniquement) */
 #paye-btn{display:none}
+/* Panneau HEURES du mois (compte Direction) : visible seulement sur PC */
+.boss-hours{display:none}
+@media (min-width:768px) and (min-height:500px){
+  body.boss-mode .boss-hours{display:block;margin:.6rem 1rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:.8rem .85rem}
+}
+.bh-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
+.bh-month{font-size:13px;color:var(--text);margin:.1rem 0 .55rem;text-transform:capitalize;font-weight:600}
+.bh-row{padding:.4rem 0;border-top:1px solid var(--border)}
+.bh-row:first-child{border-top:none}
+.bh-main{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.bh-reg{font-size:13px;font-weight:600;color:var(--text)}
+.bh-total{font-size:13px;font-weight:700;font-family:'DM Mono',monospace;color:var(--c3t)}
+.bh-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.bh-grand{display:flex;justify-content:space-between;margin-top:.5rem;padding-top:.5rem;border-top:2px solid var(--border);font-weight:700;font-size:13px}
+.bh-grand span:last-child{font-family:'DM Mono',monospace;color:var(--c3t)}
+.bh-empty{font-size:12px;color:var(--muted)}
 body.boss-mode #paye-btn{display:block;width:calc(100% - 2rem);margin:.55rem 1rem;padding:.7rem;background:var(--c3t);color:#08210f;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}
 body.boss-mode #paye-btn:active{transform:scale(.98)}
 .team-toggle-label{font-size:12px;color:var(--muted2);display:flex;align-items:center;gap:7px}

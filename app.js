@@ -877,6 +877,52 @@ async function generatePayePDF(){
   finally{ showBusy(false); }
 }
 
+// Panneau PC « Heures du mois par régisseur » (Direction) : à côté du calendrier.
+// Heures spectacles instantanées (sync) ; heures supp chargées en fond (cache/mois).
+let _bossHsuppCache = {};
+async function renderBossHours(y, m){
+  const el = document.getElementById('boss-hours'); if(!el || !isBoss()) return;
+  const sel = document.getElementById('mois-select');
+  if((!y || !m) && sel && sel.value){ const p = sel.value.split('-').map(Number); y = p[0]; m = p[1]; }
+  if(!y || !m){ el.innerHTML = ''; return; }
+  const mk = `${y}-${String(m).padStart(2,'0')}`;
+  const lbl = (sel && sel.selectedOptions[0] && sel.selectedOptions[0].textContent) || mk;
+  const spec = {}; (allRegs||[]).forEach(reg => { spec[reg] = computeHeures(buildDayMap(reg, y, m)).total; });
+  const build = (suppByReg) => {
+    const rows = [];
+    (allRegs||[]).forEach(reg => {
+      const s = spec[reg] || 0;
+      const supp = suppByReg ? Math.round((suppByReg[reg]||0)*100)/100 : null;
+      const total = Math.round((s + (supp||0))*100)/100;
+      if(s > 0 || (supp && supp > 0)) rows.push({ reg, spec:s, supp, total });
+    });
+    rows.sort((a,b) => b.total - a.total);
+    return rows;
+  };
+  const cached = _bossHsuppCache[mk] || null;
+  _renderBossHoursTable(el, lbl, build(cached), !!cached);
+  if(!cached && accessToken && !offlineMode){
+    try{
+      const supp = await _hsuppMonthByReg(y, m);
+      _bossHsuppCache[mk] = supp;
+      if(isBoss() && sel && sel.value === mk){ _renderBossHoursTable(el, lbl, build(supp), true); }
+    }catch(e){}
+  }
+}
+function _renderBossHoursTable(el, lbl, rows, haveSupp){
+  let grand = 0;
+  const body = rows.map(r => {
+    grand += r.total;
+    const sub = haveSupp ? `spect. ${r.spec} h · supp ${r.supp} h` : `spect. ${r.spec} h · supp …`;
+    return `<div class="bh-row"><div class="bh-main"><span class="bh-reg">${escapeHtml(r.reg)}</span><span class="bh-total">${r.total} h</span></div><div class="bh-sub">${sub}</div></div>`;
+  }).join('') || '<div class="bh-empty">Aucune heure ce mois.</div>';
+  el.innerHTML = `
+    <div class="bh-title">⏱️ Heures du mois</div>
+    <div class="bh-month">${escapeHtml(lbl)}</div>
+    <div class="bh-list">${body}</div>
+    ${rows.length ? `<div class="bh-grand"><span>Total général</span><span>${Math.round(grand*100)/100} h</span></div>` : ''}`;
+}
+
 // Client OAuth du projet tapp-2c0a8 (compte nano66explosion) — même projet que Firebase depuis 2026-06-10.
 const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com';
 // Fichiers Drive par défaut (chargés automatiquement — plus besoin de les sélectionner)
@@ -892,7 +938,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-07 · b138 (Direction : bouton Paye -> PDF des heures du mois par regisseur)';
+const APP_VERSION = '2026-07-07 · b139 (Direction PC : panneau heures du mois a cote du calendrier + PDF paye PC/iPhone)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5432,6 +5478,7 @@ async function hsFlushPending(silent){
 
 // Recharge le plan depuis Drive sans réinitialiser la vue (garde mois + jour ouverts)
 async function reloadPlanSilent(){
+  _bossHsuppCache = {};       // force le rechargement des heures supp du panneau Direction
   await loadAllPlans();       // recharge + refusionne toutes les saisons (calendrier continu)
   applyGuestBaseOverride();   // orange + dans la base = vraie pièce
   renderCalendar();
@@ -5824,6 +5871,7 @@ function renderCalendar() {
 
   // Always update stats + today card first
   renderStats(reg, y, m, teamMode);
+  if(isBoss()) renderBossHours(y, m);   // panneau PC « Heures du mois » (Direction)
 
   // If another view is active, delegate
   if (currentView === 'week') { renderWeek(reg); return; }
