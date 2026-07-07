@@ -122,6 +122,10 @@ select:focus{outline:none;border-color:var(--muted2)}
 .stat-card.htech{border:1px solid #fb923c33}
 /* ── TEAM TOGGLE ── */
 .team-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg)}
+/* Bouton PAYE (compte Direction uniquement) */
+#paye-btn{display:none}
+body.boss-mode #paye-btn{display:block;width:calc(100% - 2rem);margin:.55rem 1rem;padding:.7rem;background:var(--c3t);color:#08210f;border:none;border-radius:10px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer}
+body.boss-mode #paye-btn:active{transform:scale(.98)}
 .team-toggle-label{font-size:12px;color:var(--muted2);display:flex;align-items:center;gap:7px}
 .toggle-switch{position:relative;width:38px;height:22px;flex-shrink:0}
 .toggle-switch input{opacity:0;width:0;height:0}

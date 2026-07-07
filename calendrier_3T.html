@@ -136,6 +136,8 @@
       <select id="reg-select" onchange="onRegChange()" style="max-width:130px"></select>
     </div>
   </div>
+  <!-- Bouton PAYE (compte Direction uniquement) : PDF des heures du mois par régisseur -->
+  <button id="paye-btn" onclick="generatePayePDF()">💶 Générer la paye du mois (PDF)</button>
   <!-- Recherche globale (toutes vues) : bascule sur la Grille au premier caractère -->
   <div class="search-row" style="padding:.45rem 1rem .1rem">
     <span class="search-icon">🔍</span>
@@ -879,6 +881,6 @@
   </div>
 </div>
 
-<script src="app.js?v=101"></script>
+<script src="app.js?v=102"></script>
 </body>
 </html>

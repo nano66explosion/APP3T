@@ -776,6 +776,107 @@ function bossName(){ return localStorage.getItem('3t_google_name') || 'Direction
 // Identité utilisée pour ATTRIBUER une action (formation, réunion, note…).
 function authorName(){ return isBoss() ? bossName() : (myRegName() || getMyReg() || ''); }
 
+// ─── BOUTON PAYE (Direction) : PDF des heures du mois par régisseur ───────────
+// Charge jsPDF à la demande (uniquement pour le patron).
+function _loadJsPDF(){
+  return new Promise((resolve, reject) => {
+    if(window.jspdf && window.jspdf.jsPDF) return resolve(window.jspdf.jsPDF);
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = () => (window.jspdf && window.jspdf.jsPDF) ? resolve(window.jspdf.jsPDF) : reject(new Error('jsPDF indisponible'));
+    s.onerror = () => reject(new Error('Chargement jsPDF échoué (réseau ?)'));
+    document.head.appendChild(s);
+  });
+}
+// Heures supp du mois (y, m) par régisseur : télécharge le fichier du mois 1 seule fois.
+async function _hsuppMonthByReg(y, m){
+  const out = {};
+  try{
+    const files = await listHsuppFiles();
+    const target = files.map(f => ({ f, my: hsParseMonthYear(f.name) }))
+      .find(x => x.my && x.my.year === y && x.my.monthIndex === m-1);
+    if(!target) return out;
+    const ab = await fetchDriveWorkbook(target.f.id, target.f.mimeType);
+    const wb = XLSX.read(ab, { type:'array' });
+    (allRegs||[]).forEach(reg => { out[reg] = sumHsuppHours(wb, reg); });
+  }catch(e){ console.warn('hsupp mois paye:', e); }
+  return out;
+}
+// Partage le PDF (feuille de partage iOS) ou le télécharge en repli.
+async function _sharePdf(blob, fname){
+  try{
+    const file = new File([blob], fname, { type:'application/pdf' });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title:fname });
+      return;
+    }
+  }catch(e){ if(e && e.name === 'AbortError') return; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = fname;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+async function generatePayePDF(){
+  if(!isBoss()){ toast('Réservé à la direction', 'err'); return; }
+  const sel = document.getElementById('mois-select');
+  const mk = sel && sel.value;
+  if(!mk){ toast('Choisis un mois d\'abord', 'err'); return; }
+  const [y, m] = mk.split('-').map(Number);
+  const moisLbl = (sel.selectedOptions[0] && sel.selectedOptions[0].textContent) || mk;
+  try{
+    showBusy(true); toast('📄 Génération de la paye…', 'ok');
+    const jsPDF = await _loadJsPDF();
+    const suppByReg = await _hsuppMonthByReg(y, m);
+    const rows = [];
+    (allRegs||[]).slice().sort((a,b) => a.localeCompare(b,'fr')).forEach(reg => {
+      const h = computeHeures(buildDayMap(reg, y, m));
+      const supp = Math.round((suppByReg[reg] || 0)*100)/100;
+      const total = Math.round((h.total + supp)*100)/100;
+      if(h.total > 0 || supp > 0) rows.push({ reg, h, supp, total });
+    });
+    const doc = new jsPDF({ unit:'mm', format:'a4' });
+    const M = 15, R = 195 - M; let yy = 18;
+    const nl = (n) => { yy += (n||5.5); if(yy > 278){ doc.addPage(); yy = 18; } };
+    doc.setFontSize(16); doc.setFont(undefined,'bold'); doc.text('PAYE — Heures régisseurs', M, yy); nl(7);
+    doc.setFontSize(12); doc.setFont(undefined,'normal'); doc.text(moisLbl, M, yy); nl(5.5);
+    doc.setFontSize(9); doc.setTextColor(130);
+    doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR') + ' · Calendrier 3T TECH', M, yy);
+    doc.setTextColor(0); nl(8);
+    if(!rows.length){ doc.setFontSize(11); doc.text('Aucune heure ce mois.', M, yy); }
+    const line = (label, val, bold) => {
+      if(yy > 275){ doc.addPage(); yy = 18; }
+      doc.setFont(undefined, bold?'bold':'normal'); doc.setFontSize(10);
+      doc.text(label, M+4, yy); doc.text(String(val), R, yy, { align:'right' }); nl(5.4);
+    };
+    rows.forEach(d => {
+      if(yy > 250){ doc.addPage(); yy = 18; }
+      doc.setFontSize(12.5); doc.setFont(undefined,'bold'); doc.text(d.reg, M, yy); nl(6);
+      line('Représentations', d.h.nbRegies);
+      line('Montage', d.h.montage + ' h');
+      line('Durée spectacles', d.h.duree + ' h');
+      line('Démontage', d.h.demontage + ' h');
+      line('Service (1 h/régie)', d.h.service + ' h');
+      line('Heures supplémentaires', d.supp + ' h');
+      doc.setDrawColor(205); doc.line(M+4, yy-2.5, R, yy-2.5);
+      line('TOTAL', d.total + ' h', true); nl(4);
+    });
+    // Récapitulatif des totaux
+    if(rows.length){
+      if(yy > 245){ doc.addPage(); yy = 18; }
+      doc.setFontSize(13); doc.setFont(undefined,'bold'); doc.text('Récapitulatif', M, yy); nl(7);
+      let grand = 0;
+      rows.forEach(d => { line(d.reg, d.total + ' h'); grand += d.total; });
+      doc.setDrawColor(150); doc.line(M+4, yy-2.5, R, yy-2.5);
+      line('TOTAL GÉNÉRAL', (Math.round(grand*100)/100) + ' h', true);
+    }
+    const blob = doc.output('blob');
+    const fname = ('Paye ' + moisLbl + '.pdf').replace(/[\\/:*?"<>|]+/g, ' ');
+    await _sharePdf(blob, fname);
+    toast('✅ Paye générée', 'ok');
+  }catch(e){ toast('❌ ' + (e.message || 'échec'), 'err'); console.error('generatePayePDF:', e); }
+  finally{ showBusy(false); }
+}
+
 // Client OAuth du projet tapp-2c0a8 (compte nano66explosion) — même projet que Firebase depuis 2026-06-10.
 const DEFAULT_CLIENT_ID = '960662160605-0br3e3mo6en3hgeqsrn6tuhi9t8cana7.apps.googleusercontent.com';
 // Fichiers Drive par défaut (chargés automatiquement — plus besoin de les sélectionner)
@@ -791,7 +892,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-07 · b137 (compte Direction : calendrier equipe auto a la connexion du patron)';
+const APP_VERSION = '2026-07-07 · b138 (Direction : bouton Paye -> PDF des heures du mois par regisseur)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
