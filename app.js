@@ -778,7 +778,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-07 · b135 (photos fiche : cache persistant + rafraichissement fond + matching par mots-cles + nommage de la photo)';
+const APP_VERSION = '2026-07-07 · b136 (fiche : Mise (MISE.docx) editable + photos des sous-dossiers par salle)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3131,6 +3131,8 @@ function renderSpecSheet(){
     <div id="spec-photos" class="spec-photos"></div>
     <input type="file" id="spec-photo-input" accept="image/*" style="display:none" onchange="addSpecPhoto(this)">
     <button class="spec-photo-btn" onclick="document.getElementById('spec-photo-input').click()">📷 Ajouter une photo</button>
+    <div class="spec-sec">🎭 Mise (accessoires, réglages, décor)</div>
+    <div id="spec-mise"></div>
     <div class="spec-sec">🛒 Consommables à racheter</div>
     <div id="spec-items"></div>
     <div class="spec-add">
@@ -3144,6 +3146,7 @@ function renderSpecSheet(){
   `;
   renderSpecItems();
   loadSpecPhotos(cur.spec, cur.key);
+  loadSpecMise(cur.spec, cur.key);
 }
 function renderSpecItems(){
   const cur=_specCur; if(!cur) return;
@@ -3278,6 +3281,22 @@ function _updatePhotoMeta(key, data){
   _photoMetaSet(m);
 }
 
+// Liste les images d'un dossier spectacle : à la racine + dans les sous-dossiers
+// par salle (GT/3TC/3T…), avec le nom de la salle en préfixe (ex. « GT · FACE »).
+async function _listSpecImages(folderId){
+  const dir = await driveListFolder(folderId);
+  const imgs = dir.filter(f => (f.mimeType||'').startsWith('image/')).map(f => ({ id:f.id, name:f.name }));
+  const subs = dir.filter(f => f.mimeType === DRIVE_FOLDER_MIME);
+  for(const sub of subs){
+    try{
+      const inner = await driveListFolder(sub.id);
+      inner.filter(f => (f.mimeType||'').startsWith('image/'))
+        .forEach(f => imgs.push({ id:f.id, name: sub.name + ' · ' + f.name }));
+    }catch(e){}
+  }
+  return imgs;
+}
+
 // Affiche les photos : 1) instantané depuis le cache, 2) rafraîchit EN FOND (ne
 // télécharge QUE les nouvelles images, réutilise le cache, nettoie les supprimées).
 async function loadSpecPhotos(spec, key){
@@ -3302,7 +3321,7 @@ async function loadSpecPhotos(spec, key){
     const folders = await _listSpecPhotoFolders();
     const folder = _matchSpecFolder(folders, spec);
     if(!folder){ const r={found:false, images:[]}; _specPhotoCache[key]=r; _updatePhotoMeta(key, null); if(_specCur&&_specCur.key===key) _renderSpecPhotos(el, r, key); return; }
-    const files = (await driveListFolder(folder.id)).filter(f => (f.mimeType||'').startsWith('image/'));
+    const files = await _listSpecImages(folder.id);
     const prev = (_specPhotoCache[key] && _specPhotoCache[key].images) || [];
     const prevUrl = {}; prev.forEach(p => { if(p.url) prevUrl[p.id] = p.url; });
     const rec = { found:true, folderId:folder.id, images: files.map(f => ({ id:f.id, name:f.name, url: prevUrl[f.id] || null })) };
@@ -3375,13 +3394,15 @@ async function ensureSpecFolder(spec){
   _specPhotoFolders = null;   // invalide le cache des dossiers
   return d.id;
 }
-// Upload multipart d'un blob image dans un dossier Drive.
-async function _driveUpload(blob, name, folderId){
+// Upload multipart d'un fichier (Blob ou ArrayBuffer) dans un dossier Drive.
+async function _driveUpload(data, name, folderId, mime){
+  const blob = (data instanceof Blob) ? data : new Blob([data], { type: mime || 'application/octet-stream' });
+  const ct = mime || blob.type || 'application/octet-stream';
   const boundary = 'ftt'+Math.random().toString(36).slice(2);
   const meta = JSON.stringify({ name, parents:[folderId] });
   const body = new Blob([
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n`, meta,
-    `\r\n--${boundary}\r\nContent-Type: ${blob.type||'image/jpeg'}\r\n\r\n`, blob,
+    `\r\n--${boundary}\r\nContent-Type: ${ct}\r\n\r\n`, blob,
     `\r\n--${boundary}--`
   ]);
   const r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true', {
@@ -3389,6 +3410,16 @@ async function _driveUpload(blob, name, folderId){
   });
   if(r.status===401||r.status===403){ clearToken(); throw new Error('Autorisation insuffisante — reconnecte-toi.'); }
   if(!r.ok) throw new Error('Upload impossible (HTTP '+r.status+')');
+  return r.json();
+}
+// Met à jour le CONTENU d'un fichier Drive existant (même id).
+async function _driveUpdateMedia(fileId, data, mime){
+  const blob = (data instanceof Blob) ? data : new Blob([data], { type: mime || 'application/octet-stream' });
+  const r = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&supportsAllDrives=true`, {
+    method:'PATCH', headers:{ Authorization:'Bearer '+accessToken, 'Content-Type': mime || blob.type || 'application/octet-stream' }, body: blob
+  });
+  if(r.status===401||r.status===403){ clearToken(); throw new Error('Autorisation insuffisante — reconnecte-toi.'); }
+  if(!r.ok) throw new Error('Écriture impossible (HTTP '+r.status+')');
   return r.json();
 }
 // Handler du <input type=file> : prend/choisit une photo → Drive.
@@ -3417,6 +3448,116 @@ async function addSpecPhoto(input){
     if(_specCur && _specCur.key===cur.key) loadSpecPhotos(cur.spec, cur.key);
     toast('✅ Photo ajoutée', 'ok');
   }catch(e){ toast('❌ '+(e.message||'échec'), 'err'); console.error('addSpecPhoto:', e); }
+  finally{ showBusy(false); }
+}
+
+// ─── #37c MISE DU SPECTACLE (fichier MISE.docx sur Drive) ────────────────────
+// Le dossier du spectacle contient un MISE.docx (notes : accessoires, réglages…).
+// On l'affiche dans la fiche, éditable, et on réécrit le docx sur Drive au save.
+// Même logique que les photos : cache instantané (localStorage) + refresh en fond.
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const _specMiseCur = {};   // key -> { fileId, text, folderId }
+function _miseMetaGet(){ try{ return JSON.parse(localStorage.getItem('3t_mise_meta')||'{}'); }catch(e){ return {}; } }
+function _miseMetaSet(m){ try{ localStorage.setItem('3t_mise_meta', JSON.stringify(m)); }catch(e){} }
+function _updateMiseMeta(key, cur){
+  const m = _miseMetaGet();
+  if(cur && (cur.fileId || cur.text)) m[key] = { fileId:cur.fileId||null, text:cur.text||'', folderId:cur.folderId||null, t:Date.now() };
+  else delete m[key];
+  _miseMetaSet(m);
+}
+function _xmlUnescape(s){ return String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&'); }
+// Extrait le texte d'un .docx (1 paragraphe = 1 ligne).
+async function _docxToText(ab){
+  if(typeof JSZip === 'undefined') throw new Error('Librairie JSZip non chargée.');
+  const zip = await JSZip.loadAsync(ab);
+  const f = zip.file('word/document.xml'); if(!f) return '';
+  const xml = await f.async('string');
+  const body = (xml.match(/<w:body[^>]*>[\s\S]*<\/w:body>/) || [xml])[0];
+  return body.split(/<\/w:p>/).map(p =>
+    [...p.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m => _xmlUnescape(m[1])).join('')
+  ).join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
+}
+// Génère le XML des paragraphes Word à partir d'un texte (1 ligne = 1 paragraphe).
+function _docxParas(text){
+  return String(text).split(/\r?\n/).map(line => line.trim()===''
+    ? '<w:p/>'
+    : `<w:p><w:r><w:t xml:space="preserve">${xmlEsc(line)}</w:t></w:r></w:p>`).join('');
+}
+// Réécrit le texte dans un docx EXISTANT (préserve la structure + la mise en page).
+async function _docxFromText(origAb, text){
+  const zip = await JSZip.loadAsync(origAb);
+  let xml = await zip.file('word/document.xml').async('string');
+  const sect = (xml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/) || [''])[0];   // garde la mise en page
+  xml = xml.replace(/<w:body[^>]*>[\s\S]*<\/w:body>/, `<w:body>${_docxParas(text)}${sect}</w:body>`);
+  zip.file('word/document.xml', xml);
+  return await zip.generateAsync({ type:'arraybuffer' });
+}
+// Crée un .docx minimal valide à partir d'un texte.
+async function _newDocx(text){
+  if(typeof JSZip === 'undefined') throw new Error('Librairie JSZip non chargée.');
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
+  zip.file('_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
+  zip.file('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${_docxParas(text)}</w:body></w:document>`);
+  return await zip.generateAsync({ type:'arraybuffer' });
+}
+function _renderSpecMise(el, key){
+  const cur = _specMiseCur[key] || { text:'', fileId:null };
+  const ta = document.getElementById('spec-mise-text');
+  const dirty = ta && ta.dataset.dirty === '1';
+  if(dirty) return;    // ne pas écraser une saisie en cours
+  el.innerHTML = `
+    <textarea id="spec-mise-text" class="fm-input" rows="6" placeholder="Notes de mise : accessoires, réglages, décor par salle…" style="resize:vertical" oninput="this.dataset.dirty='1'">${escapeHtml(cur.text||'')}</textarea>
+    <button class="fm-propose" onclick="saveSpecMise()" style="margin-top:.5rem">💾 Enregistrer la mise</button>
+    ${cur.fileId ? '' : '<div class="spec-empty" style="margin-top:.35rem">Aucun MISE.docx pour l\'instant — enregistre pour le créer.</div>'}`;
+}
+// Charge la mise : instantané depuis le cache, puis relit le docx sur Drive en fond.
+async function loadSpecMise(spec, key){
+  const el = document.getElementById('spec-mise'); if(!el) return;
+  const meta = _miseMetaGet()[key];
+  _specMiseCur[key] = meta ? { fileId:meta.fileId, text:meta.text||'', folderId:meta.folderId } : (_specMiseCur[key] || { fileId:null, text:'', folderId:null });
+  _renderSpecMise(el, key);
+  if(!accessToken) return;
+  try{
+    const folders = await _listSpecPhotoFolders();
+    const folder = _matchSpecFolder(folders, spec);
+    if(!folder) return;                         // pas de dossier → on garde le cache (créable au save)
+    const dir = await driveListFolder(folder.id);
+    const docx = dir.find(f => /\.docx$/i.test(f.name||'') && /mise/i.test(f.name||''))
+              || dir.find(f => /\.docx$/i.test(f.name||''));
+    if(!docx){ _specMiseCur[key] = { fileId:null, text:(_specMiseCur[key]||{}).text||'', folderId:folder.id }; _updateMiseMeta(key, _specMiseCur[key]); if(_specCur&&_specCur.key===key) _renderSpecMise(el, key); return; }
+    const r = await fetch(`https://www.googleapis.com/drive/v3/files/${docx.id}?alt=media&supportsAllDrives=true`, { headers:{ Authorization:'Bearer '+accessToken } });
+    if(!r.ok) return;
+    const text = await _docxToText(await r.arrayBuffer());
+    _specMiseCur[key] = { fileId:docx.id, text, folderId:folder.id };
+    _updateMiseMeta(key, _specMiseCur[key]);
+    if(_specCur && _specCur.key===key){ const el2 = document.getElementById('spec-mise'); if(el2) _renderSpecMise(el2, key); }
+  }catch(e){ console.warn('loadSpecMise:', e); }
+}
+async function saveSpecMise(){
+  if(blockIfOffline()) return;
+  const cur = _specCur; if(!cur) return;
+  const key = cur.key;
+  const ta = document.getElementById('spec-mise-text'); if(!ta) return;
+  const text = ta.value;
+  if(!accessToken){ toast('Reconnecte-toi à Google.', 'err'); return; }
+  if(!hasWriteScope()){ toast("Droit d'écriture Google non accordé — reconnecte-toi.", 'err'); return; }
+  const st = _specMiseCur[key] || { fileId:null, folderId:null };
+  try{
+    showBusy(true);
+    if(st.fileId){
+      const rr = await fetch(`https://www.googleapis.com/drive/v3/files/${st.fileId}?alt=media&supportsAllDrives=true`, { headers:{ Authorization:'Bearer '+accessToken } });
+      const ab = await _docxFromText(await rr.arrayBuffer(), text);
+      await _driveUpdateMedia(st.fileId, ab, DOCX_MIME);
+    } else {
+      const folderId = st.folderId || await ensureSpecFolder(cur.spec);
+      const created = await _driveUpload(await _newDocx(text), 'MISE.docx', folderId, DOCX_MIME);
+      st.fileId = created.id; st.folderId = folderId;
+    }
+    st.text = text; _specMiseCur[key] = st; _updateMiseMeta(key, st);
+    ta.dataset.dirty = '';
+    toast('💾 Mise enregistrée', 'ok');
+  }catch(e){ toast('❌ '+(e.message||'échec'), 'err'); console.error('saveSpecMise:', e); }
   finally{ showBusy(false); }
 }
 
