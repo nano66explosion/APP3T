@@ -778,7 +778,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-07 · b134 (fiche spectacle : ajouter une photo depuis le telephone -> Drive)';
+const APP_VERSION = '2026-07-07 · b135 (photos fiche : cache persistant + rafraichissement fond + matching par mots-cles + nommage de la photo)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3220,64 +3220,124 @@ function specBuyBadge(spec){ return specHasItems(spec) ? '<span class="ev-badge 
 // Le dossier SPEC_PHOTOS_FOLDER_ID contient un sous-dossier par spectacle.
 // On matche le nom du spectacle → on liste les images du sous-dossier → on les
 // affiche en vignettes (chargées en blob via l'API Drive, clic = ouvre dans Drive).
-let _specPhotoFolders = null;              // [{id,name,norm}] — liste des sous-dossiers (cache session)
+let _specPhotoFolders = null;              // [{id,name,norm,tokens}] — sous-dossiers (cache session)
 const _specPhotoCache = {};                // key -> {found:bool, images:[{id,name,url}]}
+// Petits mots ignorés dans le matching (grammaticaux / annotations de dossier).
+const _SPEC_STOP = new Set(['de','du','des','la','le','les','l','un','une','d','et','au','aux','en','ce','que','qui','vous','se','on','ok','vp','pas','sur','sous','dans','avec','the','a']);
+// Découpe un nom en mots-clés : retire ponctuation/accents, petits mots, dé-pluralise.
+function _specTokens(s){
+  return normSpec(s).split(' ')
+    .filter(t => t.length > 1 && !_SPEC_STOP.has(t))
+    .map(t => (t.length > 3 && t.endsWith('s')) ? t.slice(0, -1) : t)   // dé-pluralise (femmes→femme, vies→vie)
+    .filter(t => t.length > 1);
+}
 async function _listSpecPhotoFolders(){
   if(_specPhotoFolders) return _specPhotoFolders;
   const files = await driveListFolder(SPEC_PHOTOS_FOLDER_ID);
   _specPhotoFolders = files.filter(f => f.mimeType===DRIVE_FOLDER_MIME)
-    .map(f => ({ id:f.id, name:f.name, norm:normSpec(f.name) }));
+    .map(f => ({ id:f.id, name:f.name, norm:normSpec(f.name), tokens:_specTokens(f.name) }));
   return _specPhotoFolders;
 }
+// Matching par mots-clés : on prend le dossier dont les mots-clés recouvrent le mieux
+// ceux du spectacle (couverture du plus petit ensemble ≥ 60 %). Tolère mots en plus,
+// pluriels, apostrophes, casse. Ex. « Tour Monde » ↔ « Tour du Monde ».
 function _matchSpecFolder(folders, spec){
-  const n = normSpec(spec);
-  if(!n) return null;
-  let f = folders.find(x => x.norm === n);
-  if(f) return f;
-  // fallback : le nom du dossier commence par / contient le nom du spectacle (ou l'inverse)
-  const cand = folders.filter(x => x.norm && (x.norm.startsWith(n) || n.startsWith(x.norm) || x.norm.includes(n) || n.includes(x.norm)));
-  if(!cand.length) return null;
-  // le plus proche en longueur
-  cand.sort((a,b) => Math.abs(a.norm.length-n.length) - Math.abs(b.norm.length-n.length));
-  return cand[0];
+  const st = _specTokens(spec);
+  if(!st.length) return null;
+  const sset = new Set(st);
+  let best = null, bestScore = 0, bestDiff = 1e9;
+  for(const f of folders){
+    const ft = f.tokens || _specTokens(f.name);
+    if(!ft.length) continue;
+    const fset = new Set(ft);
+    let inter = 0; sset.forEach(t => { if(fset.has(t)) inter++; });
+    if(!inter) continue;
+    const score = inter / Math.min(sset.size, fset.size);   // couverture du plus petit ensemble
+    const diff = Math.abs(fset.size - sset.size);
+    if(score > bestScore || (score === bestScore && diff < bestDiff)){
+      best = f; bestScore = score; bestDiff = diff;
+    }
+  }
+  return bestScore >= 0.6 ? best : null;
 }
+// Cache PERSISTANT des images (Cache API — survit aux redémarrages), clé = id Drive.
+// La liste des images d'un spectacle (ids+noms) est en localStorage → rendu instantané.
+const PHOTO_CACHE = '3t-photos';
+async function _photoCacheGet(id){
+  try{ const c = await caches.open(PHOTO_CACHE); const r = await c.match('https://photo/'+id); if(r) return await r.blob(); }catch(e){}
+  return null;
+}
+async function _photoCachePut(id, blob){ try{ const c = await caches.open(PHOTO_CACHE); await c.put('https://photo/'+id, new Response(blob)); }catch(e){} }
+async function _photoCacheDelete(id){ try{ const c = await caches.open(PHOTO_CACHE); await c.delete('https://photo/'+id); }catch(e){} }
+function _photoMetaGet(){ try{ return JSON.parse(localStorage.getItem('3t_photos_meta')||'{}'); }catch(e){ return {}; } }
+function _photoMetaSet(m){ try{ localStorage.setItem('3t_photos_meta', JSON.stringify(m)); }catch(e){} }
+function _updatePhotoMeta(key, data){
+  const m = _photoMetaGet();
+  if(data) m[key] = { folderId:data.folderId, images:data.images, t:Date.now() };
+  else delete m[key];
+  _photoMetaSet(m);
+}
+
+// Affiche les photos : 1) instantané depuis le cache, 2) rafraîchit EN FOND (ne
+// télécharge QUE les nouvelles images, réutilise le cache, nettoie les supprimées).
 async function loadSpecPhotos(spec, key){
   const el = document.getElementById('spec-photos');
   if(!el) return;
-  if(!accessToken){ el.innerHTML = '<div class="spec-empty">Reconnecte-toi à Google pour voir les photos.</div>'; return; }
-  // cache session
-  const cached = _specPhotoCache[key];
-  if(cached){ _renderSpecPhotos(el, cached, key); if(cached.images && cached.images.every(i=>i.url)) return; }
-  else el.innerHTML = '<div class="spec-empty">📷 Recherche des photos…</div>';
+
+  // ── 1) RENDU INSTANTANÉ depuis le cache persistant ──────────────────────────
+  const meta = _photoMetaGet()[key];
+  let shown = false;
+  if(meta && meta.images && meta.images.length){
+    const rec = { found:true, folderId:meta.folderId, images: meta.images.map(im => ({ id:im.id, name:im.name, url:null })) };
+    await Promise.all(rec.images.map(async im => { const b = await _photoCacheGet(im.id); if(b) im.url = URL.createObjectURL(b); }));
+    _specPhotoCache[key] = rec;
+    if(_specCur && _specCur.key===key) _renderSpecPhotos(el, rec, key);
+    shown = rec.images.some(i => i.url);
+  }
+  if(!accessToken){ if(!shown && !meta) el.innerHTML = '<div class="spec-empty">Reconnecte-toi à Google pour voir les photos.</div>'; return; }
+  if(!shown && !meta) el.innerHTML = '<div class="spec-empty">📷 Recherche des photos…</div>';
+
+  // ── 2) RAFRAÎCHISSEMENT EN FOND ─────────────────────────────────────────────
   try{
     const folders = await _listSpecPhotoFolders();
     const folder = _matchSpecFolder(folders, spec);
-    if(!folder){ const r={found:false, images:[]}; _specPhotoCache[key]=r; if(_specCur&&_specCur.key===key) _renderSpecPhotos(el, r, key); return; }
-    const files = await driveListFolder(folder.id);
-    const imgs = files.filter(f => (f.mimeType||'').startsWith('image/'))
-      .map(f => ({ id:f.id, name:f.name, url:null }));
-    const rec = { found:true, folderId:folder.id, images:imgs };
+    if(!folder){ const r={found:false, images:[]}; _specPhotoCache[key]=r; _updatePhotoMeta(key, null); if(_specCur&&_specCur.key===key) _renderSpecPhotos(el, r, key); return; }
+    const files = (await driveListFolder(folder.id)).filter(f => (f.mimeType||'').startsWith('image/'));
+    const prev = (_specPhotoCache[key] && _specPhotoCache[key].images) || [];
+    const prevUrl = {}; prev.forEach(p => { if(p.url) prevUrl[p.id] = p.url; });
+    const rec = { found:true, folderId:folder.id, images: files.map(f => ({ id:f.id, name:f.name, url: prevUrl[f.id] || null })) };
     _specPhotoCache[key] = rec;
-    if(_specCur && _specCur.key===key) _renderSpecPhotos(el, rec, key);
-    // charge les vignettes (blob) en parallèle, puis re-render
-    await Promise.all(imgs.map(async im => {
-      try{
-        const r = await fetch(`https://www.googleapis.com/drive/v3/files/${im.id}?alt=media&supportsAllDrives=true`, { headers:{ Authorization:'Bearer '+accessToken } });
-        if(r.ok) im.url = URL.createObjectURL(await r.blob());
-      }catch(e){}
+    if(_specCur && _specCur.key===key) _renderSpecPhotos(el, rec, key);   // affiche déjà le cache + placeholders des nouvelles
+    // Télécharge UNIQUEMENT les images pas encore en cache
+    await Promise.all(rec.images.map(async im => {
+      if(im.url) return;
+      let b = await _photoCacheGet(im.id);
+      if(!b){
+        try{
+          const r = await fetch(`https://www.googleapis.com/drive/v3/files/${im.id}?alt=media&supportsAllDrives=true`, { headers:{ Authorization:'Bearer '+accessToken } });
+          if(r.ok){ b = await r.blob(); _photoCachePut(im.id, b); }
+        }catch(e){}
+      }
+      if(b) im.url = URL.createObjectURL(b);
     }));
-    if(_specCur && _specCur.key===key){ const el2=document.getElementById('spec-photos'); if(el2) _renderSpecPhotos(el2, rec, key); }
+    // Persiste la liste + purge du cache les images supprimées côté Drive
+    _updatePhotoMeta(key, { folderId:folder.id, images: files.map(f => ({ id:f.id, name:f.name })) });
+    const keep = new Set(files.map(f => f.id));
+    ((meta && meta.images) || []).forEach(im => { if(!keep.has(im.id)) _photoCacheDelete(im.id); });
+    if(_specCur && _specCur.key===key){ const el2 = document.getElementById('spec-photos'); if(el2) _renderSpecPhotos(el2, rec, key); }
   }catch(e){
-    if(_specCur && _specCur.key===key){ const el2=document.getElementById('spec-photos'); if(el2) el2.innerHTML = '<div class="spec-empty">Photos indisponibles ('+escapeHtml(e.message||'erreur')+').</div>'; }
+    if(!shown && _specCur && _specCur.key===key){ const el2 = document.getElementById('spec-photos'); if(el2) el2.innerHTML = '<div class="spec-empty">Photos indisponibles ('+escapeHtml(e.message||'erreur')+').</div>'; }
   }
 }
 function _renderSpecPhotos(el, rec, key){
   if(!rec.found){ el.innerHTML = '<div class="spec-empty">Aucune photo pour l\'instant — ajoute-en une ci-dessous.</div>'; return; }
   if(!rec.images.length){ el.innerHTML = '<div class="spec-empty">Aucune photo pour l\'instant — ajoute-en une ci-dessous.</div>'; return; }
-  el.innerHTML = rec.images.map(im => im.url
-    ? `<a class="spec-photo" href="https://drive.google.com/file/d/${im.id}/view" target="_blank" rel="noopener" title="${escapeHtml(im.name)}"><img src="${im.url}" alt="${escapeHtml(im.name)}" loading="lazy"></a>`
-    : `<div class="spec-photo spec-photo-loading" title="${escapeHtml(im.name)}">⏳</div>`
-  ).join('');
+  el.innerHTML = rec.images.map(im => {
+    const cap = escapeHtml(String(im.name||'').replace(/\.(jpe?g|png|webp|heic)$/i,''));
+    return `<figure class="spec-photo-fig">${im.url
+      ? `<a class="spec-photo" href="https://drive.google.com/file/d/${im.id}/view" target="_blank" rel="noopener" title="${cap}"><img src="${im.url}" alt="${cap}" loading="lazy"></a>`
+      : `<div class="spec-photo spec-photo-loading" title="${cap}">⏳</div>`}<figcaption class="spec-photo-cap">${cap}</figcaption></figure>`;
+  }).join('');
 }
 
 // ── #37b AJOUT D'UNE PHOTO depuis l'appareil (caméra ou galerie) → Drive ──────
@@ -3340,12 +3400,17 @@ async function addSpecPhoto(input){
   const cur = _specCur; if(!cur) return;
   if(!accessToken){ toast('Reconnecte-toi à Google.', 'err'); return; }
   if(!hasWriteScope()){ toast("Droit d'écriture Google non accordé — reconnecte-toi.", 'err'); return; }
+  // Nom de la photo (choisi par l'utilisateur) → sert de nom de fichier + légende.
+  const p = n => String(n).padStart(2,'0'); const t = new Date();
+  const def = `${cur.spec} ${p(t.getDate())}-${p(t.getMonth()+1)}-${t.getFullYear()}`;
+  let label = prompt('Nom de la photo (ex. plan de feu, implantation, loge…) :', def);
+  if(label === null) return;                                          // annulé → pas d'upload
+  label = (label.trim() || def).replace(/[\\/\n\r\t]+/g, ' ').slice(0, 90);
   try{
     showBusy(true); toast('📤 Envoi de la photo…', 'ok');
     const blob = await _downscaleImage(file, 2000, 0.85);
     const folderId = await ensureSpecFolder(cur.spec);
-    const p = n => String(n).padStart(2,'0'); const t = new Date();
-    const name = `${cur.spec} ${t.getFullYear()}${p(t.getMonth()+1)}${p(t.getDate())}-${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}.jpg`;
+    const name = /\.(jpe?g|png|webp)$/i.test(label) ? label : label + '.jpg';
     await _driveUpload(blob, name, folderId);
     delete _specPhotoCache[cur.key];        // force le rechargement de la grille
     _specPhotoFolders = null;

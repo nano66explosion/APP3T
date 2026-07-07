@@ -2,7 +2,9 @@
 // ⚠️ Bumper ce numéro à CHAQUE release (app.js/style.css/html) : c'est le changement
 // de sw.js qui déclenche la mise à jour auto (install → skipWaiting → activate →
 // controllerchange → location.reload). Sans ça, les PWA (surtout iOS) gardent l'ancienne version.
-const CACHE = '3t-cache-v62';
+const CACHE = '3t-cache-v63';
+// Cache persistant des photos de fiche (géré par app.js) — NE PAS purger aux updates.
+const PHOTO_CACHE = '3t-photos';
 const ASSETS = [
   'calendrier_3T.html',
   'app.js',
@@ -41,7 +43,7 @@ self.addEventListener('message', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE && k !== PHOTO_CACHE).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

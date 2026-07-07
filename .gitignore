@@ -5,3 +5,6 @@ copie*.xlsx
 # Divers
 .DS_Store
 .claude/
+
+# Copie locale du dossier Drive photos (données, hors app)
+Photos + indications décors scènes/
