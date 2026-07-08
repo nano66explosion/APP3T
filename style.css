@@ -126,7 +126,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 #paye-btn{display:none}
 /* Compte Direction : pas de bloc stats perso, pas de sélecteur de régisseur */
 body.boss-mode #stats{display:none}
-body.boss-mode #reg-select-wrap{display:none !important}   /* écrase le style inline */
+/* Direction : on garde le sélecteur de régisseur (voir un régisseur), on masque juste l'avatar perso */
+body.boss-mode #reg-avatar{display:none}
 /* Panneau HEURES du mois (compte Direction) : visible seulement sur PC */
 .boss-hours{display:none}
 @media (min-width:768px) and (min-height:500px){

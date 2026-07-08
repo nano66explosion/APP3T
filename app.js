@@ -1006,7 +1006,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-08 · b141 (PDF paye au format modele : par regisseur, jours par horaire, tarif, plage)';
+const APP_VERSION = '2026-07-08 · b142 (Direction : selecteur de regisseur a cote de Voir toute l equipe pour voir son calendrier)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -5767,6 +5767,11 @@ function onMonthSelect(){
 let selectedDay = null;
 
 function onRegChange() {
+  // Direction : choisir un régisseur bascule direct sur SON calendrier (décoche « équipe »).
+  if(isBoss()){
+    const tt = document.getElementById('team-toggle');
+    if(tt && tt.checked){ tt.checked = false; onTeamToggle(); return; }
+  }
   updateAvatar();
   selectedDay = null;
   renderCalendar();
@@ -6318,8 +6323,9 @@ function buildTeamDayMap(y, m) {
 function onTeamToggle() {
   const teamMode = isTeamMode();
   const regWrap = document.getElementById('reg-select-wrap');
-  regWrap.style.opacity = teamMode ? '0.35' : '1';
-  regWrap.style.pointerEvents = teamMode ? 'none' : '';
+  const dim = teamMode && !isBoss();   // la Direction garde le sélecteur cliquable (voir un régisseur)
+  regWrap.style.opacity = dim ? '0.35' : '1';
+  regWrap.style.pointerEvents = dim ? 'none' : '';
   selectedDay = null;
   renderCalendar(); // renderCalendar now calls renderStats internally
   if (isSearchActive()) searchByDate();
