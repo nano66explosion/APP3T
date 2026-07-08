@@ -23,7 +23,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<link rel="stylesheet" href="style.css?v=106">
+<link rel="stylesheet" href="style.css?v=107">
 </head>
 <body>
 <div id="topbar-loader"></div>
@@ -534,7 +534,7 @@
     <div class="settings-block">
       <label class="file-label">👤 Mon profil</label>
       <div class="file-name" id="lbl-profile" style="color:var(--text)"></div>
-      <button class="file-btn" onclick="openProfileModal()" style="margin-top:.4rem">Régisseur / avatar / date anniversaire</button>
+      <button class="file-btn" id="btn-profile-edit" onclick="openProfileModal()" style="margin-top:.4rem">Régisseur / avatar / date anniversaire</button>
     </div>
 
     <!-- Thème -->
@@ -883,6 +883,6 @@
   </div>
 </div>
 
-<script src="app.js?v=106"></script>
+<script src="app.js?v=107"></script>
 </body>
 </html>

@@ -128,6 +128,8 @@ select:focus{outline:none;border-color:var(--muted2)}
 body.boss-mode #stats{display:none}
 /* Direction : on garde le sélecteur de régisseur (voir un régisseur), on masque juste l'avatar perso */
 body.boss-mode #reg-avatar{display:none}
+/* Direction : pas de choix de profil dans les paramètres (profil fixe Laurent) */
+body.boss-mode #btn-profile-edit{display:none}
 /* Panneau HEURES du mois (compte Direction) : visible seulement sur PC */
 .boss-hours{display:none}
 @media (min-width:768px) and (min-height:500px){

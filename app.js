@@ -1006,7 +1006,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-08 · b142 (Direction : selecteur de regisseur a cote de Voir toute l equipe pour voir son calendrier)';
+const APP_VERSION = '2026-07-08 · b143 (Direction : profil fixe Laurent (BOSS), pas de choix de profil dans les parametres)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -1156,6 +1156,7 @@ function roleDot(r){
 function updateProfileLabel() {
   const lbl = document.getElementById('lbl-profile');
   if (!lbl) return;
+  if (isBoss()) { lbl.textContent = 'Laurent (BOSS)'; return; }   // Direction : profil fixe, pas de choix
   const reg = getMyReg();
   if (reg) lbl.textContent = `${getMyEmoji() ? getMyEmoji() + ' ' : ''}${reg}`;
   else lbl.textContent = allRegs.length ? 'Non défini' : 'Charge d\'abord le plan tech';
@@ -3980,6 +3981,7 @@ function updateAvatar(){
 
 let pendingEmoji = '';
 function openProfileModal(){
+  if(isBoss()){ toast('🏛️ Profil Direction (Laurent) — non modifiable', 'ok'); return; }   // pas de choix de profil pour la Direction
   const sel = document.getElementById('profile-reg');
   sel.innerHTML = allRegs.map(r=>`<option value="${r}">${r}</option>`).join('');
   sel.value = getMyReg() || getCurrentReg() || allRegs[0] || '';
