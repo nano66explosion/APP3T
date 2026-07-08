@@ -816,61 +816,129 @@ async function _sharePdf(blob, fname){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+// ── PAYE : correspondance nom court appli → NOM COMPLET + tarif horaire (€) ──
+// À COMPLÉTER quand on a tous les noms/tarifs (JM, Louis, Emilien, Lucile…).
+const PAYE_REGS = {
+  'Rizzo':  { name:'RIZZO-VILLARD Théo', rate:18 },
+  'Laurie': { name:'GUEDJ Laurie',       rate:18 },
+  'Simon':  { name:'Simon THOMAS',       rate:16 },
+  'Charly': { name:'Charly ISCAYE',      rate:16 },
+  'Théo':   { name:'Théo SAUVAIRE',      rate:16 },
+  'Jules':  { name:'Jules IMBERT',       rate:14 },
+  'Maxime': { name:'SCHOLLAERT Maxime',  rate:14 },
+};
+const PAYE_COMPANY = 'COMPAGNIE 333+1';
+const PAYE_DATES_EXT = 'Dates extérieures 180€';   // ligne rouge (à ajuster quand info reçue)
+const _PAYE_ORDER = Object.keys(PAYE_REGS);
+function _payeInfo(reg){ return PAYE_REGS[reg] || { name:reg, rate:null }; }
+// Nombre en français : 98.25 → "98,25" ; 75 → "75".
+function _frNum(n){ return (Math.round(n*100)/100).toString().replace('.', ','); }
+// Normalise un horaire de spectacle : "20h" → "20h00", "21h" → "21h00", "18h45" inchangé.
+function _payeTime(h){
+  h = String(h||'').trim();
+  const m = h.match(/^(\d{1,2})h(\d{0,2})$/i);
+  if(m) return m[1] + 'h' + (m[2] ? m[2].padStart(2,'0') : '00');
+  return h || 'horaire ?';
+}
+// Liste de jours "01, 02 et 30." (2 chiffres, « et » avant le dernier).
+function _payeDays(nums){
+  const a = nums.slice().sort((x,y)=>x-y).map(n => String(n).padStart(2,'0'));
+  if(a.length <= 1) return a[0] || '';
+  return a.slice(0,-1).join(', ') + ' et ' + a[a.length-1];
+}
+// Collecte pour un régisseur/mois : jours travaillés groupés par horaire, plage, nb jours.
+function payeRegMonth(reg, y, m){
+  const nbDays = new Date(y, m, 0).getDate();
+  const byTime = {}; const daysSet = new Set();
+  for(let d=1; d<=nbDays; d++){
+    const iso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const day = allDays.find(x => x.date.toISOString().slice(0,10) === iso);
+    if(!day) continue;
+    (day.entries||[]).forEach(e => {
+      if(e.cancelled || e.salle === 'Tournée') return;
+      if(!(e.regies||[]).some(r => r.reg === reg && r.role !== 'observateur')) return;
+      const t = _payeTime(e.h);
+      (byTime[t] = byTime[t] || new Set()).add(d);
+      daysSet.add(d);
+    });
+  }
+  const days = [...daysSet].sort((a,b)=>a-b);
+  return { byTime, days, nbJours: days.length, first: days[0], last: days[days.length-1] };
+}
 async function generatePayePDF(){
   if(!isBoss()){ toast('Réservé à la direction', 'err'); return; }
   const sel = document.getElementById('mois-select');
   const mk = sel && sel.value;
   if(!mk){ toast('Choisis un mois d\'abord', 'err'); return; }
   const [y, m] = mk.split('-').map(Number);
-  const moisLbl = (sel.selectedOptions[0] && sel.selectedOptions[0].textContent) || mk;
+  const moisNom = _MOIS_FR[m-1].toUpperCase();
   try{
     showBusy(true); toast('📄 Génération de la paye…', 'ok');
     const jsPDF = await _loadJsPDF();
     const suppByReg = await _hsuppMonthByReg(y, m);
+    // Régisseurs présents ce mois (heures régie OU supp), triés selon l'ordre de la config.
     const rows = [];
-    (allRegs||[]).slice().sort((a,b) => a.localeCompare(b,'fr')).forEach(reg => {
-      const h = computeHeures(buildDayMap(reg, y, m));
+    (allRegs||[]).forEach(reg => {
+      const d = payeRegMonth(reg, y, m);
+      const specH = computeHeures(buildDayMap(reg, y, m)).total;
       const supp = Math.round((suppByReg[reg] || 0)*100)/100;
-      const total = Math.round((h.total + supp)*100)/100;
-      if(h.total > 0 || supp > 0) rows.push({ reg, h, supp, total });
+      const heures = Math.round((specH + supp)*100)/100;
+      if(d.nbJours > 0 || heures > 0) rows.push({ reg, d, heures });
     });
+    rows.sort((a,b) => {
+      const ia = _PAYE_ORDER.indexOf(a.reg), ib = _PAYE_ORDER.indexOf(b.reg);
+      return (ia<0?999:ia) - (ib<0?999:ib) || a.reg.localeCompare(b.reg,'fr');
+    });
+
     const doc = new jsPDF({ unit:'mm', format:'a4' });
-    const M = 15, R = 195 - M; let yy = 18;
-    const nl = (n) => { yy += (n||5.5); if(yy > 278){ doc.addPage(); yy = 18; } };
-    doc.setFontSize(16); doc.setFont(undefined,'bold'); doc.text('PAYE — Heures régisseurs', M, yy); nl(7);
-    doc.setFontSize(12); doc.setFont(undefined,'normal'); doc.text(moisLbl, M, yy); nl(5.5);
-    doc.setFontSize(9); doc.setTextColor(130);
-    doc.text('Généré le ' + new Date().toLocaleDateString('fr-FR') + ' · Calendrier 3T TECH', M, yy);
-    doc.setTextColor(0); nl(8);
-    if(!rows.length){ doc.setFontSize(11); doc.text('Aucune heure ce mois.', M, yy); }
-    const line = (label, val, bold) => {
-      if(yy > 275){ doc.addPage(); yy = 18; }
-      doc.setFont(undefined, bold?'bold':'normal'); doc.setFontSize(10);
-      doc.text(label, M+4, yy); doc.text(String(val), R, yy, { align:'right' }); nl(5.4);
+    const M = 20, PW = 210; let yy = 22;
+    const F = 11;                                     // taille de police de base
+    const nl = (n) => { yy += (n==null?4.6:n); if(yy > 282){ doc.addPage(); yy = 22; } };
+    const uline = (txt, x, yb, style) => {           // texte souligné
+      doc.setFont('times', style||'normal'); doc.text(txt, x, yb);
+      const w = doc.getTextWidth(txt); doc.setLineWidth(0.3); doc.line(x, yb+0.9, x+w, yb+0.9);
     };
-    rows.forEach(d => {
-      if(yy > 250){ doc.addPage(); yy = 18; }
-      doc.setFontSize(12.5); doc.setFont(undefined,'bold'); doc.text(d.reg, M, yy); nl(6);
-      line('Représentations', d.h.nbRegies);
-      line('Montage', d.h.montage + ' h');
-      line('Durée spectacles', d.h.duree + ' h');
-      line('Démontage', d.h.demontage + ' h');
-      line('Service (1 h/régie)', d.h.service + ' h');
-      line('Heures supplémentaires', d.supp + ' h');
-      doc.setDrawColor(205); doc.line(M+4, yy-2.5, R, yy-2.5);
-      line('TOTAL', d.total + ' h', true); nl(4);
+    // ── En-tête ──
+    doc.setFontSize(F);
+    uline(`Paye régisseurs ${moisNom.charAt(0)+moisNom.slice(1).toLowerCase()} ${y}`, M, yy, 'bolditalic');
+    uline(PAYE_COMPANY, 115, yy, 'bolditalic');
+    nl(6);
+    doc.setFont('times','bold'); const dt = PAYE_DATES_EXT; const dw = doc.getTextWidth(dt);
+    doc.setFillColor(230, 20, 20); doc.rect(M-0.5, yy-3.6, dw+1.5, 5, 'F');
+    doc.setTextColor(0,0,0); doc.text(dt, M, yy);
+    nl(12);
+
+    if(!rows.length){ doc.setFont('times','normal'); doc.text('Aucune heure ce mois.', M, yy); }
+
+    rows.forEach(r => {
+      if(yy > 250){ doc.addPage(); yy = 22; }
+      const info = _payeInfo(r.reg);
+      const rateStr = info.rate!=null ? ` (${info.rate}€)` : '';
+      doc.setFontSize(F);
+      uline(info.name + rateStr, M, yy, 'bolditalic'); nl(4.8);
+      doc.setFont('times','normal');
+      if(r.d.first){
+        doc.text(`Du ${String(r.d.first).padStart(2,'0')} au ${String(r.d.last).padStart(2,'0')} ${moisNom} ${y}`, M, yy); nl(4.8);
+      }
+      doc.setFont('times','bold'); doc.text(`${_frNum(r.heures)} Heures`, M, yy); nl(4.8);
+      // Détail par horaire
+      const times = Object.keys(r.d.byTime).sort();
+      if(times.length){
+        nl(1.8);
+        doc.setFont('times','normal');
+        times.forEach(t => {
+          const days = _payeDays([...r.d.byTime[t]]);
+          doc.text(`- à ${t} les : ${days}.`, M, yy); nl(4.6);
+        });
+      }
+      nl(1.8);
+      doc.setFont('times','normal');
+      doc.text(`Soit ${String(r.d.nbJours).padStart(2,'0')} jours.`, M+22, yy);
+      nl(10);
     });
-    // Récapitulatif des totaux
-    if(rows.length){
-      if(yy > 245){ doc.addPage(); yy = 18; }
-      doc.setFontSize(13); doc.setFont(undefined,'bold'); doc.text('Récapitulatif', M, yy); nl(7);
-      let grand = 0;
-      rows.forEach(d => { line(d.reg, d.total + ' h'); grand += d.total; });
-      doc.setDrawColor(150); doc.line(M+4, yy-2.5, R, yy-2.5);
-      line('TOTAL GÉNÉRAL', (Math.round(grand*100)/100) + ' h', true);
-    }
+
     const blob = doc.output('blob');
-    const fname = ('Paye ' + moisLbl + '.pdf').replace(/[\\/:*?"<>|]+/g, ' ');
+    const fname = (`Paye régisseurs ${moisNom.charAt(0)+moisNom.slice(1).toLowerCase()} ${y}.pdf`).replace(/[\\/:*?"<>|]+/g, ' ');
     await _sharePdf(blob, fname);
     toast('✅ Paye générée', 'ok');
   }catch(e){ toast('❌ ' + (e.message || 'échec'), 'err'); console.error('generatePayePDF:', e); }
@@ -938,7 +1006,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-08 · b140 (Direction : pas de bloc stats ni regisseur, nom Laurent, colonne gauche PC scrollable)';
+const APP_VERSION = '2026-07-08 · b141 (PDF paye au format modele : par regisseur, jours par horaire, tarif, plage)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
