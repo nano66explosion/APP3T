@@ -772,7 +772,7 @@ let planLoaded = false;
 // Tant que la liste est vide, comportement 100 % identique pour tout le monde.
 const BOSS_EMAILS = ['team3tcafetheatre@gmail.com'];   // compte(s) Direction (patron)
 function isBoss(){ return BOSS_EMAILS.includes(String(googleEmail||'').trim().toLowerCase()); }
-function bossName(){ return localStorage.getItem('3t_google_name') || 'Direction'; }
+function bossName(){ return 'Laurent'; }
 // Identité utilisée pour ATTRIBUER une action (formation, réunion, note…).
 function authorName(){ return isBoss() ? bossName() : (myRegName() || getMyReg() || ''); }
 
@@ -938,7 +938,7 @@ const PLAN_SEASONS = [
 ];
 const DEFAULT_BASE_ID  = '1CjVuC4zHxfjxJE0YACQk3efqZDbbBT3a';
 const HSUPP_FOLDER_ID  = '1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v';
-const APP_VERSION = '2026-07-07 · b139 (Direction PC : panneau heures du mois a cote du calendrier + PDF paye PC/iPhone)';
+const APP_VERSION = '2026-07-08 · b140 (Direction : pas de bloc stats ni regisseur, nom Laurent, colonne gauche PC scrollable)';
 
 // ─── #16 PUSH (Firebase Cloud Messaging) ─────────────────────────────────────
 // Config publique du projet Firebase (à coller depuis la console Firebase →
@@ -3898,6 +3898,11 @@ function avatarFor(reg){
   return (reg || '').slice(0,2).toUpperCase();
 }
 function updateAvatar(){
+  if(isBoss()){   // compte Direction : pas de régisseur, on affiche « Laurent »
+    const a2 = document.getElementById('hdr-reg-avatar'); if(a2) a2.textContent = 'L';
+    const nm = document.getElementById('hdr-reg-name'); if(nm) nm.textContent = 'Laurent';
+    return;
+  }
   const reg = getCurrentReg() || getMyReg();
   const av = avatarFor(reg);
   const a1 = document.getElementById('reg-avatar'); if(a1) a1.textContent = av;

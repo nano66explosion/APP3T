@@ -124,10 +124,15 @@ select:focus{outline:none;border-color:var(--muted2)}
 .team-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--bg)}
 /* Bouton PAYE (compte Direction uniquement) */
 #paye-btn{display:none}
+/* Compte Direction : pas de bloc stats perso, pas de sélecteur de régisseur */
+body.boss-mode #stats{display:none}
+body.boss-mode #reg-select-wrap{display:none !important}   /* écrase le style inline */
 /* Panneau HEURES du mois (compte Direction) : visible seulement sur PC */
 .boss-hours{display:none}
 @media (min-width:768px) and (min-height:500px){
   body.boss-mode .boss-hours{display:block;margin:.6rem 1rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:.8rem .85rem}
+  /* Colonne gauche scrollable pour la Direction (sinon le panneau heures est coupé) */
+  body.boss-mode .app-col-left{overflow-y:auto}
 }
 .bh-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700}
 .bh-month{font-size:13px;color:var(--text);margin:.1rem 0 .55rem;text-transform:capitalize;font-weight:600}
