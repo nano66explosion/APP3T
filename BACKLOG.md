@@ -3,8 +3,10 @@
 > Application web mono-fichier (`calendrier_3T.html`) pour gérer le planning des régies
 > d'un théâtre (3T), les heures, les heures supplémentaires et l'intermittence.
 > Déployée en PWA sur GitHub Pages.
-> **Dernière mise à jour : 2026-07-03** — version courante **b124**.
+> **Dernière mise à jour : 2026-07-10** — version courante **b143**.
 > 🎉 **Les notifications push app fermée FONCTIONNENT enfin** (validé sur iPhone iOS 26) — cf. fix b123 ci-dessous.
+> 🆕 Depuis b125 : **calendrier continu multi-saisons**, **fiche spectacle enrichie** (photos Drive + Mise .docx éditable),
+> **PDF de paye** et **compte Direction (patron)**. Voir le changelog **b125→b143** juste après la section Versions.
 
 ---
 
@@ -13,7 +15,7 @@
 - **V1** = tag git **`v1`** (état stable de référence). Pour y revenir : `git reset --hard v1`.
 - **Version courante affichée** : constante `APP_VERSION` en haut du `<script>` (≈ ligne 2116),
   visible **en bas de ⚙️ Paramètres** ET **sur l'écran de connexion** (`#login-version`).
-  Bumper à chaque évolution notable. Actuelle : **`b94`**. *(La constante `APP_VERSION` est désormais dans `app.js`.)*
+  Bumper à chaque évolution notable. Actuelle : **`b143`**. *(La constante `APP_VERSION` est dans `app.js`.)*
 - **Mise à jour auto** : l'app se recharge seule quand le nouveau service worker prend la main
   (`controllerchange` → `location.reload`). **⚠️ CRUCIAL** : ce déclencheur n'arrive QUE si **`sw.js` change**.
   → **TOUJOURS bumper la constante `CACHE` dans `sw.js`** (ex. `3t-cache-v6`→`v7`) à chaque release qui touche
@@ -23,6 +25,39 @@
   Le HTML les charge avec **`?v=<build>`** (`app.js?v=83`, `style.css?v=83`) → nouvelle URL = pas de cache périmé.
   **Bumper ce `?v=` à chaque release** (en plus de `APP_VERSION` et `CACHE`). Le SW fait `caches.match(.,{ignoreSearch:true})`
   pour que le hors-ligne marche malgré le `?v=`.
+  **⚠️ b139 : `style.css?v=` est maintenant bumpé lui aussi** (avant il était figé à `?v=94` → CSS parfois périmée).
+  → à chaque release qui touche le CSS, bumper **`app.js?v=` ET `style.css?v=`** (mêmes numéros conseillés).
+
+## 🆕 Changelog b125 → b143 (2026-07-06 → 07-10)
+
+- **Calendrier CONTINU multi-saisons (b132)** : fini le sélecteur de saison. L'app charge et **fusionne tous les
+  fichiers plan tech** (`PLAN_SEASONS`) en un calendrier continu (`loadAllPlans`/`mergeParsed`). Chaque cellule garde
+  sa **provenance** (`src.file`) → l'écriture (positionnement, répét) va dans le **bon fichier**. Chargement résilient
+  (un fichier inaccessible est ignoré) + cache des métadonnées Drive (`getPlanMeta`).
+- **Vue Année (b133)** : les spectacles **sans régie assignée** s'affichent en **contour vert** (`.yd.show`) → la saison
+  à venir (26-27, non staffée) devient visible au lieu d'apparaître vide.
+- **Notif « régie demain » à heure fixe (b133)** : portée sur le **cron Cloudflare** (`regieTomorrow`, `REGIE_HOUR=19`),
+  fiable ; le cron GitHub devient un simple filet (fenêtre resserrée 19h-22h). **⚠️ 2 Cron Triggers Cloudflare à ajouter :
+  `0 17 * * *` et `0 18 * * *`** (19h Paris été/hiver) + redéployer le worker.
+- **Fiche spectacle — Photos (b131/b134/b135/b136)** : section « 📷 Photos / plan de feu » lue depuis le dossier Drive
+  `SPEC_PHOTOS_FOLDER_ID` (un sous-dossier par spectacle, **descend aussi dans les sous-dossiers par salle** GT/3TC).
+  **Ajout depuis le téléphone** (caméra/galerie → réduite JPEG → upload Drive, nommage libre + légende). **Cache
+  persistant (Cache API)** = affichage instantané + refresh en fond. **Matching par mots-clés** (ignore petits mots +
+  pluriels) → reconnaît « Tour du Monde » ↔ « Tour Monde », « Diner d'adieu » ↔ « Diner Adieu »… (testé sur 40 dossiers réels).
+- **Fiche spectacle — Mise (b136)** : lit/édite le **`MISE.docx`** du dossier Drive (texte réécrit dans le docx au save,
+  créé si absent), cache instantané comme les photos.
+- **Consommables (b131)** : marqueur 🛒 sur le calendrier (#34) + **historique des rachats** (#35, champ `history`).
+- **Stats avancées (b131, #15)** : dans l'intermittence — heures par salle, comparaison par mois, projection 507h.
+- **Compte DIRECTION (patron) — b137→b143** : email dans `BOSS_EMAILS` (`team3tcafetheatre@gmail.com`). À la connexion :
+  calendrier ÉQUIPE forcé, atterrissage Home, **pas de profil régisseur** (profil fixe **« Laurent (BOSS) »**),
+  **positionnement régie désactivé**, mais peut poster formations/réunions/notes (`authorName()`). Pas de bloc stats.
+  **PC** : panneau « Heures du mois » par régisseur à côté du calendrier (colonne gauche scrollable). **Sélecteur de
+  régisseur** à côté de « Voir toute l'équipe » (choisir un régisseur → décoche l'équipe → son calendrier).
+- **PDF de PAYE (b138/b141)** : bouton 💶 (Direction) → PDF **au format modèle** (`Paye régisseurs <Mois Année>`,
+  « COMPAGNIE 333+1 », « Dates extérieures 180€ » rouge ; par régisseur : NOM (tarif€), plage de dates, total Heures
+  (régie **+ heures supp**), jours **groupés par horaire** 18h45/20h00/21h00, « Soit NN jours »). jsPDF chargé à la
+  demande, partage iOS / téléchargement PC. **⚠️ à compléter** : `PAYE_REGS` (noms complets + tarifs de **JM, Louis,
+  Emilien PICARD, Lucile GARDIE**) et la logique de la ligne « Dates extérieures » (fixe 180€ ou nb tournées × 180€).
 
 ## 🔔 Architecture des notifications (résumé)
 
@@ -547,8 +582,11 @@ HSUPP_FOLDER_ID   = 1-HR96E9cjorFO9j9navxlQ1MKEVg9_7v   (dossier heures supp + b
 - [x] **8. Pastilles colorées pour les rôles** — point couleur par rôle (titulaire vert / doublon bleu / observateur anneau gris / formateur ambre) au lieu des tags texte `(obs.)`/`(form.)`. Helper `roleDot()`, légende mise à jour. ✅ FAIT
 - [x] **9. Thème clair** — variables CSS claires (`:root[data-theme="light"]`), bouton bascule **dès la page de connexion** ET dans ⚙️ Paramètres, mémorisé en localStorage (`3t_theme`), `theme-color` synchronisé. Boutons inversés corrigés (`color:var(--bg)` au lieu de `#0f0f0f`). ✅ FAIT
 - [ ] **10. Accessibilité** — meilleurs contrastes des gris, taille de police ajustable.
-- [~] **11. Vue patron** — ~~heures supp de toute l'équipe + clôture STOP~~. **ABANDONNÉ** (décision utilisateur, 2026-06-06).
-- [ ] **12. Export PDF / impression** d'un récap mensuel (régies + heures supp + progression 507h).
+- [x] **11. Vue patron / compte Direction** — ✅ FAIT (b137→b143). Compte `team3tcafetheatre@gmail.com` (`BOSS_EMAILS`) :
+  calendrier équipe forcé, profil fixe « Laurent (BOSS) », pas de positionnement, panneau heures du mois (PC) + sélecteur
+  de régisseur. Cf. changelog b125→b143.
+- [x] **12. Export PDF** — ✅ FAIT (b138/b141). Bouton 💶 Paye (Direction) → PDF mensuel par régisseur au format modèle
+  (`generatePayePDF`, jsPDF). Cf. changelog. **À compléter** : mapping `PAYE_REGS` (noms/tarifs) + ligne « Dates extérieures ».
 - [x] **13. Détection des conflits** — `computeConflicts(y,m)` repère un régisseur sur **2 salles à la même heure** le même jour (toute l'équipe, annulés/observateurs/tournées exclus). Marqueur **💥** sur le calendrier + bandeau rouge **cliquable** sous les stats → modale `conflict-modal` (jour, régisseur, heure, salles+spectacles en conflit), clic → ouvre le jour. ✅ FAIT
 - [x] **14. Alerte régies non attribuées** — bandeau « ⚠️ X régies sans personne ce mois » sous les stats (compté en vue équipe, annulés exclus). **+** marqueur **⚠️** sur chaque jour concerné dans le calendrier, **+** bandeau **cliquable** → modale `unassigned-modal` listant date / salle / spectacle, clic sur une ligne → ouvre le jour dans la grille (`showUnassigned`/`gotoUnassigned`). ✅ FAIT
 - [x] **15. Statistiques avancées** — ✅ FAIT (b131). Bloc « 📊 Statistiques avancées » dans l'intermittence : heures par salle (barres 3T/3TC/GT), comparaison par mois (barres), projection 507h (au rythme actuel → date d'atteinte ou total projeté en fin de période, heures supp incluses).
@@ -689,8 +727,8 @@ Demande utilisateur — rendre l'app plus réactive + réparer les notifs. Trois
 
 ## 🧭 Pour reprendre après un /clear
 
-1. Code sur GitHub `main` (à jour, version **b94**). **Découpé (b70)** : `calendrier_3T.html` (~50 Ko, structure),
-   **`app.js`** (~246 Ko, toute la logique), **`style.css`** (~50 Ko). Autres : `sw.js`, `firebase-messaging-sw.js`,
+1. Code sur GitHub `main` (à jour, version **b143**). **Découpé (b70)** : `calendrier_3T.html` (~65 Ko, structure),
+   **`app.js`** (~382 Ko, toute la logique), **`style.css`** (~66 Ko). Autres : `sw.js`, `firebase-messaging-sw.js`,
    `scripts/*.js`, `.github/workflows/*.yml`, **`cloudflare/worker.js`** (notif formation + auth Firebase,
    déployé sur `https://formation-notif.nano66explosion.workers.dev/`).
 2. **Lire ce BACKLOG en entier** (architecture, Firebase, Cloudflare, sécurité, versions, limites) avant de coder.
@@ -699,6 +737,8 @@ Demande utilisateur — rendre l'app plus réactive + réparer les notifs. Trois
    `new Function(<contenu app.js>)`. Vérifier aussi `sw.js`/`worker.js` si touchés.
 5. **Bumper `APP_VERSION`** (dans **`app.js`**) à chaque évolution notable (visible dans Paramètres + écran connexion).
    **ET bumper `CACHE` dans `sw.js`** (sinon la MAJ ne se propage pas aux PWA — cf. section « Mise à jour auto »).
+   **ET bumper `app.js?v=` (+ `style.css?v=` si le CSS change) dans `calendrier_3T.html`** (anti-cache CDN, cf. b83/b139).
+   ⚠️ **`APP_VERSION` ne doit JAMAIS contenir d'apostrophe** (`'`) → casse tout le parsing de `app.js` (bug b119).
 6. Pousser : `cd "APP 3T" && git add -A && git commit -m "…" && git push origin main` (finir le message par
    `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`). ⚠️ Token local **sans scope `workflow`** → ne pas
    modifier `.github/workflows/*` par push (l'utilisateur le fait via l'UI web). ⚠️ Si l'utilisateur a édité un fichier
